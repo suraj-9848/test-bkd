@@ -1,0 +1,41 @@
+version: '2'
+
+x-logging:
+  &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: 100m
+
+services:
+  db:
+    image: mysql:8.0.31
+    <<: *default-logging
+    restart: always
+    environment:
+      MYSQL_DATABASE: vacademy
+      MYSQL_USER: vacademy
+      MYSQL_PASSWORD: vacademy
+      MYSQL_ROOT_PASSWORD: root@12345
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./scripts/dev-db.sql:/docker-entrypoint-initdb.d/init.sql
+    profiles:
+      - vacademy
+    ports:
+      - 3306:3306
+
+  redis:
+    image: redis:7.0.5
+    <<: *default-logging
+    restart: always
+    volumes:
+      - redis-data:/data
+    profiles:
+      - vacademy
+    ports:
+      - 6379:6379
+
+volumes:
+  mysql-data:
+  redis-data:
