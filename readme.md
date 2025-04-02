@@ -1,5 +1,5 @@
 ### Prerun to setup DBs with Docker
-docker compose --profile vacademy up -d
+docker compose --profile trailbliz up -d
 
 pnpm i
 pnpm run watch //terminal 1
