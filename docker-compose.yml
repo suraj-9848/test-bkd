@@ -13,15 +13,15 @@ services:
     <<: *default-logging
     restart: always
     environment:
-      MYSQL_DATABASE: vacademy
-      MYSQL_USER: vacademy
-      MYSQL_PASSWORD: vacademy
+      MYSQL_DATABASE: trailbliz
+      MYSQL_USER: trailbliz
+      MYSQL_PASSWORD: trailbliz
       MYSQL_ROOT_PASSWORD: root@12345
     volumes:
       - mysql-data:/var/lib/mysql
       - ./scripts/dev-db.sql:/docker-entrypoint-initdb.d/init.sql
     profiles:
-      - vacademy
+      - trailbliz
     ports:
       - 3306:3306
 
@@ -32,7 +32,7 @@ services:
     volumes:
       - redis-data:/data
     profiles:
-      - vacademy
+      - trailbliz
     ports:
       - 6379:6379
 
