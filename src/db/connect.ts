@@ -10,16 +10,7 @@ const logger = require("../utils/logger").getLogger()
 const connectionString = config.MONGO_DB_CONNECTION_STRING
 
 
-export const connectMongoDB = function () {
-    mongoose
-        .connect(connectionString, {})
-        .then(() => {
-            logger.info("Connected to MongoDB")
-        })
-        .catch((err) => {
-            logger.error(err)
-        })
-}
+
 
 export const disconnect = function () {
     logger.info("Got call to disconnect DB")
