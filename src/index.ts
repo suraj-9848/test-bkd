@@ -7,14 +7,14 @@ dotenv.config({
   path: "./.env",
 });
 import { config } from "./config";
-import { AppDataSource, redisClient, connectMongoDB } from "./db/connect";
+import { AppDataSource, redisClient } from "./db/connect";
 import path from "path";
 
 const logger = require("./utils/logger").getLogger();
 const app = express();
 const PORT = config.PORT;
 
-connectMongoDB();
+//connectMongoDB();
 AppDataSource.initialize()
   .then(() => {
     console.log("MYSQL connected..")

@@ -7,7 +7,10 @@ export const config = {
     // Connection string of MongoDB
     MONGO_DB_CONNECTION_STRING: process.env.MONGO_KEY, // MANDATORY
     // Connection url of MySql
-    MYSQL_DATABASE_URL: process.env.NODE_ENV === "production" ? process.env.MYSQL_DATABASE_URL : process.env.MYSQL_DEV_DATABASE_URL, // MANDATORY
+    MYSQL_DATABASE_URL:
+    process.env.NODE_ENV === "production"
+      ? "mysql://trailbliz:trailbliz@prod-host:3306/prod-db"
+      : "mysql://trailbliz:trailbliz@localhost/trailbliz", // MANDATORY
     // redis not currently in use
     REDIS_URL: process.env.NODE_ENV === "production" ? process.env.REDIS_URL_PROD : process.env.REDIS_URL_DEV, // MANDATORY
 

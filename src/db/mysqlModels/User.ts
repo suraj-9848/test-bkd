@@ -23,6 +23,9 @@ export class User {
   @Column('simple-array')
   batch_id: string[];
 
+  @Column({ default: 'student' })
+  userRole: string;
+
   @ManyToOne(() => Org, org => org.users)
   @JoinColumn({ name: 'org_id' })
   organization: Org;
