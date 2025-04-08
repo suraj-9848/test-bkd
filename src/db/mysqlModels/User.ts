@@ -1,11 +1,16 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
-import { Org } from './Org';
- 
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
+import { v4 as uuidv4 } from "uuid";
+import { Org } from "./Org";
 
 @Entity()
 export class User {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string = uuidv4();
 
   @Column()
@@ -17,13 +22,10 @@ export class User {
   @Column({ nullable: true })
   password: string;
 
-  @Column('uuid')
+  @Column("uuid", { nullable: true }) 
   org_id: string;
 
-  @Column('simple-array')
-  batch_id: string[];
-
-  @ManyToOne(() => Org, org => org.users)
-  @JoinColumn({ name: 'org_id' })
+  @ManyToOne(() => Org, (org) => org.users)
+  @JoinColumn({ name: "org_id" })
   organization: Org;
 }

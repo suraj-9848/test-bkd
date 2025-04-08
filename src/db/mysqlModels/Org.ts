@@ -1,12 +1,11 @@
-// src/entities/Org.ts
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
-import { User } from './User';
-import { Batch } from './Batch';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from "typeorm";
+import { v4 as uuidv4 } from "uuid";
+import { User } from "./User";
+import { Batch } from "./Batch";
 
 @Entity()
 export class Org {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string = uuidv4();
 
   @Column()
@@ -18,9 +17,9 @@ export class Org {
   @Column({ nullable: true })
   address: string;
 
-  @OneToMany(() => User, user => user.organization)
+  @OneToMany(() => User, (user) => user.organization)
   users: User[];
 
-  @OneToMany('Batch', 'organization')
-  batches: Promise<Batch[]>;
+  @OneToMany(() => Batch, (batch) => batch.organization)
+  batches: Batch[];
 }

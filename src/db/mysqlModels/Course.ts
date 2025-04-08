@@ -1,30 +1,24 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
-import { Batch } from './Batch';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
+import { Batch } from "./Batch";
 
 @Entity()
 export class Course {
-  @PrimaryGeneratedColumn('uuid')
-  id: string = uuidv4();
+  @PrimaryGeneratedColumn("uuid")
+  id: string;
 
   @Column()
-  title: string;
+  name: string;
 
   @Column({ nullable: true })
-  logo: string;
+  description: string;
 
-  @Column('simple-array')
-  pages_id: string[];
-
-  @Column('json')
-  content: any;
-
-  @Column()
-  start_date: Date;
-
-  @Column()
-  end_date: Date;
-
-  @ManyToOne(() => Batch, batch => batch.courses)
-  batches: Batch;
+  @ManyToOne(() => Batch, (batch) => batch.courses)
+  @JoinColumn({ name: "batch_id" })
+  batch: Batch;
 }

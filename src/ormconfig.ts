@@ -1,15 +1,17 @@
-import { DataSourceOptions } from "typeorm"
-import { config } from "./config"
-// import fs from "fs"
+import { DataSourceOptions } from "typeorm";
+import { config } from "./config";
+import { User } from "./db/mysqlModels/User";
+import { Org } from "./db/mysqlModels/Org";
+import { Batch } from "./db/mysqlModels/Batch";
+import { Course } from "./db/mysqlModels/Course"; // Import the Course entity
 
 export const MysqlConfig: DataSourceOptions = {
-    url: config.MYSQL_DATABASE_URL,
-    type: "mysql",
-    // ssl:  process.env.NODE_ENV === "production" ? {ca : fs.readFileSync(__dirname + '/aws-ca.pem')} : false,
-    synchronize: true,
-    dropSchema: false, // ! Never make it true
-    logging: process.env.NODE_ENV === "production" ? false : true,
-    entities: ["build/db/mysqlModels/*.js"],
-    migrations: [],
-    subscribers: [],
-}
+  url: config.MYSQL_DATABASE_URL,
+  type: "mysql",
+  synchronize: true, // Automatically syncs the database schema (use cautiously in production)
+  dropSchema: false, // Never set this to true in production
+  logging: process.env.NODE_ENV === "production" ? false : true,
+  entities: [User, Org, Batch, Course], // Register all entities
+  migrations: [],
+  subscribers: [],
+};
