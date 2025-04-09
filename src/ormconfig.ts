@@ -1,5 +1,7 @@
 import { DataSourceOptions } from "typeorm"
 import { config } from "./config"
+import {StudentSessionProgress} from "./db/mysqlModels/StudentSessionProgress";
+import {StudentCourseProgress} from "./db/mysqlModels/StudentCourseProgress";
 // import fs from "fs"
 
 export const MysqlConfig: DataSourceOptions = {
@@ -9,7 +11,7 @@ export const MysqlConfig: DataSourceOptions = {
     synchronize: true,
     dropSchema: false, // ! Never make it true
     logging: process.env.NODE_ENV === "production" ? false : true,
-    entities: ["build/db/mysqlModels/*.js"],
+    entities: [StudentSessionProgress,StudentCourseProgress], // or .js if using compiled output
     migrations: [],
     subscribers: [],
 }

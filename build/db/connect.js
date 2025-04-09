@@ -1,0 +1,52 @@
+"use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.redisClient = exports.AppDataSource = exports.disconnect = exports.connectMongoDB = void 0;
+const mongoose_1 = __importDefault(require("mongoose"));
+const config_1 = require("../config");
+require("reflect-metadata");
+const typeorm_1 = require("typeorm");
+const ormconfig_1 = require("../ormconfig");
+const redis_1 = require("redis");
+const logger = require("../utils/logger").getLogger();
+const connectionString = config_1.config.MONGO_DB_CONNECTION_STRING;
+const connectMongoDB = () => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        yield mongoose_1.default.connect(connectionString);
+        logger.info("MongoDB connected...");
+    }
+    catch (err) {
+        logger.error("Failed to connect MongoDB", err);
+        process.exit(1); // Exit if DB connection fails
+    }
+});
+exports.connectMongoDB = connectMongoDB;
+const disconnect = function () {
+    logger.info("Got call to disconnect DB");
+    mongoose_1.default.disconnect();
+};
+exports.disconnect = disconnect;
+exports.AppDataSource = new typeorm_1.DataSource(ormconfig_1.MysqlConfig);
+// REDIS CLIENT
+exports.redisClient = (0, redis_1.createClient)({
+    url: config_1.config.REDIS_URL
+});
+// REDIS CLIENT EVENTS
+exports.redisClient.on("error", log("REDIS ERROR "));
+exports.redisClient.on("end", log("REDIS END"));
+exports.redisClient.on("ready", log("REDIS READY"));
+exports.redisClient.on("reconnecting", log("REDIS TRYING TO RECONNECT"));
+exports.redisClient.on("connect", log("REDIS CONNECTED"));
+function log(type) { return function () { logger.info(type); }; }
+//# sourceMappingURL=connect.js.map
