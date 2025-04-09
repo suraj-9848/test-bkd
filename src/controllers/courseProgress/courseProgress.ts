@@ -1,11 +1,14 @@
 import {Request, Response} from 'express';
 import {AppDataSource} from "../../db/connect";
 import {StudentCourseProgress} from "../../db/mysqlModels/StudentCourseProgress";
+//module export method to be changed to ES6
+const { getLoggerByName } = require("../../utils/logger");
 
 const progressRepo=AppDataSource.getRepository(StudentCourseProgress);
-
+const logger=getLoggerByName("courseProgress");
 export const updateSessionId=async(req:Request, res:Response)=>{
     const {id,session_id}=req.body;
+    logger.debug(req.body);
     try{
         const progress=await progressRepo.findOneBy({id});
         if(!progress){

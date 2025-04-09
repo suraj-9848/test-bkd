@@ -12,9 +12,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateStatus = exports.updateCurrentPage = exports.updateSessionId = void 0;
 const connect_1 = require("../../db/connect");
 const StudentCourseProgress_1 = require("../../db/mysqlModels/StudentCourseProgress");
+//module export method to be changed to ES6
+const { getLoggerByName } = require("../../utils/logger");
 const progressRepo = connect_1.AppDataSource.getRepository(StudentCourseProgress_1.StudentCourseProgress);
+const logger = getLoggerByName("courseProgress");
 const updateSessionId = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id, session_id } = req.body;
+    logger.debug(req.body);
     try {
         const progress = yield progressRepo.findOneBy({ id });
         if (!progress) {
