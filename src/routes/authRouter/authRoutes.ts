@@ -88,4 +88,33 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
+router.post("/logout", (req: Request, res: Response) => {
+  res.status(200).json({ message: "Logged out successfully" });
+});
+
+
+
+router.get("/profile", async (req: Request, res: Response) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const decoded: any = jwt.verify(token, config.JWT_SECRET);
+    const user = await userRepository.findOneBy({ id: decoded.id });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const { password, ...userData } = user;
+
+    res.status(200).json({ user: userData });
+  } catch (error) {
+    console.error("Error in Profile Route:", error);
+    res.status(500).json({ error: "Failed to fetch profile" });
+  }
+});
+
 export { router as authRouter };
