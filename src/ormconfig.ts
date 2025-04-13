@@ -8,10 +8,10 @@ import { Course } from "./db/mysqlModels/Course"; // Import the Course entity
 export const MysqlConfig: DataSourceOptions = {
   url: config.MYSQL_DATABASE_URL,
   type: "mysql",
-  synchronize: true, // Automatically syncs the database schema (use cautiously in production)
+  synchronize: process.env.NODE_ENV !== "production", // Automatically syncs the database schema (use cautiously in production)
   dropSchema: false, // Never set this to true in production
   logging: process.env.NODE_ENV === "production" ? false : true,
-  entities: [User, Org, Batch, Course], // Register all entities
+  entities: [__dirname + "/db/mysqlModels/*.{ts,js}"],
   migrations: [],
   subscribers: [],
 };

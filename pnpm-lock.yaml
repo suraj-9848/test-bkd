@@ -26,9 +26,6 @@ importers:
       express-session:
         specifier: ^1.18.1
         version: 1.18.1
-      express-sesssion:
-        specifier: ^1.15.5
-        version: 1.15.5
       google-auth-library:
         specifier: ^9.2.0
         version: 9.2.0
@@ -797,10 +794,6 @@ packages:
   express-session@1.18.1:
     resolution: {integrity: sha512-a5mtTqEaZvBCL9A9aqkrtfz+3SMDhOVUnjafjo+s7A9Txkq+SVX2DLvSp1Zrv4uCXa3lMSK3viWnh9Gg07PBUA==}
     engines: {node: '>= 0.8.0'}
-
-  express-sesssion@1.15.5:
-    resolution: {integrity: sha512-BHmo8904az0WbuSN5LgE3M7gafxaNpDEjo8VLGFGDCr86WYTy9dOzy2Ju9aQCRKyM5/UFgGApeGhXd38y+xSXg==}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
 
   express@4.18.2:
     resolution: {integrity: sha512-5/PsL6iGPdfQ/lKM1UuielYgv3BUoJfz1aUwU9vHZ+J7gyvwdQXFEBIEIaxeGf0GIcreATNyBExtalisDbuMqQ==}
@@ -2635,12 +2628,6 @@ snapshots:
       parseurl: 1.3.3
       safe-buffer: 5.2.1
       uid-safe: 2.1.5
-    transitivePeerDependencies:
-      - supports-color
-
-  express-sesssion@1.15.5:
-    dependencies:
-      express-session: 1.18.1
     transitivePeerDependencies:
       - supports-color
 

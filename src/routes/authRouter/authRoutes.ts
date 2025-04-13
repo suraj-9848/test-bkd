@@ -1,11 +1,13 @@
 import express, { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { User } from "../../db/mysqlModels/User";
-import { Org } from "../../db/mysqlModels/Org";
+import { OrgUtils } from "../../utils/orgUtils";
 import jwt from "jsonwebtoken";
+
 import { config } from "../../config";
 import { AppDataSource } from "../../db/connect";
 
+const logger = require("../../utils/logger").getLogger();
 const router = express.Router();
 const userRepository = AppDataSource.getRepository(User);
 
@@ -31,16 +33,8 @@ router.post("/register", async (req: Request, res: Response) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    let defaultOrg = await AppDataSource.getRepository(Org).findOneBy({
-      name: "Default Org",
-    });
-    if (!defaultOrg) {
-      defaultOrg = await AppDataSource.getRepository(Org).save({
-        name: "Default Org",
-        description: "Default organization description",
-        address: "Default address",
-      });
-    }
+    const defaultOrg = await OrgUtils.getOrCreateDefaultOrg();
+
 
     const newUser = userRepository.create({
       username,
@@ -52,7 +46,7 @@ router.post("/register", async (req: Request, res: Response) => {
 
     res.status(201).json({ message: "User registered successfully" });
   } catch (error) {
-    console.error("Error in Register Route:", error);
+    logger.error("Error in Register Route:", error);
     res.status(500).json({ error: "Failed to register user" });
   }
 });
@@ -83,7 +77,7 @@ router.post("/login", async (req: Request, res: Response) => {
 
     res.status(200).json({ message: "Login successful", token });
   } catch (error) {
-    console.error("Error in Login Route:", error);
+    logger.error("Error in Login Route:", error);
     res.status(500).json({ error: "Failed to login" });
   }
 });
@@ -112,7 +106,7 @@ router.get("/profile", async (req: Request, res: Response) => {
 
     res.status(200).json({ user: userData });
   } catch (error) {
-    console.error("Error in Profile Route:", error);
+    logger.error("Error in Profile Route:", error);
     res.status(500).json({ error: "Failed to fetch profile" });
   }
 });
