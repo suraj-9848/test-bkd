@@ -2,14 +2,13 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
-  ManyToOne,
+  ManyToOne, BaseEntity,
   OneToMany,
 } from "typeorm";
 import { Batch } from "./Batch";
 import { Page } from "./Page";
-
 @Entity()
-export class Course {
+export class Course extends BaseEntity{
   @PrimaryGeneratedColumn("uuid")
   id: string;
 

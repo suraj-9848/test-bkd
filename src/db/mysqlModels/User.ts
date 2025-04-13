@@ -26,7 +26,13 @@ export class User extends BaseEntity {
   @Column("uuid", { nullable: true }) 
   org_id: string;
 
-  @ManyToOne(() => Org, (org) => org.users)
-  @JoinColumn({ name: "org_id" })
+  @Column('simple-array')
+  batch_id: string[];
+
+  @Column({ default: 'student' })
+  userRole: string;
+
+  @ManyToOne(() => Org, org => org.users)
+  @JoinColumn({ name: 'org_id' })
   organization: Org;
 }

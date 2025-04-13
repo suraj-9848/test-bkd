@@ -1,9 +1,9 @@
-import mongoose from "mongoose";
-import { config } from "../config";
-import "reflect-metadata";
-import { DataSource } from "typeorm";
-import { MysqlConfig } from "../ormconfig";
-import { createClient } from "redis";
+import mongoose from "mongoose"
+import { config } from "../config"
+import "reflect-metadata"
+import { DataSource } from "typeorm"
+import { MysqlConfig } from "../ormconfig"
+import { createClient } from 'redis';
 
 const logger = require("../utils/logger").getLogger();
 
