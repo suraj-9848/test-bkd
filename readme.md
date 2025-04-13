@@ -10,7 +10,7 @@ pnpm run mac-dev-build //terminal 2
 
 
 ### For removing build
-git rm -r --cached .
+git rm -r --cached build
 
 ### For accesing DB
 mysql -u trialbliz -p
