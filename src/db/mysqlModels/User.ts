@@ -1,4 +1,5 @@
 import {
+  BaseEntity,
   Entity,
   PrimaryGeneratedColumn,
   Column,
@@ -9,7 +10,7 @@ import { v4 as uuidv4 } from "uuid";
 import { Org } from "./Org";
 
 @Entity()
-export class User {
+export class User extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
   id: string = uuidv4();
 

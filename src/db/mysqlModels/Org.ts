@@ -1,10 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from "typeorm";
+import { BaseEntity, Entity, PrimaryGeneratedColumn, Column, OneToMany } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 import { User } from "./User";
 import { Batch } from "./Batch";
 
 @Entity()
-export class Org {
+export class Org extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
   id: string = uuidv4();
 
