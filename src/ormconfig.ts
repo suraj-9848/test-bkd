@@ -11,7 +11,7 @@ export const MysqlConfig: DataSourceOptions = {
   synchronize: process.env.NODE_ENV !== "production", // Automatically syncs the database schema (use cautiously in production)
   dropSchema: false, // Never set this to true in production
   logging: process.env.NODE_ENV === "production" ? false : true,
-  entities: [__dirname + "/db/mysqlModels/*.{ts,js}"],
+  entities: [__dirname + "/db/mysqlModels/*.js"],
   migrations: [],
   subscribers: [],
 };

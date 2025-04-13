@@ -2,6 +2,7 @@ import express, { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { User } from "../../db/mysqlModels/User";
 import { OrgUtils } from "../../utils/orgUtils";
+import { UserUtils } from "../../utils/userUtils";
 import jwt from "jsonwebtoken";
 
 import { config } from "../../config";
@@ -21,10 +22,7 @@ router.post("/register", async (req: Request, res: Response) => {
         .json({ error: "Username, email, and password are required" });
     }
 
-    const existingUser = await userRepository.findOneBy([
-      { email },
-      { username },
-    ]);
+    const existingUser = await UserUtils.findByEmailOrUsername(email, username);
     if (existingUser) {
       return res
         .status(400)
@@ -34,7 +32,6 @@ router.post("/register", async (req: Request, res: Response) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const defaultOrg = await OrgUtils.getOrCreateDefaultOrg();
-
 
     const newUser = userRepository.create({
       username,
@@ -59,7 +56,7 @@ router.post("/login", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Email and password are required" });
     }
 
-    const user = await userRepository.findOneBy({ email });
+    const user = await UserUtils.findByEmail(email);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -86,8 +83,6 @@ router.post("/logout", (req: Request, res: Response) => {
   res.status(200).json({ message: "Logged out successfully" });
 });
 
-
-
 router.get("/profile", async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
@@ -96,7 +91,7 @@ router.get("/profile", async (req: Request, res: Response) => {
     }
 
     const decoded: any = jwt.verify(token, config.JWT_SECRET);
-    const user = await userRepository.findOneBy({ id: decoded.id });
+    const user = await UserUtils.findById(decoded.id);
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
