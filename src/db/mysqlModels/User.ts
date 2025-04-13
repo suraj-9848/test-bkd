@@ -1,11 +1,17 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
-import { Org } from './Org';
- 
+import {
+  BaseEntity,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
+import { v4 as uuidv4 } from "uuid";
+import { Org } from "./Org";
 
 @Entity()
-export class User {
-  @PrimaryGeneratedColumn('uuid')
+export class User extends BaseEntity {
+  @PrimaryGeneratedColumn("uuid")
   id: string = uuidv4();
 
   @Column()
@@ -17,7 +23,7 @@ export class User {
   @Column({ nullable: true })
   password: string;
 
-  @Column('uuid')
+  @Column("uuid", { nullable: true }) 
   org_id: string;
 
   @Column('simple-array')

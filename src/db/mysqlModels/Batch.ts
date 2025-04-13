@@ -1,39 +1,32 @@
-// src/entities/Batch.ts
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn, BaseEntity } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
-import { Course } from './Course';
-import { Org } from './Org';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  OneToMany,
+  JoinColumn,
+} from "typeorm";
+import { Org } from "./Org";
+import { Course } from "./Course";
 
 @Entity()
-export class Batch extends BaseEntity{
-  @PrimaryGeneratedColumn('uuid')
-  id: string = uuidv4();
+export class Batch {
+  @PrimaryGeneratedColumn("uuid")
+  id: string;
 
   @Column()
   name: string;
 
-  @Column('simple-array')
-  requestors: string[];
+  @Column({ nullable: true })
+  description: string;
 
-  @Column('simple-array')
-  members: string[];
-
-  @Column('simple-array')
-  course_id: string[];
-
-  @Column()
-  start_date: Date;
-
-  @Column()
-  end_date: Date;
-
-  @Column('uuid')
+  @Column("uuid")
   org_id: string;
 
-  @ManyToOne('Org', 'batches')
-  @JoinColumn({ name: 'org_id' })
-  organization: Promise<Org>;
+  @ManyToOne(() => Org, (org) => org.batches)
+  @JoinColumn({ name: "org_id" })
+  organization: Org;
 
-  @OneToMany(() => Course, course => course.batches)
+  @OneToMany(() => Course, (course) => course.batch)
   courses: Course[];
 }

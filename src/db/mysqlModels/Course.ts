@@ -1,11 +1,16 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, BaseEntity } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
-import { Batch } from './Batch';
-
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne, BaseEntity,
+  OneToMany,
+} from "typeorm";
+import { Batch } from "./Batch";
+import { Page } from "./Page";
 @Entity()
 export class Course extends BaseEntity{
-  @PrimaryGeneratedColumn('uuid')
-  id: string = uuidv4();
+  @PrimaryGeneratedColumn("uuid")
+  id: string;
 
   @Column()
   title: string;
@@ -13,10 +18,10 @@ export class Course extends BaseEntity{
   @Column({ nullable: true })
   logo: string;
 
-  @Column('simple-array')
-  pages_id: string[];
+  @OneToMany(() => Page, (page) => page.course, { cascade: true })
+  pages: Page[];
 
-  @Column('json')
+  @Column("json")
   content: any;
 
   @Column()
@@ -25,6 +30,6 @@ export class Course extends BaseEntity{
   @Column()
   end_date: Date;
 
-  @ManyToOne(() => Batch, batch => batch.courses)
-  batches: Batch;
+  @ManyToOne(() => Batch, (batch) => batch.courses, { onDelete: "CASCADE" })
+  batch: Batch;
 }
