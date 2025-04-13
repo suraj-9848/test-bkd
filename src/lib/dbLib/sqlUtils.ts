@@ -7,10 +7,6 @@ export async function createRecord<T extends BaseEntity>( model: { save: (data: 
     try {
       const savedData = await model.save(data);
       
-      if (cacheKey && redisClient.isOpen) {
-        await setCacheData(cacheKey, savedData, cacheLimit);
-      }
-
       return savedData;
     } catch (err) {
       logger.error("ERROR in createRecord", err);
