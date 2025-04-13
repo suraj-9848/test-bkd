@@ -26,7 +26,7 @@ module.exports.getLoggerByName = function (name) {
 };
 
 module.exports.getLogger = function () {
-  return module.exports.getLoggerByName("SAP");
+  return module.exports.getLoggerByName("Trailbliz LMS");
 };
 
 const logger = require("../utils/logger").getLogger();
