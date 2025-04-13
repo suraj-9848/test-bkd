@@ -3,9 +3,10 @@ import {
   PrimaryGeneratedColumn,
   Column,
   ManyToOne,
-  JoinColumn,
+  OneToMany,
 } from "typeorm";
 import { Batch } from "./Batch";
+import { Page } from "./Page";
 
 @Entity()
 export class Course {
@@ -13,12 +14,23 @@ export class Course {
   id: string;
 
   @Column()
-  name: string;
+  title: string;
 
   @Column({ nullable: true })
-  description: string;
+  logo: string;
 
-  @ManyToOne(() => Batch, (batch) => batch.courses)
-  @JoinColumn({ name: "batch_id" })
+  @OneToMany(() => Page, (page) => page.course, { cascade: true })
+  pages: Page[];
+
+  @Column("json")
+  content: any;
+
+  @Column()
+  start_date: Date;
+
+  @Column()
+  end_date: Date;
+
+  @ManyToOne(() => Batch, (batch) => batch.courses, { onDelete: "CASCADE" })
   batch: Batch;
 }
