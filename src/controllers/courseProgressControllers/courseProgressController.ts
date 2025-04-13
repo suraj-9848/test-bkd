@@ -1,48 +1,49 @@
-import { Request, Response } from "express";
+import { AppDataSource } from "../../db/connect"; 
 import { StudentCourseProgress } from "../../db/mysqlModels/StudentCourseProgress";
-import { updateRecords, getSingleRecord } from "../../lib/dbLib/sqlUtils";
-const logger = require("../../utils/logger").getLoggerByName("CourseProgressController");
-const { performance } = require("perf_hooks");
+import { Request, Response } from "express";
 
 export const updateCourseProgress = async (req: Request, res: Response) => {
-  performance.mark("updateCourseProgress-start");
-
   try {
     const { student_id, session_id, current_page, status } = req.body;
 
     if (!student_id || !session_id || !current_page || !status) {
-      logger.warn("Missing required fields");
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    const existingProgress = await getSingleRecord(StudentCourseProgress as any, { student_id, session_id });
+
+    const repo = AppDataSource.getRepository(StudentCourseProgress);
+
+
+    const existingProgress = await repo.findOneBy({ student_id, session_id });
 
     if (existingProgress) {
-      await updateRecords(StudentCourseProgress as any, { student_id, session_id }, { current_page, status }, false);
-      logger.info(`Progress updated for student_id=${student_id}`);
-      performance.mark("updateCourseProgress-end");
-      performance.measure("updateCourseProgress", "updateCourseProgress-start", "updateCourseProgress-end");
-      return res.status(200).json({ message: "Progress updated successfully" });
+      existingProgress.current_page = current_page;
+      existingProgress.status = status;
+
+      const updated = await repo.save(existingProgress);
+
+      return res.status(200).json({
+        message: "Student course progress updated successfully",
+        data: updated,
+      });
+    } else {
+
+      const newProgress = repo.create({
+        student_id,
+        session_id,
+        current_page,
+        status,
+      });
+
+      const saved = await repo.save(newProgress);
+
+      return res.status(201).json({
+        message: "Student course progress created successfully",
+        data: saved,
+      });
     }
-
-    // Use updateRecords with upsert: true to insert if not exists
-    await updateRecords(StudentCourseProgress as any, [{ student_id, session_id }], {
-      student_id,
-      session_id,
-      current_page,
-      status,
-    }, true);
-
-    logger.info(`Progress created for student_id=${student_id}`);
-    performance.mark("updateCourseProgress-end");
-    performance.measure("updateCourseProgress", "updateCourseProgress-start", "updateCourseProgress-end");
-
-    return res.status(201).json({ message: "Progress created successfully" });
-
   } catch (error) {
-    logger.error("Error in updateCourseProgress", error);
-    performance.mark("updateCourseProgress-end");
-    performance.measure("updateCourseProgress", "updateCourseProgress-start", "updateCourseProgress-end");
+    console.error("Error updating course progress:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

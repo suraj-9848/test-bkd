@@ -4,7 +4,7 @@ import "reflect-metadata"
 import { DataSource } from "typeorm"
 import { MysqlConfig } from "../ormconfig"
 import { createClient } from 'redis';
-import mysql from 'mysql2/promise';
+
 
 const logger = require("../utils/logger").getLogger()
 
@@ -20,10 +20,7 @@ export const connectMongoDB = async () => {
     
 };
 
-export const mysqlPool = mysql.createPool({
-    uri: config.MYSQL_DATABASE_URL,
-    connectionLimit: 10,
-});
+
 
 export const disconnect = function () {
     logger.info("Got call to disconnect DB")
