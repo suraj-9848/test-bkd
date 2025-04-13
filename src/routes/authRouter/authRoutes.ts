@@ -16,6 +16,20 @@ router.post("/register", async (req: Request, res: Response) => {
   try {
     const { username, email, password } = req.body;
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
+
+    const strongPasswordRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+    if (!strongPasswordRegex.test(password)) {
+      return res.status(400).json({
+        error:
+          "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character",
+      });
+    }
+
     if (!username || !email || !password) {
       return res
         .status(400)
@@ -69,10 +83,19 @@ router.post("/login", async (req: Request, res: Response) => {
     const token = jwt.sign(
       { id: user.id, username: user.username },
       config.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: config.JWT_EXPIRES_IN }
     );
 
-    res.status(200).json({ message: "Login successful", token });
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: config.JWT_COOKIE_EXPIRES_IN,
+    });
+
+    res.status(200).json({
+      message: "Login successful",
+      user: { id: user.id, username: user.username },
+    });
   } catch (error) {
     logger.error("Error in Login Route:", error);
     res.status(500).json({ error: "Failed to login" });
