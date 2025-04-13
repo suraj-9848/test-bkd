@@ -1,11 +1,8 @@
-// src/routes/sessionProgressRoutes.ts
-import express from 'express';
-import { updateSession, updateQuestion, updateSessionStatus } from '../../controllers/sessionProgressControllers/sessionProgressController';
+import express from "express";
+import { updateSessionProgress } from "../../controllers/sessionProgressControllers/sessionProgressController";
 
-const sessionProgressRoutes = express.Router();
+const sessionProgressRouter = express.Router();
 
-sessionProgressRoutes.post('/session', updateSession);
-sessionProgressRoutes.post('/question', updateQuestion);
-sessionProgressRoutes.post('/status', updateSessionStatus);
+sessionProgressRouter.post("/updateSessionProgress", updateSessionProgress);
 
-export default sessionProgressRoutes;
+export default sessionProgressRouter;

@@ -1,32 +1,59 @@
-// src/controllers/sessionProgressController.ts
-import { Request, Response } from 'express';
-import { updateSessionId, updateQuestionId, updateStatus } from '../../utils/sessionProgress/sessionProgress';
-export const updateSession = async (req: Request, res: Response) => {
-  const { id, session_id } = req.body;
-  try {
-    const result = await updateSessionId(id, session_id);
-    res.json({ message: 'Session ID updated successfully', result });
-  } catch (err) {
-    res.status(500).json({ message: 'Error updating session ID', error: err });
-  }
-};
+import { Request, Response } from "express";
+import { StudentSessionProgress } from "../../db/mysqlModels/StudentSessionProgress";
+import { getSingleRecord, updateRecords } from "../../lib/dbLib/sqlUtils";
 
-export const updateQuestion = async (req: Request, res: Response) => {
-  const { id, question_id } = req.body;
-  try {
-    const result = await updateQuestionId(id, question_id);
-    res.json({ message: 'Question ID updated successfully', result });
-  } catch (err) {
-    res.status(500).json({ message: 'Error updating question ID', error: err });
-  }
-};
+const logger = require("../../utils/logger").getLoggerByName("SessionProgressController");
+const { performance } = require("perf_hooks");
 
-export const updateSessionStatus = async (req: Request, res: Response) => {
-  const { id, status } = req.body;
+export const updateSessionProgress = async (req: Request, res: Response) => {
+  performance.mark("updateSessionProgress-start");
+
   try {
-    const result = await updateStatus(id, status);
-    res.json({ message: 'Session status updated successfully', result });
-  } catch (err) {
-    res.status(500).json({ message: 'Error updating status', error: err });
+    const { student_id, session_id, question_id, status } = req.body;
+
+    if (!student_id || !session_id || !question_id || !status) {
+      logger.warn("Missing required fields in session progress");
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const existingProgress = await getSingleRecord(StudentSessionProgress as any, {
+      student_id,
+      session_id,
+      question_id,
+    });
+
+    if (existingProgress) {
+      await updateRecords(
+        StudentSessionProgress as any,
+        { student_id, session_id, question_id },
+        { status },
+        false
+      );
+      logger.info(`Session progress updated for student_id=${student_id}, session_id=${session_id}`);
+      performance.mark("updateSessionProgress-end");
+      performance.measure("updateSessionProgress", "updateSessionProgress-start", "updateSessionProgress-end");
+
+      return res.status(200).json({ message: "Session progress updated successfully" });
+    }
+
+    await updateRecords(
+      StudentSessionProgress as any,
+      [{ student_id, session_id, question_id }],
+      { student_id, session_id, question_id, status },
+      true
+    );
+
+    logger.info(`Session progress created for student_id=${student_id}, session_id=${session_id}`);
+    performance.mark("updateSessionProgress-end");
+    performance.measure("updateSessionProgress", "updateSessionProgress-start", "updateSessionProgress-end");
+
+    return res.status(201).json({ message: "Session progress created successfully" });
+
+  } catch (error) {
+    logger.error("Error in updateSessionProgress", error);
+    performance.mark("updateSessionProgress-end");
+    performance.measure("updateSessionProgress", "updateSessionProgress-start", "updateSessionProgress-end");
+
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
