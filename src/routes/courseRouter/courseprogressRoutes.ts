@@ -1,7 +1,10 @@
-import express from "express";
-import {updateSessionId,updateCurrentPage,updateStatus} from "../../controllers/courseProgress/courseProgress";
+// src/routes/courseProgressRoutes.ts
+import express from 'express';
+import { updatePage, updateCourseProgressStatus } from '../../controllers/courseProgressControllers/courseProgressController';
 
-export const courseprogressRouter=express.Router();
-courseprogressRouter.post("/session",updateSessionId);
-courseprogressRouter.post("/page",updateCurrentPage);
-courseprogressRouter.post("/status",updateStatus);
+const courseProgressRoutes = express.Router();
+
+courseProgressRoutes.post('/page', updatePage);
+courseProgressRoutes.post('/status', updateCourseProgressStatus);
+
+export default courseProgressRoutes;

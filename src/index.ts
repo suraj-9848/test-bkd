@@ -3,8 +3,8 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import morgan from "morgan";
-import {courseprogressRouter} from "./routes/courseRouter/courseprogressRoutes";
-import {sessionprogressRouter} from "./routes/sessionRouter/sessionprogressRoutes";
+import courseProgressRoutes from "./routes/courseRouter/courseprogressRoutes";
+import sessionProgressRoutes from "./routes/sessionRouter/sessionprogressRoutes";
 
 dotenv.config({
   path: "./.env",
@@ -40,8 +40,8 @@ app.use(express.json({ limit: config.PAYLOAD_LIMIT }));
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true, limit: config.PAYLOAD_LIMIT }));
 app.use(express.static(path.join(process.cwd(), "../frontend/build"), config.STATIC_CACHE_TIME));
-app.use("/api/courseProgress",courseprogressRouter);
-app.use("/api/sessionProgress",sessionprogressRouter);
+app.use("/api/courseProgress",courseProgressRoutes);
+app.use("/api/sessionProgress",sessionProgressRoutes);
 
 import { adminRouter } from "./routes/adminRouter/adminRoutes";
 import { authRouter } from "./routes/authRouter/authRoutes";
