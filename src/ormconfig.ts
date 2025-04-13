@@ -1,9 +1,5 @@
 import { DataSourceOptions } from "typeorm";
 import { config } from "./config";
-import { User } from "./db/mysqlModels/User";
-import { Org } from "./db/mysqlModels/Org";
-import { Batch } from "./db/mysqlModels/Batch";
-import { Course } from "./db/mysqlModels/Course"; // Import the Course entity
 
 export const MysqlConfig: DataSourceOptions = {
   url: config.MYSQL_DATABASE_URL,
