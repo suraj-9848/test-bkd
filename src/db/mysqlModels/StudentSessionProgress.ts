@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 @Entity()
 export class StudentSessionProgress {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id: string = uuidv4();
 
   @Column('uuid')
   student_id: string;
