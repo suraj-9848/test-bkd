@@ -9,10 +9,26 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getFillteredRecordsWithPaginationNew = exports.getFillteredRecordsWithPagination = exports.updateRecords = exports.deleteRecords = exports.getAllRecordsWithFilter = exports.getSingleRecord = exports.getAllRecords = void 0;
+exports.getFillteredRecordsWithPaginationNew = exports.getFillteredRecordsWithPagination = exports.updateRecords = exports.deleteRecords = exports.getAllRecordsWithFilter = exports.getSingleRecord = exports.getAllRecords = exports.createRecord = void 0;
 const connect_1 = require("../../db/connect");
 const redisUtils_1 = require("../redisLib/redisUtils");
 const logger = require("../../utils/logger").getLoggerByName("SQL Utils");
+function createRecord(model, data, cacheKey, cacheLimit = 10 * 60) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const savedData = yield model.save(data);
+            if (cacheKey && connect_1.redisClient.isOpen) {
+                yield (0, redisUtils_1.setCacheData)(cacheKey, savedData, cacheLimit);
+            }
+            return savedData;
+        }
+        catch (err) {
+            logger.error("ERROR in createRecord", err);
+            throw err;
+        }
+    });
+}
+exports.createRecord = createRecord;
 function getAllRecords(model, key = "", isCache = false, cacheLimit = 10 * 60) {
     return __awaiter(this, void 0, void 0, function* () {
         let data;

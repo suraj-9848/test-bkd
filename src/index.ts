@@ -14,7 +14,7 @@ const logger = require("./utils/logger").getLogger();
 const app = express();
 const PORT = config.PORT;
 
-//connectMongoDB();
+//connectMySQL
 AppDataSource.initialize()
   .then(() => {
     console.log("MYSQL connected..")

@@ -11,6 +11,7 @@ export const config = {
     process.env.NODE_ENV === "production"
       ? "mysql://trailbliz:trailbliz@prod-host:3306/prod-db"
       : "mysql://trailbliz:trailbliz@localhost/trailbliz", // MANDATORY
+      
     // redis not currently in use
     REDIS_URL: process.env.NODE_ENV === "production" ? process.env.REDIS_URL_PROD : process.env.REDIS_URL_DEV, // MANDATORY
 

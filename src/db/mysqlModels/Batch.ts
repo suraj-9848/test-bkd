@@ -1,11 +1,11 @@
 // src/entities/Batch.ts
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn, BaseEntity } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { Course } from './Course';
 import { Org } from './Org';
 
 @Entity()
-export class Batch {
+export class Batch extends BaseEntity{
   @PrimaryGeneratedColumn('uuid')
   id: string = uuidv4();
 

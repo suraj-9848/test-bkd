@@ -7,11 +7,6 @@ import { createClient } from 'redis';
 
 const logger = require("../utils/logger").getLogger()
 
-const connectionString = config.MONGO_DB_CONNECTION_STRING
-
-
-
-
 export const disconnect = function () {
     logger.info("Got call to disconnect DB")
     mongoose.disconnect()

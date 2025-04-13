@@ -17,7 +17,7 @@ const path_1 = __importDefault(require("path"));
 const logger = require("./utils/logger").getLogger();
 const app = (0, express_1.default)();
 const PORT = config_1.config.PORT;
-//connectMongoDB();
+//connectMySQL
 connect_1.AppDataSource.initialize()
     .then(() => {
     console.log("MYSQL connected..");

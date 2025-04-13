@@ -1,9 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, BaseEntity } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { Batch } from './Batch';
 
 @Entity()
-export class Course {
+export class Course extends BaseEntity{
   @PrimaryGeneratedColumn('uuid')
   id: string = uuidv4();
 

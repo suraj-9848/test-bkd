@@ -11,7 +11,6 @@ const typeorm_1 = require("typeorm");
 const ormconfig_1 = require("../ormconfig");
 const redis_1 = require("redis");
 const logger = require("../utils/logger").getLogger();
-const connectionString = config_1.config.MONGO_DB_CONNECTION_STRING;
 const disconnect = function () {
     logger.info("Got call to disconnect DB");
     mongoose_1.default.disconnect();

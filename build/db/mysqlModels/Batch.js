@@ -14,8 +14,9 @@ exports.Batch = void 0;
 const typeorm_1 = require("typeorm");
 const uuid_1 = require("uuid");
 const Course_1 = require("./Course");
-let Batch = class Batch {
+let Batch = class Batch extends typeorm_1.BaseEntity {
     constructor() {
+        super(...arguments);
         this.id = (0, uuid_1.v4)();
     }
 };
