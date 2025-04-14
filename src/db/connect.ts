@@ -1,13 +1,3 @@
-<<<<<<< HEAD
-import mongoose from "mongoose"
-import { config } from "../config"
-import "reflect-metadata"
-import { DataSource } from "typeorm"
-import { MysqlConfig } from "../ormconfig"
-import { createClient } from 'redis';
-
-const logger = require("../utils/logger").getLogger()
-=======
 import mongoose from "mongoose";
 import { config } from "../config";
 import "reflect-metadata";
@@ -16,9 +6,6 @@ import { MysqlConfig } from "../ormconfig";
 import { createClient } from "redis";
 
 const logger = require("../utils/logger").getLogger();
-
-const connectionString = config.MONGO_DB_CONNECTION_STRING;
->>>>>>> main
 
 export const disconnect = function () {
   logger.info("Got call to disconnect DB");

@@ -5,12 +5,13 @@ import {
   ManyToOne,
   OneToMany,
   JoinColumn,
+  BaseEntity,
 } from "typeorm";
 import { Org } from "./Org";
 import { Course } from "./Course";
 
 @Entity()
-export class Batch {
+export class Batch extends BaseEntity{
   @PrimaryGeneratedColumn("uuid")
   id: string;
 

@@ -1,27 +1,13 @@
 import express from 'express'
 import { createCourse, deleteCourse, updateCourse, fetchAllCourses, fetchCourse } from "../../controllers/adminControllers/courseControllers";
-
+import { dummyUserMiddleware, adminMiddleware } from '../../middleware/adminMiddleware';
 export const adminRouter = express.Router()
 
-const dummyUserMiddleware = (req, res, next) => {
-    req.user = {
-      id: "12345",
-      name: "Dummy Admin",
-      role: "admin",
-      email: "admin@example.com"
-    };
-    next();
-  };
 
-export const adminMiddleware = (req, res, next) => {
-    const user = req.user;
-  
-    if (!user || user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied. Admins only.' });
-    }
-    next();
-  };
-
+adminRouter.get("/users/all", getUsers)
+adminRouter.get("/ping", (req, res) => res.send("pong from admin"))
+adminRouter.get('/test', getTestData)
+// adminRouter.get('/file', handleFileUpload)
 adminRouter.use(dummyUserMiddleware);
 adminRouter.use(adminMiddleware);
 
