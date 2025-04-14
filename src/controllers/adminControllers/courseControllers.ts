@@ -15,11 +15,11 @@ export const createCourse = async (req: Request, res: Response) => {
     const course = new Course();
     course.title = title;
     course.logo = logo;
-    course.pages_id = pages_id;
+    course.pages = pages_id;
     course.content = content;
     course.start_date = new Date(start_date);
     course.end_date = new Date(end_date);
-    course.batches = batch;
+    course.batch = batch;
 
     const savedCourse = await createRecord<Course>(
       Course.getRepository(),
