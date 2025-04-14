@@ -3,6 +3,17 @@ import { redisClient } from "../../db/connect";
 import { setCacheData, getCacheData} from "../redisLib/redisUtils"
 const logger = require("../../utils/logger").getLoggerByName("SQL Utils")
 
+export async function createRecord<T extends BaseEntity>( model: { save: (data: T) => Promise<T> }, data: T, cacheKey?: string, cacheLimit: number = 10 * 60): Promise<T> {
+    try {
+      const savedData = await model.save(data);
+      
+      return savedData;
+    } catch (err) {
+      logger.error("ERROR in createRecord", err);
+      throw err;
+    }
+  }
+
 export async function getAllRecords<T>(model: typeof BaseEntity, key: any = "", isCache: boolean = false, cacheLimit: number = 10*60): Promise<T | any> {
     let data;
     try {
