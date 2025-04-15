@@ -1,35 +1,48 @@
-var log4js = require('log4js');
-const logLevel = process.env.LOG_LEVEL || 'info';
-export const { performance, PerformanceObserver } = require("perf_hooks")
+import log4js from "log4js";
+import { performance, PerformanceObserver } from "perf_hooks";
 
-module.exports.getLoggerByName = function(name){
-	log4js.configure({
-		appenders: {
-		  everything: { type: "stdout", layout: { type: 'pattern',  pattern: '[%d] [%p] - %c - %f{1}:%l:%o -  %m%n'} },
-		},
-		categories: {
-		  default: { appenders: ["everything"], level: logLevel, enableCallStack : true },
-		},
-	  });
-    const logger = log4js.getLogger(name);
-    return logger;
+const logLevel = process.env.LOG_LEVEL || "info";
+
+export function getLoggerByName(name: string) {
+  log4js.configure({
+    appenders: {
+      everything: {
+        type: "stdout",
+        layout: {
+          type: "pattern",
+          pattern: "[%d] [%p] - %c - %f{1}:%l:%o -  %m%n",
+        },
+      },
+    },
+    categories: {
+      default: {
+        appenders: ["everything"],
+        level: logLevel,
+        enableCallStack: true,
+      },
+    },
+  });
+
+  return log4js.getLogger(name);
 }
 
-module.exports.getLogger = function(){
-    return module.exports.getLoggerByName('SAP');
+export function getLogger() {
+  return getLoggerByName("SAP");
 }
 
-const logger = require("../utils/logger").getLogger();
+// Performance logging
+const logger = getLogger();
 
-
-/*
-	Log For Performance--> time in millisecs with function name
-*/
 const perfObserver = new PerformanceObserver((items) => {
-  items.getEntries().forEach((entry:any) => {
-    logger.info({"name":entry.name,"time in milli-secs":entry.duration + " SAP ms"})
-  })
-})
+  items.getEntries().forEach((entry: any) => {
+    logger.info({
+      name: entry.name,
+      "time in milli-secs": entry.duration + " SAP ms",
+    });
+  });
+});
 
-perfObserver.observe({ entryTypes: ["measure"], buffer: true })
+perfObserver.observe({ entryTypes: ["measure"], buffered: true });
 
+// Also export performance utils if needed elsewhere
+export { performance, PerformanceObserver };

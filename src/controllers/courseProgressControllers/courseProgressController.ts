@@ -5,12 +5,16 @@ import {
   updateRecords,
   createRecord,
 } from "../../lib/dbLib/sqlUtils";
+import { getLogger } from "../../utils/logger";
+
+const logger = getLogger();
 
 export const updateCourseProgress = async (req: Request, res: Response) => {
   try {
     const { student_id, session_id, current_page, status } = req.body;
 
     if (!student_id || !session_id || !current_page || !status) {
+      logger.warn("Missing required fields in request body");
       return res.status(400).json({ message: "Missing required fields" });
     }
 
@@ -26,6 +30,7 @@ export const updateCourseProgress = async (req: Request, res: Response) => {
         false
       );
 
+      logger.info(`Updated course progress for student_id: ${student_id}, session_id: ${session_id}`);
       return res.status(200).json({
         message: "Student course progress updated successfully",
         result,
@@ -40,12 +45,13 @@ export const updateCourseProgress = async (req: Request, res: Response) => {
 
     const created = await createRecord(StudentCourseProgress, newProgress);
 
+    logger.info(`Created new course progress for student_id: ${student_id}, session_id: ${session_id}`);
     return res.status(201).json({
       message: "Student course progress created successfully",
       progress: created,
     });
   } catch (err) {
-    console.error("Error updating/creating student course progress:", err);
+    logger.error("Error updating/creating student course progress:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
