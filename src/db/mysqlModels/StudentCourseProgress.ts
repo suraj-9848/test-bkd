@@ -1,19 +1,18 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
+import { Entity, Column, PrimaryGeneratedColumn, BaseEntity } from "typeorm";
 
 @Entity()
-export class StudentCourseProgress {
-  @PrimaryGeneratedColumn('uuid')
-  id: string = uuidv4();
+export class StudentCourseProgress extends BaseEntity {
+  @PrimaryGeneratedColumn()
+  id: number;
 
-  @Column('uuid')
-  student_id: string;
+  @Column()
+  student_id: number;
 
-  @Column('uuid')
-  session_id: string;
+  @Column()
+  session_id: number;
 
-  @Column('uuid')
-  current_page: string;
+  @Column()
+  current_page: number;
 
   @Column()
   status: string;
