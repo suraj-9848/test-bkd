@@ -5,13 +5,14 @@ import dotenv from "dotenv";
 import morgan from "morgan";
 import courseProgressRoutes from "./routes/courseRouter/courseprogressRoutes";
 import sessionProgressRoutes from "./routes/sessionRouter/sessionprogressRoutes";
+import path from "path";
 
 dotenv.config({
   path: "./.env",
 });
 import { config } from "./config";
-import { AppDataSource, redisClient, connectMongoDB } from "./db/connect";
-import path from "path";
+import { AppDataSource, redisClient } from "./db/connect";
+import { authRouter } from "./routes/authRouter/authRoutes";
 
 const logger = require("./utils/logger").getLogger();
 const app = express();
@@ -20,22 +21,25 @@ const PORT = config.PORT;
 // connectMongoDB();
 AppDataSource.initialize()
   .then(() => {
-    console.log("MYSQL connected..")
+    console.log("MYSQL connected..");
   })
   .catch((err) => {
-    console.log(err)
+    console.error("MYSQL connection failed:", err);
+  });
+
+redisClient
+  .connect()
+  .then(() => {
+    console.log("REDIS CACHE ACTIVE");
   })
+  .catch((e) => {
+    console.error("REDIS CACHE FAILED", e);
+  });
 
+app.use(cors({ origin: config.CORS_ORIGIN }));
 
-redisClient.connect().then(() => {
-  console.log("REDIS CACHE ACTIVE");
-}).catch((e) => {
-  console.log("REDIS CACHE FAILED", e)
-})
-
-app.disable('X-Powered-By')
-app.use(cors( { origin : config.CORS_ORIGIN }));
-app.use(morgan('dev'))
+app.disable("X-Powered-By");
+app.use(morgan("dev"));
 app.use(express.json({ limit: config.PAYLOAD_LIMIT }));
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true, limit: config.PAYLOAD_LIMIT }));
@@ -44,19 +48,16 @@ app.use("/api/courseProgress",courseProgressRoutes);
 app.use("/api/sessionProgress",sessionProgressRoutes);
 
 import { adminRouter } from "./routes/adminRouter/adminRoutes";
-import { authRouter } from "./routes/authRouter/authRoutes";
+
 
 app.use("/api/admin", adminRouter);
 app.use("/api/auth", authRouter);
 
-app.get("/api", (req: Request, res: Response) => {
-  res.send("Hello World");
-});
-
-app.get("/*", (req: Request, res: Response) => {
-  res.sendFile(path.join(process.cwd(), "../frontend/build/index.html"));
+app.use((req: Request, res: Response) => {
+  res.status(404).json({ message: "API route not found" });
 });
 
 app.listen(PORT, () => {
-  logger.info("Server is running on port " + PORT);
+  logger.info(`Server running on port ${PORT}`);
+  logger.info(`Environment: ${process.env.NODE_ENV}`);
 });

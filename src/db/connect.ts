@@ -23,22 +23,26 @@ export const connectMongoDB = async () => {
 
 
 export const disconnect = function () {
-    logger.info("Got call to disconnect DB")
-    mongoose.disconnect()
-}
+  logger.info("Got call to disconnect DB");
+  mongoose.disconnect();
+};
 
-export const AppDataSource = new DataSource(MysqlConfig)
+export const AppDataSource = new DataSource(MysqlConfig);
 
 // REDIS CLIENT
 export const redisClient = createClient({
-    url: config.REDIS_URL
+  url: config.REDIS_URL,
 });
 
 // REDIS CLIENT EVENTS
-redisClient.on("error", log("REDIS ERROR "))
-redisClient.on("end", log("REDIS END"))
-redisClient.on("ready", log("REDIS READY"))
-redisClient.on("reconnecting", log("REDIS TRYING TO RECONNECT"))
-redisClient.on("connect", log("REDIS CONNECTED"))
+redisClient.on("error", log("REDIS ERROR "));
+redisClient.on("end", log("REDIS END"));
+redisClient.on("ready", log("REDIS READY"));
+redisClient.on("reconnecting", log("REDIS TRYING TO RECONNECT"));
+redisClient.on("connect", log("REDIS CONNECTED"));
 
-function log(type : string) { return function () { logger.info(type)} }
+function log(type: string) {
+  return function () {
+    logger.info(type);
+  };
+}

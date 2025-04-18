@@ -1,6 +1,5 @@
-import { DataSourceOptions } from "typeorm"
-import { config } from "./config"
-// import fs from "fs"
+import { DataSourceOptions } from "typeorm";
+import { config } from "./config";
 
 export const MysqlConfig: DataSourceOptions = {
     url: config.MYSQL_DATABASE_URL,

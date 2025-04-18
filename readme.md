@@ -7,3 +7,19 @@ pnpm run watch //terminal 1
 pnpm run win-dev-build //terminal 2
 ### For Linux or Mac:
 pnpm run mac-dev-build //terminal 2
+
+
+### For removing build
+git rm -r --cached .
+git add .
+
+### For pull rquest
+git merge main
+git status
+git fetch --all
+git checkout main
+git pull
+git checkout anurag
+
+### For accesing DB
+mysql -u trialbliz -p

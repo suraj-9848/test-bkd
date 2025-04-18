@@ -13,7 +13,8 @@ export async function createRecord<T extends BaseEntity>( model: { save: (data: 
       throw err;
     }
   }
-
+  
+  
 export async function getAllRecords<T>(model: typeof BaseEntity, key: any = "", isCache: boolean = false, cacheLimit: number = 10*60): Promise<T | any> {
     let data;
     try {
