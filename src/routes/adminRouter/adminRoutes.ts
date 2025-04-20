@@ -4,11 +4,11 @@ import { dummyUserMiddleware, adminMiddleware } from '../../middleware/adminMidd
 export const adminRouter = express.Router()
 
 
-adminRouter.get("/users/all", getUsers)
-adminRouter.get("/ping", (req, res) => res.send("pong from admin"))
-adminRouter.get('/test', getTestData)
+// adminRouter.get("/users/all", getUsers)
+// adminRouter.get("/ping", (req, res) => res.send("pong from admin"))
+// adminRouter.get('/test', getTestData)
 // adminRouter.get('/file', handleFileUpload)
-TODO: Needs to be deleted in the future
+// TODO: Needs to be deleted in the future
 adminRouter.use(dummyUserMiddleware);
 adminRouter.use(adminMiddleware);
 

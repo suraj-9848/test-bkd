@@ -77,6 +77,7 @@ router.post("/register", async (req: Request, res: Response) => {
       username,
       email,
       password: hashedPassword,
+      batch_id: [],
       org_id: defaultOrg.id,
     });
     await userRepository.save(newUser);
@@ -114,7 +115,7 @@ router.post("/login", async (req: Request, res: Response) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, username: user.username },
+      { id: user.id, username: user.username, userRole: user.userRole },
       config.JWT_SECRET,
       { expiresIn: config.JWT_EXPIRES_IN }
     );
@@ -127,7 +128,7 @@ router.post("/login", async (req: Request, res: Response) => {
 
     return res.status(200).json({
       message: "Login successful",
-      user: { id: user.id, username: user.username },
+      user: { id: user.id, username: user.username, userRole: user.userRole },
     });
   } catch (error) {
     logger.error("Error in Login Route:", error);

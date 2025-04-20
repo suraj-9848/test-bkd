@@ -23,16 +23,16 @@ export class User extends BaseEntity {
   @Column({ nullable: true })
   password: string;
 
-  @Column("uuid", { nullable: true }) 
+  @Column("uuid", { nullable: true })
   org_id: string;
 
-  @Column('simple-array')
+  @Column("simple-array", { nullable: true })
   batch_id: string[];
 
-  @Column({ default: 'student' })
+  @Column({ type: "varchar", default: "student" })
   userRole: string;
 
-  @ManyToOne(() => Org, org => org.users)
-  @JoinColumn({ name: 'org_id' })
+  @ManyToOne(() => Org, (org) => org.users)
+  @JoinColumn({ name: "org_id" })
   organization: Org;
 }
