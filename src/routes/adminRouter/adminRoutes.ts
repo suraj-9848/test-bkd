@@ -1,14 +1,15 @@
 import express from 'express'
-import { createCourse, deleteCourse, updateCourse, fetchAllCourses, fetchCourse } from "../../controllers/adminControllers/courseControllers";
-import { dummyUserMiddleware, adminMiddleware } from '../../middleware/adminMiddleware';
+import { createCourse, deleteCourse, updateCourse, fetchAllCourses, fetchCourse } from "../../controllers/courseCrudControllers/courseController";
+import { dummyUserMiddleware, adminMiddleware } from '../../middleware/courseCrudMiddleware';
+import { getUsers, getTestData } from '../../controllers/adminControllers/adminController';
 export const adminRouter = express.Router()
 
 
-adminRouter.get("/users/all", getUsers)
-adminRouter.get("/ping", (req, res) => res.send("pong from admin"))
-adminRouter.get('/test', getTestData)
+// adminRouter.get("/users/all", getUsers)
+// adminRouter.get("/ping", (req, res) => res.send("pong from admin"))
+// adminRouter.get('/test', getTestData)
 // adminRouter.get('/file', handleFileUpload)
-TODO: Needs to be deleted in the future
+//TODO: Needs to be deleted in the future
 adminRouter.use(dummyUserMiddleware);
 adminRouter.use(adminMiddleware);
 

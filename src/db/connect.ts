@@ -8,17 +8,17 @@ import { createClient } from 'redis';
 
 const logger = require("../utils/logger").getLogger()
 
-const connectionString = config.MONGO_DB_CONNECTION_STRING
+// const connectionString = config.MONGO_DB_CONNECTION_STRING
 
-export const connectMongoDB = async () => {
+// export const connectMongoDB = async () => {
 
-        await mongoose.connect(connectionString);
-        logger.info("MongoDB connected...");
-    // } catch (err) {
-        // logger.error("Failed to connect MongoDB", err);
-        // process.exit(1); // Exit if DB connection fails
+//         await mongoose.connect(connectionString);
+//         logger.info("MongoDB connected...");
+//     // } catch (err) {
+//         // logger.error("Failed to connect MongoDB", err);
+//         // process.exit(1); // Exit if DB connection fails
     
-};
+// };
 
 
 
