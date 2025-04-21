@@ -50,4 +50,4 @@ const perfObserver = new PerformanceObserver((list) => {
 // Also export performance utils if needed elsewhere
 export { performance, PerformanceObserver };
 perfObserver.observe({ entryTypes: ["measure"], buffered: true });
-  // Removed duplicate performance logging block
+// Removed duplicate performance logging block

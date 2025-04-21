@@ -5,17 +5,20 @@ export const config = {
       : "http://localhost:4000", // MANDATORY
   // Tells on what environment it is running
 
-    // Tells on what port it is running
-    PORT: process.env.PORT || 3000, // NOT MANDATORY
-    // Connection string of MongoDB
-    MONGO_DB_CONNECTION_STRING: process.env.MONGO_KEY, // MANDATORY
-    // Connection url of MySql
-    MYSQL_DATABASE_URL:
+  // Tells on what port it is running
+  PORT: process.env.PORT || 3000, // NOT MANDATORY
+  // Connection string of MongoDB
+  MONGO_DB_CONNECTION_STRING: process.env.MONGO_KEY, // MANDATORY
+  // Connection url of MySql
+  MYSQL_DATABASE_URL:
     process.env.NODE_ENV === "production"
       ? "mysql://trailbliz:trailbliz@prod-host:3306/prod-db"
       : "mysql://trailbliz:trailbliz@localhost/trailbliz", // MANDATORY
-    // redis not currently in use
-    REDIS_URL: process.env.NODE_ENV === "production" ? process.env.REDIS_URL_PROD : process.env.REDIS_URL_DEV, // MANDATORY
+  // redis not currently in use
+  REDIS_URL:
+    process.env.NODE_ENV === "production"
+      ? process.env.REDIS_URL_PROD
+      : process.env.REDIS_URL_DEV, // MANDATORY
 
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
@@ -23,7 +26,7 @@ export const config = {
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "10d",
   JWT_COOKIE_EXPIRES_IN:
     parseInt(process.env.JWT_COOKIE_EXPIRES_IN ?? "864000000") || 864000000,
-  JWT_SECRET: process.env.JWT_SECRET , // MANDATORY
+  JWT_SECRET: process.env.JWT_SECRET, // MANDATORY
   //JWT Token for Mobile Users
 
   // // AWS access key id

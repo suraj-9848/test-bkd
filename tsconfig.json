@@ -1,21 +1,17 @@
 {
-   "include": ["src/**/*"],
-   "compilerOptions": {
-      "lib": [
-         "es2021",
-         "es5",
-         "es6",
-      ],
-      "target": "es6",
-      "module": "commonjs",
-      "moduleResolution": "node",
-      "outDir": "./build",
-      "emitDecoratorMetadata": true,
-      "experimentalDecorators": true,
-      "esModuleInterop": true,
-      "sourceMap": true,
-      "skipLibCheck": true,
-      "allowJs": true,
-   },
-   "exclude": ["node_modules"]
- }
+  "include": ["src/**/*"],
+  "compilerOptions": {
+    "lib": ["es2021", "es5", "es6"],
+    "target": "es6",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "./build",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "esModuleInterop": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "allowJs": true
+  },
+  "exclude": ["node_modules"]
+}

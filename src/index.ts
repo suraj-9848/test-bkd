@@ -43,12 +43,16 @@ app.use(morgan("dev"));
 app.use(express.json({ limit: config.PAYLOAD_LIMIT }));
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true, limit: config.PAYLOAD_LIMIT }));
-app.use(express.static(path.join(process.cwd(), "../frontend/build"), config.STATIC_CACHE_TIME));
-app.use("/api/courseProgress",courseProgressRoutes);
-app.use("/api/sessionProgress",sessionProgressRoutes);
+app.use(
+  express.static(
+    path.join(process.cwd(), "../frontend/build"),
+    config.STATIC_CACHE_TIME,
+  ),
+);
+app.use("/api/courseProgress", courseProgressRoutes);
+app.use("/api/sessionProgress", sessionProgressRoutes);
 
 import { adminRouter } from "./routes/adminRouter/adminRoutes";
-
 
 app.use("/api/admin", adminRouter);
 app.use("/api/auth", authRouter);
