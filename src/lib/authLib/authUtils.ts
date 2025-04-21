@@ -12,7 +12,7 @@ export const userProtect = async (req: Request, res: Response, next: any) => {
     }
 
     if (!token) {
-      for (let i of Object.keys(req.cookies)) {
+      for (const i of Object.keys(req.cookies)) {
         res.clearCookie(i);
       }
       return res.status(401).json({
@@ -25,7 +25,7 @@ export const userProtect = async (req: Request, res: Response, next: any) => {
     req["user"] = { ...decoded, token };
     return next();
   } catch (error) {
-    for (let i of Object.keys(req.cookies)) {
+    for (const i of Object.keys(req.cookies)) {
       res.clearCookie(i);
     }
     logger.error(error);

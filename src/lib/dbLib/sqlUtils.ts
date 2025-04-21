@@ -27,7 +27,7 @@ export async function getAllRecords<T>(
 ): Promise<T | any> {
   let data;
   try {
-    let redisCacheActive = redisClient.isOpen;
+    const redisCacheActive = redisClient.isOpen;
     if (isCache && redisCacheActive) {
       const cacheData = await getCacheData(key);
       if (cacheData) {
@@ -39,7 +39,7 @@ export async function getAllRecords<T>(
         return data;
       }
     } else {
-      let data = await model.find({});
+      const data = await model.find({});
       return data;
     }
   } catch (err) {
@@ -57,7 +57,7 @@ export async function getSingleRecord<T, L>(
 ): Promise<T | any> {
   let data;
   try {
-    let redisCacheActive = redisClient.isOpen;
+    const redisCacheActive = redisClient.isOpen;
     if (isCache && redisCacheActive) {
       const cacheData = await getCacheData(key);
       if (cacheData) {
@@ -87,7 +87,7 @@ export async function getAllRecordsWithFilter<T, L>(
 ): Promise<T | any> {
   let data;
   try {
-    let redisCacheActive = redisClient.isOpen;
+    const redisCacheActive = redisClient.isOpen;
     if (isCache && redisCacheActive) {
       const cacheData = await getCacheData(key);
       if (cacheData) {
@@ -113,7 +113,7 @@ export async function deleteRecords<T, L>(
   query: L,
 ): Promise<T | any> {
   try {
-    let data = await model
+    const data = await model
       .getRepository()
       .createQueryBuilder()
       .delete()
@@ -134,10 +134,10 @@ export async function updateRecords<T, L, K, M>(
 ): Promise<T | any> {
   try {
     if (upsert) {
-      let newData = await model.upsert(update, query);
+      const newData = await model.upsert(update, query);
       return newData;
     }
-    let newData = await model.update(query, update);
+    const newData = await model.update(query, update);
     return newData;
   } catch (err) {
     logger.error("ERROR in updateRecords", err);
@@ -158,7 +158,7 @@ export async function getFillteredRecordsWithPagination<T, L, K>(
 ): Promise<T | any> {
   let data;
   try {
-    let redisCacheActive = redisClient.isOpen;
+    const redisCacheActive = redisClient.isOpen;
     if (isCache && redisCacheActive) {
       const cacheData = await getCacheData(key);
       if (cacheData) {
@@ -166,8 +166,8 @@ export async function getFillteredRecordsWithPagination<T, L, K>(
         data = cacheData;
         return data;
       } else {
-        let skip = (page["page"] - 1) * page["limit"];
-        let res1 = await model.find({
+        const skip = (page["page"] - 1) * page["limit"];
+        const res1 = await model.find({
           select: select,
           where: query,
           relations: relations,
@@ -178,7 +178,7 @@ export async function getFillteredRecordsWithPagination<T, L, K>(
           take: page["limit"],
         });
 
-        let res2 = await model.count({ where: query });
+        const res2 = await model.count({ where: query });
 
         data = {
           totalCount: res2,
@@ -190,9 +190,9 @@ export async function getFillteredRecordsWithPagination<T, L, K>(
         return data;
       }
     } else {
-      let skip = (page["page"] - 1) * page["limit"];
+      const skip = (page["page"] - 1) * page["limit"];
 
-      let res1 = await model.find({
+      const res1 = await model.find({
         select: select,
         where: query,
         relations: relations,
@@ -203,9 +203,9 @@ export async function getFillteredRecordsWithPagination<T, L, K>(
         take: page["limit"],
       });
 
-      let res2 = await model.count({ where: query });
+      const res2 = await model.count({ where: query });
 
-      let finalData = {
+      const finalData = {
         totalCount: res2,
         page: page["page"],
         limit: page["limit"],
@@ -240,7 +240,7 @@ export async function getFillteredRecordsWithPaginationNew<T, L, K>(
 ): Promise<T | any> {
   let data;
   try {
-    let redisCacheActive = redisClient.isOpen;
+    const redisCacheActive = redisClient.isOpen;
 
     if (isCache && redisCacheActive) {
       const cacheData = await getCacheData(key);
@@ -248,8 +248,8 @@ export async function getFillteredRecordsWithPaginationNew<T, L, K>(
         data = cacheData;
         return data;
       } else {
-        let skip = (page["page"] - 1) * page["limit"];
-        let res1 = await model.find({
+        const skip = (page["page"] - 1) * page["limit"];
+        const res1 = await model.find({
           select: select,
           where: query,
           relations: relations,
@@ -258,7 +258,7 @@ export async function getFillteredRecordsWithPaginationNew<T, L, K>(
           take: page["limit"],
         });
 
-        let res2 = await model.count({ where: query });
+        const res2 = await model.count({ where: query });
 
         data = {
           totalCount: res2,
@@ -270,9 +270,9 @@ export async function getFillteredRecordsWithPaginationNew<T, L, K>(
         return data;
       }
     } else {
-      let skip = (page["page"] - 1) * page["limit"];
+      const skip = (page["page"] - 1) * page["limit"];
 
-      let res1 = await model.find({
+      const res1 = await model.find({
         select: select,
         where: query,
         relations: relations,
@@ -281,9 +281,9 @@ export async function getFillteredRecordsWithPaginationNew<T, L, K>(
         take: page["limit"],
       });
 
-      let res2 = await model.count({ where: query });
+      const res2 = await model.count({ where: query });
 
-      let finalData = {
+      const finalData = {
         totalCount: res2,
         page: page["page"],
         limit: page["limit"],

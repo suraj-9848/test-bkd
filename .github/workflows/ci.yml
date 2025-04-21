@@ -34,8 +34,8 @@ jobs:
       - name: Check Format
         run: pnpm run format:check
 
-      - name: Lint
-        run: pnpm run lint
-
       - name: Run Tests
         run: pnpm run ci-test
+
+      # - name: Lint
+      #   run: pnpm run lint

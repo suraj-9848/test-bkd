@@ -5,7 +5,7 @@ export async function getCacheData<T>(key: any) {
   try {
     const cachedData = await redisClient.get(key);
     if (cachedData) {
-      let data = JSON.parse(cachedData);
+      const data = JSON.parse(cachedData);
       return data;
     } else {
       return false;
@@ -36,7 +36,7 @@ export async function deleteCacheData<T>(key: any) {
 
 export async function checkCacheDataExist<T>(key: any) {
   try {
-    let exists = await redisClient.exists(key);
+    const exists = await redisClient.exists(key);
     return exists;
   } catch (err) {
     logger.error("ERROR ON CACKING KEY EXISTS", err);
@@ -46,7 +46,7 @@ export async function checkCacheDataExist<T>(key: any) {
 
 export async function getExpiryTimeInSec<T>(key: any) {
   try {
-    let expiryTimeInSec = await redisClient.TTL(key);
+    const expiryTimeInSec = await redisClient.TTL(key);
     return expiryTimeInSec;
   } catch (err) {
     logger.error("ERROR ON CACKING KEY EXISTS", err);

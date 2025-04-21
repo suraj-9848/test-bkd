@@ -174,7 +174,7 @@ export async function getDistinctRecord<T, K, L>(
 
 export async function createNewRecord<T, K>(model: any, data?: K) {
   try {
-    let newData = await model.create(data);
+    const newData = await model.create(data);
     return newData;
   } catch (error) {
     logger.error("ERROR in createNewRecord", error);
@@ -189,7 +189,7 @@ export async function updateOneRecord<T, K, L, M>(
   upsert?: boolean,
 ) {
   try {
-    let newData = await model.updateOne(query, update, { upsert });
+    const newData = await model.updateOne(query, update, { upsert });
     return newData;
   } catch (error) {
     logger.error("ERROR in updateOneRecord", error);
@@ -203,7 +203,7 @@ export async function updateOneRecordByFilter<T, K, L, M>(
   update: L,
 ) {
   try {
-    let newData = await model.findOneAndUpdate(query, update, { new: true });
+    const newData = await model.findOneAndUpdate(query, update, { new: true });
     return newData;
   } catch (error) {
     logger.error("ERROR in updateOneRecordByFilter", error);
@@ -217,7 +217,7 @@ export async function updateSingleRecordById<T, K, L>(
   data?: L,
 ) {
   try {
-    let newData = await model.findByIdAndUpdate(id, data, { new: true });
+    const newData = await model.findByIdAndUpdate(id, data, { new: true });
     return newData;
   } catch (error) {
     logger.error("ERROR in updateSingleRecordById", error);
