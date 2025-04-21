@@ -29,7 +29,7 @@ export class User extends BaseEntity {
   @Column("simple-array", { nullable: true })
   batch_id: string[];
 
-  @Column({ type: "varchar", default: "student" })
+  @Column({ type: "varchar", default: "instructor" })
   userRole: string;
 
   @ManyToOne(() => Org, (org) => org.users)
