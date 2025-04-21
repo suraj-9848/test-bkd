@@ -27,10 +27,12 @@ export const updateCourseProgress = async (req: Request, res: Response) => {
         StudentCourseProgress,
         { id: existingProgress.id },
         { current_page, status },
-        false
+        false,
       );
 
-      logger.info(`Updated course progress for student_id: ${student_id}, session_id: ${session_id}`);
+      logger.info(
+        `Updated course progress for student_id: ${student_id}, session_id: ${session_id}`,
+      );
       return res.status(200).json({
         message: "Student course progress updated successfully",
         result,
@@ -45,7 +47,9 @@ export const updateCourseProgress = async (req: Request, res: Response) => {
 
     const created = await createRecord(StudentCourseProgress, newProgress);
 
-    logger.info(`Created new course progress for student_id: ${student_id}, session_id: ${session_id}`);
+    logger.info(
+      `Created new course progress for student_id: ${student_id}, session_id: ${session_id}`,
+    );
     return res.status(201).json({
       message: "Student course progress created successfully",
       progress: created,

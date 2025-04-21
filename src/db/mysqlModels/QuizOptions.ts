@@ -1,10 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
-import { Question } from './Question';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from "typeorm";
+import { v4 as uuidv4 } from "uuid";
+import { Question } from "./Question";
 
 @Entity()
 export class QuizOptions {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string = uuidv4();
 
   @Column()
@@ -13,6 +13,6 @@ export class QuizOptions {
   @Column()
   correct: boolean;
 
-  @ManyToOne(() => Question, question => question.options)
+  @ManyToOne(() => Question, (question) => question.options)
   question: Question;
 }

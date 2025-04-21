@@ -11,7 +11,7 @@ import { Org } from "./Org";
 import { Course } from "./Course";
 
 @Entity()
-export class Batch extends BaseEntity{
+export class Batch extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 

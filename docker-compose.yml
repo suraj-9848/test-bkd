@@ -1,7 +1,6 @@
-version: '2'
+version: "2"
 
-x-logging:
-  &default-logging
+x-logging: &default-logging
   logging:
     driver: json-file
     options:

@@ -46,7 +46,7 @@ router.post("/register", async (req: Request, res: Response) => {
       { where: [{ email }, { username }] },
       `user_${email}_${username}`,
       true,
-      10 * 60
+      10 * 60,
     );
 
     if (existingUser) {
@@ -64,7 +64,7 @@ router.post("/register", async (req: Request, res: Response) => {
       { where: { name: "Default Org" } },
       `org_default`,
       true,
-      10 * 60
+      10 * 60,
     );
 
     if (!defaultOrg) {
@@ -101,7 +101,7 @@ router.post("/login", async (req: Request, res: Response) => {
       { where: { email } },
       `user_email_${email}`,
       true,
-      10 * 60
+      10 * 60,
     );
 
     if (!user) {
@@ -116,7 +116,7 @@ router.post("/login", async (req: Request, res: Response) => {
     const token = jwt.sign(
       { id: user.id, username: user.username },
       config.JWT_SECRET,
-      { expiresIn: config.JWT_EXPIRES_IN }
+      { expiresIn: config.JWT_EXPIRES_IN },
     );
 
     res.cookie("token", token, {
@@ -154,7 +154,7 @@ router.get("/profile", async (req: Request, res: Response) => {
       { where: { id: decoded.id } },
       `user_id_${decoded.id}`,
       true,
-      10 * 60
+      10 * 60,
     );
 
     if (!user) {
