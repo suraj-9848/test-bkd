@@ -8,6 +8,7 @@ import {
 } from "typeorm";
 import { Batch } from "./Batch";
 import { Page } from "./Page";
+import { Test } from "./Test";
 
 @Entity("course")
 export class Course extends BaseEntity {
@@ -34,4 +35,8 @@ export class Course extends BaseEntity {
 
   @ManyToOne(() => Batch, (batch) => batch.courses, { onDelete: "CASCADE" })
   batch: Batch;
+
+  @OneToMany(() => Test, (test) => test.course)
+  tests: Test[];
+  
 }

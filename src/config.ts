@@ -12,7 +12,7 @@ export const config = {
   MYSQL_DATABASE_URL:
     process.env.NODE_ENV === "production"
       ? "mysql://trailbliz:trailbliz@prod-host:3306/prod-db"
-      : "mysql://trailbliz:trailbliz@localhost/trailbliz",
+      : "mysql://trailbliz:trailbliz@localhost:3306/trailbliz",
   REDIS_URL:
     process.env.NODE_ENV === "production"
       ? process.env.REDIS_URL_PROD
