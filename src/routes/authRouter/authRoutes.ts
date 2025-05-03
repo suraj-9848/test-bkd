@@ -63,6 +63,7 @@ router.post("/register", async (req: Request, res: Response) => {
       Org,
       { where: { name: "Default Org" } },
       `org_default`,
+
       true,
       10 * 60,
     );
@@ -77,6 +78,7 @@ router.post("/register", async (req: Request, res: Response) => {
       username,
       email,
       password: hashedPassword,
+      batch_id: [],
       org_id: defaultOrg.id,
     });
     await userRepository.save(newUser);
@@ -114,8 +116,8 @@ router.post("/login", async (req: Request, res: Response) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, username: user.username },
-      config.JWT_SECRET,
+      { id: user.id, username: user.username, userRole: user.userRole },
+      process.env.JWT_SECRET,
       { expiresIn: config.JWT_EXPIRES_IN },
     );
 

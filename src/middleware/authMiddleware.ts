@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { config } from "../config";
+import { config } from "../config"; // Ensure this points to your config file
 
+// Extend Express Request to include `user`
 declare global {
   namespace Express {
     interface Request {
@@ -9,22 +10,27 @@ declare global {
     }
   }
 }
+
 export const authMiddleware = (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  const token = req.headers.authorization?.split(" ")[1];
+  const authHeader = req.headers.authorization;
 
-  if (!token) {
-    return res.status(401).json({ error: "Unauthorized" });
+  // Check if header exists and starts with "Bearer"
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized. No token provided." });
   }
 
+  const token = authHeader.split(" ")[1];
+
   try {
-    const decoded = jwt.verify(token, config.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
     next();
-  } catch (error) {
-    res.status(401).json({ error: "Invalid token" });
+  } catch (error: any) {
+    console.error("Token verification failed:", error.message);
+    return res.status(401).json({ error: "Invalid token" });
   }
 };

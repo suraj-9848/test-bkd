@@ -9,6 +9,13 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { Org } from "./Org";
 
+export enum UserRole {
+  STUDENT = "student",
+  ADMIN = "admin",
+  COLLEGE_ADMIN = "college_admin",
+  INSTRUCTOR = "instructor",
+}
+
 @Entity()
 export class User extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
@@ -29,8 +36,12 @@ export class User extends BaseEntity {
   @Column("simple-array")
   batch_id: string[];
 
-  @Column({ default: "student" })
-  userRole: string;
+  @Column({
+    type: "enum",
+    enum: UserRole,
+    default: UserRole.STUDENT,
+  })
+  userRole: UserRole;
 
   @ManyToOne(() => Org, (org) => org.users)
   @JoinColumn({ name: "org_id" })
