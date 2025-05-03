@@ -40,6 +40,25 @@ import {
   fetchAllCourses,
   fetchCourse,
 } from "../../controllers/courseCrudControllers/courseController";
+
+
+
+import {
+  createCollegeAdmin,
+  deleteCollegeAdmin,
+  updateCollegeAdmin,
+  createInstructor,
+  deleteInstructor,
+  updateInstructor,
+  createStudent,
+  deleteStudent,
+  updateStudent,
+  getAllOrg,
+  getSingleOrg,
+  createOrg,
+  deleteOrg,
+} from "../../controllers/adminControllers/adminController";
+
 import { adminMiddleware } from "../../middleware/adminMiddleware";
 import { authMiddleware } from "../../middleware/authMiddleware";
 import { validateCourseBody } from "../../middleware/courseCrudPipes/coursePipe";
@@ -55,3 +74,34 @@ adminRouter.delete("/delete-course/:id", deleteCourse);
 adminRouter.put("/update-course/:id", updateCourse);
 adminRouter.get("/fetch-course/:id", fetchCourse);
 adminRouter.get("/fetch-all-courses", fetchAllCourses);
+
+//Organization CRUD
+adminRouter.get("/get-all-org", getAllOrg);
+adminRouter.post("/create-org", createOrg);
+adminRouter.delete("/delete-org", deleteOrg);
+
+
+//College admin CRUD
+// adminRouter.get("/get-all-org", getAllOrg);
+adminRouter.post("/create-college-admin", createCollegeAdmin);
+adminRouter.delete("/delete-college-admin", deleteCollegeAdmin);
+adminRouter.put("update-college-admin", updateCollegeAdmin);
+
+
+
+//Instructor CRUD
+// adminRouter.get("/get-all-org", getAllOrg);
+adminRouter.post("/create-instructor", createInstructor);
+adminRouter.delete("/delete-instructor", deleteInstructor);
+adminRouter.put("update-instructor", updateInstructor);
+
+
+//Sudent Crud
+
+//College admuin CRUD
+// adminRouter.get("/get-all-org", getAllOrg);
+adminRouter.post("/create-student", createStudent);
+adminRouter.delete("/delete-student", deleteStudent);
+adminRouter.put("/update-student", updateStudent);
+
+

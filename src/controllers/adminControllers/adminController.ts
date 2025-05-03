@@ -35,6 +35,7 @@ export const getSingleOrg = async (req: Request, res: Response) => {
   }
 };
 
+
 export const createOrg = async (req: Request, res: Response) => {
   try {
     const { name, description, address } = req.body;
@@ -76,6 +77,7 @@ export const deleteOrg = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 export const deleteAllOrg = async (req: Request, res: Response) => {
   try {
