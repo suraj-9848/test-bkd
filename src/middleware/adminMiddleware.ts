@@ -4,7 +4,7 @@ import { UserRole } from "../db/mysqlModels/User"; // import the enum
 export const adminMiddleware = (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   const user = req.user;
 

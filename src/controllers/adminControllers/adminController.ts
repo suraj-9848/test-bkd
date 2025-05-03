@@ -104,7 +104,7 @@ export const deleteAllOrg = async (req: Request, res: Response) => {
 const createUserWithRole = async (
   req: Request,
   res: Response,
-  role: UserRole
+  role: UserRole,
 ) => {
   try {
     const { username, email, password, org_id, batch_id } = req.body;
@@ -140,7 +140,7 @@ const createUserWithRole = async (
 const deleteUserWithRole = async (
   req: Request,
   res: Response,
-  role: UserRole
+  role: UserRole,
 ) => {
   const { user_id } = req.params;
   if (!user_id) return res.status(400).json({ error: "User Id is required" });
@@ -166,7 +166,7 @@ const deleteUserWithRole = async (
 const updateUserWithRole = async (
   req: Request,
   res: Response,
-  role: UserRole
+  role: UserRole,
 ) => {
   const { user_id } = req.params;
   const { username, email, password, batch_id } = req.body;
@@ -200,7 +200,7 @@ const updateUserWithRole = async (
         password: user.password,
         batch_id: user.batch_id,
       },
-      false
+      false,
     );
     return res.status(200).json({
       message: `${role} updated successfully`,
