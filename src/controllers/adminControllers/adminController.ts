@@ -1,7 +1,13 @@
 import { Request, Response } from "express";
 import { Org } from "../../db/mysqlModels/Org";
 import { validate } from "class-validator";
-import { createRecord, getAllRecords, getSingleRecord, deleteRecords, updateRecords } from "../../lib/dbLib/sqlUtils";
+import {
+  createRecord,
+  getAllRecords,
+  getSingleRecord,
+  deleteRecords,
+  updateRecords,
+} from "../../lib/dbLib/sqlUtils";
 import { User, UserRole } from "../../db/mysqlModels/User";
 
 export const getAllOrg = async (req: Request, res: Response) => {
@@ -21,7 +27,9 @@ export const getSingleOrg = async (req: Request, res: Response) => {
   const { org_id } = req.params;
   if (!org_id) return res.status(400).json({ error: "Org Id is required" });
   try {
-    const org = await getSingleRecord<Org, { where: { id: string } }>(Org, { where: { id: org_id } });
+    const org = await getSingleRecord<Org, { where: { id: string } }>(Org, {
+      where: { id: org_id },
+    });
     if (!org) {
       return res.status(404).json({ message: "Organization not found" });
     }
@@ -34,7 +42,6 @@ export const getSingleOrg = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
-
 
 export const createOrg = async (req: Request, res: Response) => {
   try {
@@ -65,7 +72,9 @@ export const deleteOrg = async (req: Request, res: Response) => {
   const { org_id } = req.params;
   if (!org_id) return res.status(400).json({ error: "Org Id is required" });
   try {
-    const deleteResult = await deleteRecords<Org, { id: string }>(Org, { id: org_id });
+    const deleteResult = await deleteRecords<Org, { id: string }>(Org, {
+      id: org_id,
+    });
     if (deleteResult.affected === 0) {
       return res.status(404).json({ message: "Organization not found" });
     }
@@ -77,7 +86,6 @@ export const deleteOrg = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
-
 
 export const deleteAllOrg = async (req: Request, res: Response) => {
   try {
@@ -92,15 +100,18 @@ export const deleteAllOrg = async (req: Request, res: Response) => {
   }
 };
 
-
-
-
 // Helper function to create a user with a specific role
-const createUserWithRole = async (req: Request, res: Response, role: UserRole) => {
+const createUserWithRole = async (
+  req: Request,
+  res: Response,
+  role: UserRole
+) => {
   try {
     const { username, email, password, org_id, batch_id } = req.body;
     if (!username || !org_id) {
-      return res.status(400).json({ error: "Username and Org Id are required" });
+      return res
+        .status(400)
+        .json({ error: "Username and Org Id are required" });
     }
     const user = new User();
     user.username = username;
@@ -126,16 +137,19 @@ const createUserWithRole = async (req: Request, res: Response, role: UserRole) =
   }
 };
 
- 
-const deleteUserWithRole = async (req: Request, res: Response, role: UserRole) => {
+const deleteUserWithRole = async (
+  req: Request,
+  res: Response,
+  role: UserRole
+) => {
   const { user_id } = req.params;
   if (!user_id) return res.status(400).json({ error: "User Id is required" });
 
   try {
-    const deleteResult = await deleteRecords<User, { id: string; userRole: UserRole }>(
+    const deleteResult = await deleteRecords<
       User,
-      { id: user_id, userRole: role }
-    );
+      { id: string; userRole: UserRole }
+    >(User, { id: user_id, userRole: role });
     if (deleteResult.affected === 0) {
       return res.status(404).json({ message: `${role} not found` });
     }
@@ -149,16 +163,20 @@ const deleteUserWithRole = async (req: Request, res: Response, role: UserRole) =
 };
 
 // Helper function to update a user with a specific role
-const updateUserWithRole = async (req: Request, res: Response, role: UserRole) => {
+const updateUserWithRole = async (
+  req: Request,
+  res: Response,
+  role: UserRole
+) => {
   const { user_id } = req.params;
   const { username, email, password, batch_id } = req.body;
   if (!user_id) return res.status(400).json({ error: "User Id is required" });
 
   try {
-    const user = await getSingleRecord<User, { where: { id: string; userRole: UserRole } }>(
+    const user = await getSingleRecord<
       User,
-      { where: { id: user_id, userRole: role } }
-    );
+      { where: { id: string; userRole: UserRole } }
+    >(User, { where: { id: user_id, userRole: role } });
     if (!user) {
       return res.status(404).json({ message: `${role} not found` });
     }
@@ -176,8 +194,13 @@ const updateUserWithRole = async (req: Request, res: Response, role: UserRole) =
     const updatedUser = await updateRecords<User, { id: string }, any, any>(
       User,
       { id: user_id },
-      { username: user.username, email: user.email, password: user.password, batch_id: user.batch_id },
-      false  
+      {
+        username: user.username,
+        email: user.email,
+        password: user.password,
+        batch_id: user.batch_id,
+      },
+      false
     );
     return res.status(200).json({
       message: `${role} updated successfully`,
@@ -189,7 +212,6 @@ const updateUserWithRole = async (req: Request, res: Response, role: UserRole) =
   }
 };
 
- 
 export const createCollegeAdmin = (req: Request, res: Response) =>
   createUserWithRole(req, res, UserRole.COLLEGE_ADMIN);
 
@@ -199,7 +221,6 @@ export const deleteCollegeAdmin = (req: Request, res: Response) =>
 export const updateCollegeAdmin = (req: Request, res: Response) =>
   updateUserWithRole(req, res, UserRole.COLLEGE_ADMIN);
 
- 
 export const createInstructor = (req: Request, res: Response) =>
   createUserWithRole(req, res, UserRole.INSTRUCTOR);
 
@@ -209,7 +230,6 @@ export const deleteInstructor = (req: Request, res: Response) =>
 export const updateInstructor = (req: Request, res: Response) =>
   updateUserWithRole(req, res, UserRole.INSTRUCTOR);
 
- 
 export const createStudent = (req: Request, res: Response) =>
   createUserWithRole(req, res, UserRole.STUDENT);
 

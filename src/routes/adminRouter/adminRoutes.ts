@@ -31,7 +31,6 @@
 // adminRouter.get("/fetch-course/:id", fetchCourse);
 // adminRouter.get("/fetch-all-courses", fetchAllCourses);
 
-
 import express from "express";
 import {
   createCourse,
@@ -40,8 +39,6 @@ import {
   fetchAllCourses,
   fetchCourse,
 } from "../../controllers/courseCrudControllers/courseController";
-
-
 
 import {
   createCollegeAdmin,
@@ -80,21 +77,17 @@ adminRouter.get("/get-all-org", getAllOrg);
 adminRouter.post("/create-org", createOrg);
 adminRouter.delete("/delete-org", deleteOrg);
 
-
 //College admin CRUD
 // adminRouter.get("/get-all-org", getAllOrg);
 adminRouter.post("/create-college-admin", createCollegeAdmin);
 adminRouter.delete("/delete-college-admin", deleteCollegeAdmin);
 adminRouter.put("update-college-admin", updateCollegeAdmin);
 
-
-
 //Instructor CRUD
 // adminRouter.get("/get-all-org", getAllOrg);
 adminRouter.post("/create-instructor", createInstructor);
 adminRouter.delete("/delete-instructor", deleteInstructor);
 adminRouter.put("update-instructor", updateInstructor);
-
 
 //Sudent Crud
 
@@ -103,5 +96,3 @@ adminRouter.put("update-instructor", updateInstructor);
 adminRouter.post("/create-student", createStudent);
 adminRouter.delete("/delete-student", deleteStudent);
 adminRouter.put("/update-student", updateStudent);
-
-
