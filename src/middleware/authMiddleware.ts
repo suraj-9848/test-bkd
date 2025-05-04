@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
-import { config } from "../config"; // Ensure this points to your config file
+import jwt, { JwtPayload } from "jsonwebtoken";
+import { config } from "../config";
+import { decode } from "punycode";
 
 // Extend Express Request to include `user`
 declare global {
@@ -18,19 +19,30 @@ export const authMiddleware = (
 ) => {
   const authHeader = req.headers.authorization;
 
-  // Check if header exists and starts with "Bearer"
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Unauthorized. No token provided." });
+    return res.status(401).json({ error: "Unauthorized, Token Missing" });
   }
-
   const token = authHeader.split(" ")[1];
-
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    const decoded = jwt.verify(token, config.JWT_SECRET) as JwtPayload;
+
+    if (
+      !decoded ||
+      typeof decoded !== "object" ||
+      !decoded.id ||
+      !decoded.userRole ||
+      !decoded.username
+    ) {
+      return res.status(401).json({ error: "Invalid token payload." });
+    }
+
+    req.user = {
+      ...(decoded as any),
+      token,
+    };
+
     next();
-  } catch (error: any) {
-    console.error("Token verification failed:", error.message);
-    return res.status(401).json({ error: "Invalid token" });
+  } catch (error) {
+    return res.status(401).json({ error: "Invalid or expired token." });
   }
 };

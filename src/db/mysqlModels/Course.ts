@@ -8,7 +8,9 @@ import {
 } from "typeorm";
 import { Batch } from "./Batch";
 import { Page } from "./Page";
-@Entity()
+import { Test } from "./Test";
+
+@Entity("course")
 export class Course extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
   id: string;
@@ -22,8 +24,8 @@ export class Course extends BaseEntity {
   @OneToMany(() => Page, (page) => page.course, { cascade: true })
   pages: Page[];
 
-  @Column("json")
-  content: any;
+  @Column({ type: "text", nullable: true })
+  content: string;
 
   @Column()
   start_date: Date;
@@ -33,4 +35,7 @@ export class Course extends BaseEntity {
 
   @ManyToOne(() => Batch, (batch) => batch.courses, { onDelete: "CASCADE" })
   batch: Batch;
+
+  @OneToMany(() => Test, (test) => test.course)
+  tests: Test[];
 }
