@@ -1,15 +1,15 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
+import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import { v4 as uuidv4 } from "uuid";
 
 @Entity()
 export class Pages {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string = uuidv4();
 
-  @Column('json')
+  @Column("json")
   content: any;
 
-  @Column('simple-array')
+  @Column("simple-array")
   question_id: string[];
 
   @Column({ nullable: true })

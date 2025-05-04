@@ -1,27 +1,16 @@
 import { Request, Response, NextFunction } from "express";
-
-export const dummyUserMiddleware = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  req.user = {
-    id: "12345",
-    name: "Dummy Admin",
-    role: "admin",
-    email: "admin@example.com",
-  };
-  next();
-};
+import { UserRole } from "../db/mysqlModels/User"; // import the enum
 
 export const adminMiddleware = (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   const user = req.user;
 
-  if (!user || user.userRole !== "admin") {
+  console.log("Decoded User:", user);
+
+  if (!user || user.userRole !== UserRole.ADMIN) {
     return res.status(403).json({ message: "Access denied. Admins only." });
   }
 

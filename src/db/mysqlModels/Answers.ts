@@ -1,27 +1,27 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
+import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import { v4 as uuidv4 } from "uuid";
 
 @Entity()
 export class Answers {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string = uuidv4();
 
-  @Column({ default: 'QUIZ' })
-  question_type: string = 'QUIZ';
+  @Column({ default: "QUIZ" })
+  question_type: string = "QUIZ";
 
-  @Column('uuid')
+  @Column("uuid")
   user_id: string;
 
-  @Column('uuid')
+  @Column("uuid")
   session_id: string;
 
-  @Column('uuid')
+  @Column("uuid")
   page_id: string;
 
-  @Column('uuid')
+  @Column("uuid")
   question_id: string;
 
-  @Column('simple-array')
+  @Column("simple-array")
   selected_options: string[];
 
   @Column()

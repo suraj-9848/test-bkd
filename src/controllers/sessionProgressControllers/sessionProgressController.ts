@@ -26,10 +26,14 @@ export const updateSessionProgress = async (req: Request, res: Response) => {
       StudentSessionProgress,
       { id: existingProgress.id },
       { status },
-      false
+      false,
     );
 
-    logger.info("Session progress updated", { student_id, session_id, question_id });
+    logger.info("Session progress updated", {
+      student_id,
+      session_id,
+      question_id,
+    });
 
     return res.status(200).json({
       message: "Session progress updated successfully",

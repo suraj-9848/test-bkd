@@ -3,6 +3,7 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 import { config } from "../config";
 import { decode } from "punycode";
 
+// Extend Express Request to include `user`
 declare global {
   namespace Express {
     interface Request {
@@ -10,10 +11,11 @@ declare global {
     }
   }
 }
+
 export const authMiddleware = (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   const authHeader = req.headers.authorization;
 
