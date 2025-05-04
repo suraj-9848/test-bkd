@@ -9,8 +9,8 @@ import { Course } from "./Course";
 
 @Entity()
 export class Test extends BaseEntity {
-  @PrimaryGeneratedColumn("uuid") 
-  id: string; 
+  @PrimaryGeneratedColumn("uuid")
+  id: string;
 
   @Column()
   title: string;

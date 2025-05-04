@@ -20,7 +20,6 @@ export const createTest = async (req: Request, res: Response) => {
     endDate,
   } = req.body;
 
-  
   if (
     !title ||
     !maxMarks ||
@@ -39,7 +38,7 @@ export const createTest = async (req: Request, res: Response) => {
     const course = await getSingleRecord<Course, any>(
       Course,
       { where: { id: courseId } },
-      `course:${courseId}`
+      `course:${courseId}`,
     );
 
     if (!course) {
@@ -60,7 +59,7 @@ export const createTest = async (req: Request, res: Response) => {
       Test,
       test,
       `test:course:${courseId}:new`,
-      600
+      600,
     );
 
     return res.status(201).json({
@@ -78,13 +77,11 @@ export const createTest = async (req: Request, res: Response) => {
 export const fetchTestsInCourse = async (req: Request, res: Response) => {
   const { courseId } = req.params;
 
-  
-
   try {
     const course = await getSingleRecord<Course, any>(
       Course,
       { where: { id: courseId } },
-      `course:${courseId}`
+      `course:${courseId}`,
     );
 
     if (!course) {
@@ -111,14 +108,12 @@ export const fetchTestsInCourse = async (req: Request, res: Response) => {
 export const fetchTestById = async (req: Request, res: Response) => {
   const { testId } = req.params;
 
-  
-
   try {
     const test = await getSingleRecord<Test, any>(
       Test,
-      { where: { id: testId } }, 
+      { where: { id: testId } },
       `test:${testId}`,
-      true
+      true,
     );
 
     if (!test) {
@@ -137,17 +132,14 @@ export const fetchTestById = async (req: Request, res: Response) => {
   }
 };
 
-
-
 export const deleteTest = async (req: Request, res: Response) => {
   const { testId } = req.params;
-
 
   try {
     const test = await getSingleRecord<Test, any>(
       Test,
       { where: { id: testId } },
-      `test:${testId}`
+      `test:${testId}`,
     );
 
     if (!test) {
@@ -201,7 +193,7 @@ export const updateTest = async (req: Request, res: Response) => {
       Test,
       { where: { id: Number(testId) } },
       `test:${testId}`,
-      true
+      true,
     );
 
     if (!test) {
@@ -229,7 +221,7 @@ export const updateTest = async (req: Request, res: Response) => {
       Test,
       test,
       `test:${testId}:update`,
-      false
+      false,
     );
 
     return res.status(200).json({

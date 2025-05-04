@@ -21,7 +21,7 @@ export const createBatch = async (req: Request, res: Response) => {
       Batch.getRepository(),
       batch,
       "all_batches",
-      10 * 60
+      10 * 60,
     );
     return res.status(201).json({ message: "Batch created", batch: saved });
   } catch (err) {
@@ -36,7 +36,7 @@ export const fetchAllBatches = async (_: Request, res: Response) => {
       Batch,
       "all_batches",
       true,
-      10 * 60
+      10 * 60,
     );
     return res.status(200).json({ message: "Fetched batches", batches });
   } catch (err) {
@@ -53,7 +53,7 @@ export const fetchBatch = async (req: Request, res: Response) => {
       { where: { id } },
       `batch_${id}`,
       true,
-      10 * 60
+      10 * 60,
     );
     if (!batch) {
       return res.status(404).json({ message: "Batch not found" });
@@ -99,7 +99,7 @@ export const toggleBatchVisibility = async (req: Request, res: Response) => {
       Batch,
       { id },
       { is_public: Boolean(is_public) },
-      false
+      false,
     );
     return res.status(200).json({ message: "Visibility updated", result });
   } catch (err) {
@@ -117,7 +117,7 @@ export const fetchPublicBatches = async (_: Request, res: Response) => {
       { where: { is_public: true } },
       "public_batches",
       true,
-      10 * 60
+      10 * 60,
     );
 
     return res.status(200).json({ message: "Public batches", batches });
@@ -129,7 +129,7 @@ export const fetchPublicBatches = async (_: Request, res: Response) => {
 
 export const fetchPublicCoursesInBatch = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   try {
     const { id } = req.params;
@@ -147,4 +147,3 @@ export const fetchPublicCoursesInBatch = async (
     return res.status(500).json({ message: "Internal server error" });
   }
 };
-

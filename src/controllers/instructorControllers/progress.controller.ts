@@ -18,7 +18,7 @@ export const fetchCourseProgress = async (req: Request, res: Response) => {
       { where: { id: batchId } },
       `batch_${batchId}`,
       true,
-      60
+      60,
     );
     if (!batch) {
       return res.status(404).json({ error: "Batch not found" });
@@ -32,7 +32,7 @@ export const fetchCourseProgress = async (req: Request, res: Response) => {
       { where: { session_id: courseId } },
       `course_${courseId}_progress`,
       true,
-      60
+      60,
     );
 
     const students = await getAllRecordsWithFilter<User, any>(
@@ -41,12 +41,12 @@ export const fetchCourseProgress = async (req: Request, res: Response) => {
         where: (qb) => qb.where("FIND_IN_SET(:batchId, batch_id)", { batchId }),
       },
       `batch_${batchId}_students`,
-      false
+      false,
     );
 
     const report = (students as User[]).map((stu: any) => {
       const p = (progressList as StudentCourseProgress[]).find(
-        (r) => r.student_id === stu.id
+        (r) => r.student_id === stu.id,
       );
       return {
         studentId: stu.id,
@@ -71,12 +71,12 @@ export const fetchSessionProgress = async (req: Request, res: Response) => {
       { where: { session_id: sessionId } },
       `session_${sessionId}_progress`,
       true,
-      60
+      60,
     );
 
     const studentIds = [
       ...new Set(
-        (entries as StudentSessionProgress[]).map((e) => e.student_id)
+        (entries as StudentSessionProgress[]).map((e) => e.student_id),
       ),
     ];
 
@@ -84,7 +84,7 @@ export const fetchSessionProgress = async (req: Request, res: Response) => {
       User,
       { where: (qb) => qb.whereInIds(studentIds) },
       `session_${sessionId}_students`,
-      false
+      false,
     );
 
     const report = (students as User[]).map((stu: any) => ({

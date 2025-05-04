@@ -60,10 +60,7 @@ import { adminMiddleware } from "../../middleware/adminMiddleware";
 import { authMiddleware } from "../../middleware/authMiddleware";
 import { validateCourseBody } from "../../middleware/courseCrudPipes/coursePipe";
 
-
-
-export const adminRouter = express.Router()
-
+export const adminRouter = express.Router();
 
 // adminRouter.get("/users/all", getUsers)
 // adminRouter.get("/ping", (req, res) => res.send("pong from admin"))

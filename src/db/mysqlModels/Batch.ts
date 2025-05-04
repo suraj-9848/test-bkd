@@ -10,8 +10,6 @@ import {
 import { Org } from "./Org";
 import { Course } from "./Course";
 
-
-
 @Entity("batch")
 export class Batch extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")

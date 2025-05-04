@@ -19,11 +19,17 @@ import {
   fetchCourse,
   updateCourse,
   deleteCourse,
-  fetchCoursesInBatch, 
+  fetchCoursesInBatch,
   assigningStudent,
 } from "../../controllers/instructorControllers/course.controller";
 
-import { createTest, fetchTestById, updateTest, deleteTest, fetchTestsInCourse } from "../../controllers/instructorControllers/test.controller";
+import {
+  createTest,
+  fetchTestById,
+  updateTest,
+  deleteTest,
+  fetchTestsInCourse,
+} from "../../controllers/instructorControllers/test.controller";
 
 const router = express.Router();
 router.use(authMiddleware, instructorMiddleware);

@@ -38,5 +38,4 @@ export class Course extends BaseEntity {
 
   @OneToMany(() => Test, (test) => test.course)
   tests: Test[];
-  
 }

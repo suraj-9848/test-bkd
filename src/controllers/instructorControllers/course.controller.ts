@@ -21,7 +21,7 @@ export const createCourse = async (req: Request, res: Response) => {
       { where: { id: batch_id } },
       `batch_${batch_id}`,
       true,
-      0
+      0,
     );
     if (!batch) {
       return res.status(404).json({ message: "Batch not found" });
@@ -40,7 +40,7 @@ export const createCourse = async (req: Request, res: Response) => {
       Course.getRepository(),
       course,
       "all_courses",
-      10 * 60
+      10 * 60,
     );
 
     return res.status(201).json({
@@ -62,7 +62,7 @@ export const deleteCourse = async (req: Request, res: Response) => {
       { where: { id }, relations: ["batch"] },
       `course_${id}`,
       true,
-      0
+      0,
     );
 
     if (!course || course.batch?.id !== batchId) {
@@ -87,7 +87,7 @@ export const updateCourse = async (req: Request, res: Response) => {
       { where: { id }, relations: ["batch"] },
       `course_${id}`,
       true,
-      0
+      0,
     );
 
     if (!course || course.batch?.id !== batchId) {
@@ -112,7 +112,7 @@ export const fetchAllCourses = async (req: Request, res: Response) => {
       Course,
       "all_courses",
       true,
-      10 * 60
+      10 * 60,
     );
 
     return res.status(200).json({
@@ -134,7 +134,7 @@ export const fetchCourse = async (req: Request, res: Response) => {
       { where: { id: courseId }, relations: ["batch"] },
       `course_${courseId}`,
       true,
-      10 * 60
+      10 * 60,
     );
 
     if (!course) {
@@ -166,7 +166,7 @@ export const assigningStudent = async (req: Request, res: Response) => {
       { where: { id: course_id }, relations: ["batch"] }, // include batch
       `course_${course_id}`,
       true,
-      0
+      0,
     );
 
     if (!course) {
@@ -219,7 +219,7 @@ export const fetchCoursesInBatch = async (req: Request, res: Response) => {
       { where: { batch: { id: batchId } }, relations: ["batch"] },
       `batch_${batchId}_courses`,
       true,
-      10 * 60
+      10 * 60,
     );
     return res.status(200).json({ message: "Courses fetched", courses });
   } catch (err) {
