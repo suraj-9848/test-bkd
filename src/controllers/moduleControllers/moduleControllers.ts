@@ -111,7 +111,7 @@ export const updateModule = async (req: Request, res: Response) => {
 
 // Unlock Next Module
 export const unlockNextModule = async (
-  currentModuleId: string
+  currentModuleId: string,
 ): Promise<void> => {
   try {
     const currentModule = await Module.findOne({

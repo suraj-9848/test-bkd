@@ -6,33 +6,38 @@ import { ModuleMCQ } from "../../db/mysqlModels/ModuleMCQ";
 import { ModuleMCQAnswer } from "../../db/mysqlModels/ModuleMCQAnswer";
 import { ModuleMCQResponses } from "../../db/mysqlModels/ModuleMCQResponses";
 import { User } from "../../db/mysqlModels/User";
-import { createRecord, getSingleRecord, updateRecords, deleteRecords, getAllRecordsWithFilter } from "../../lib/dbLib/sqlUtils";
+import {
+  createRecord,
+  getSingleRecord,
+  updateRecords,
+  deleteRecords,
+  getAllRecordsWithFilter,
+} from "../../lib/dbLib/sqlUtils";
 
 // ✅ Create MCQ
 export const createMCQ = async (req: Request, res: Response) => {
-    const { moduleId, questions, passingScore } = req.body;
-  
-    try {
-      const module = await getSingleRecord(Module, { id: moduleId });
-  
-      if (!module) {
-        return res.status(404).json({ message: "Module not found" });
-      }
-  
-      const newMCQ = ModuleMCQ.create({
-        module,
-        questions,
-        passingScore,
-      });
-  
-      const savedMCQ = await createRecord(ModuleMCQ, newMCQ);
-      res.status(201).json(savedMCQ);
-    } catch (error) {
-      console.error("Error creating MCQ:", error);
-      res.status(500).json({ message: "Error creating MCQ" });
+  const { moduleId, questions, passingScore } = req.body;
+
+  try {
+    const module = await getSingleRecord(Module, { id: moduleId });
+
+    if (!module) {
+      return res.status(404).json({ message: "Module not found" });
     }
-  };
-  
+
+    const newMCQ = ModuleMCQ.create({
+      module,
+      questions,
+      passingScore,
+    });
+
+    const savedMCQ = await createRecord(ModuleMCQ, newMCQ);
+    res.status(201).json(savedMCQ);
+  } catch (error) {
+    console.error("Error creating MCQ:", error);
+    res.status(500).json({ message: "Error creating MCQ" });
+  }
+};
 
 // ✅ Get MCQ by ID
 export const getMCQById = async (req: Request, res: Response) => {
@@ -58,7 +63,12 @@ export const updateMCQ = async (req: Request, res: Response) => {
   const { questions, passingScore } = req.body;
 
   try {
-    const updatedMCQ = await updateRecords(ModuleMCQ, { id: mcqId }, { questions, passingScore }, false);
+    const updatedMCQ = await updateRecords(
+      ModuleMCQ,
+      { id: mcqId },
+      { questions, passingScore },
+      false,
+    );
     res.status(200).json(updatedMCQ);
   } catch (error) {
     console.error("Error updating MCQ:", error);
