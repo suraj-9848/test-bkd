@@ -36,7 +36,13 @@ redisClient
     console.error("REDIS CACHE FAILED", e);
   });
 
-app.use(cors({ origin: config.CORS_ORIGIN }));
+// app.use(cors({ origin: config.CORS_ORIGIN }));
+app.use(
+  cors({
+    origin: "http://localhost:4000",
+    credentials: true,
+  })
+);
 
 app.disable("X-Powered-By");
 app.use(morgan("dev"));
