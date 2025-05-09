@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Course } from "../../db/mysqlModels/Course";
 import { Batch } from "../../db/mysqlModels/Batch";
+import { Module } from "../../db/mysqlModels/Module";
 import {
   createRecord,
   getSingleRecord,
@@ -11,8 +12,7 @@ import {
 
 export const createCourse = async (req: Request, res: Response) => {
   try {
-    const { title, logo, pages_id, content, start_date, end_date, batch_id } =
-      req.body;
+    const { title, logo, pages_id, content, start_date, end_date, batch_id, modules } = req.body;
 
     const batch = await getSingleRecord(Batch, { where: { id: batch_id } });
     if (!batch) {
@@ -22,11 +22,13 @@ export const createCourse = async (req: Request, res: Response) => {
     const course = new Course();
     course.title = title;
     course.logo = logo;
-    course.pages = pages_id;
-    course.content = content;
     course.start_date = new Date(start_date);
     course.end_date = new Date(end_date);
     course.batch = batch;
+
+    if (modules && modules.length > 0) {
+      course.modules = modules.map((module: Module) => Module.create(module));
+    }
 
     const savedCourse = await createRecord<Course>(
       Course.getRepository(),
@@ -105,7 +107,7 @@ export const fetchCourse = async (req: Request, res: Response) => {
     const course = await getSingleRecord<Course, any>(
       Course,
       { where: { id } },
-      `course_${id}`, // Unique cache key
+      `course_${id}`,
       true,
       10 * 60,
     );
