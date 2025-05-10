@@ -14,14 +14,14 @@ import {
   fetchPublicCoursesInBatch,
 } from "../../controllers/instructorControllers/batch.controller";
 
-import {
-  createCourse,
-  fetchCourse,
-  updateCourse,
-  deleteCourse,
-  fetchCoursesInBatch,
-  assigningStudent,
-} from "../../controllers/instructorControllers/course.controller";
+// import {
+//   createCourse,
+//   fetchCourse,
+//   updateCourse,
+//   deleteCourse,
+//   fetchCoursesInBatch,
+//   assigningStudent,
+// } from "../../controllers/instructorControllers/course.controller";
 
 import {
   createTest,
@@ -45,12 +45,12 @@ router.patch("/:id/visibility", toggleBatchVisibility);
 
 router.get("/:id/public-courses", fetchPublicCoursesInBatch);
 
-router.post("/:batchId/courses", createCourse);
-router.get("/:batchId/courses", fetchCoursesInBatch);
-router.get("/:batchId/courses/:id", fetchCourse);
-router.put("/:batchId/courses/:id", updateCourse);
-router.delete("/:batchId/courses/:id", deleteCourse);
-router.post("/:batchId/courses/:courseId/assign-student", assigningStudent);
+// router.post("/:batchId/courses", createCourse);
+// router.get("/:batchId/courses", fetchCoursesInBatch);
+// router.get("/:batchId/courses/:id", fetchCourse);
+// router.put("/:batchId/courses/:id", updateCourse);
+// router.delete("/:batchId/courses/:id", deleteCourse);
+// router.post("/:batchId/courses/:courseId/assign-student", assigningStudent);
 
 router.post("/:batchId/courses/:courseId/tests", createTest);
 router.get("/:batchId/courses/:courseId/tests", fetchTestsInCourse);

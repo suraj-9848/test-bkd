@@ -40,6 +40,7 @@
     "perf_hooks": "^0.0.1",
     "redis": "^4.6.10",
     "reflect-metadata": "^0.1.13",
+    "sanitize-html": "^2.16.0",
     "typeorm": "^0.3.17",
     "uploadthing": "^5.7.4",
     "uuid": "^11.1.0"

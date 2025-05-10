@@ -36,7 +36,13 @@ redisClient
     console.error("REDIS CACHE FAILED", e);
   });
 
-app.use(cors({ origin: config.CORS_ORIGIN }));
+// app.use(cors({ origin: config.CORS_ORIGIN }));
+app.use(
+  cors({
+    origin: "http://localhost:4000",
+    credentials: true,
+  })
+);
 
 app.disable("X-Powered-By");
 app.use(morgan("dev"));
@@ -46,8 +52,8 @@ app.use(express.urlencoded({ extended: true, limit: config.PAYLOAD_LIMIT }));
 app.use(
   express.static(
     path.join(process.cwd(), "../frontend/build"),
-    config.STATIC_CACHE_TIME,
-  ),
+    config.STATIC_CACHE_TIME
+  )
 );
 app.use("/api/courseProgress", courseProgressRoutes);
 app.use("/api/sessionProgress", sessionProgressRoutes);
