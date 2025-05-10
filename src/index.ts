@@ -60,7 +60,7 @@ app.use("/api/sessionProgress", sessionProgressRoutes);
 
 import { adminRouter } from "./routes/adminRouter/adminRoutes";
 import { instructorRouter } from "./routes/instructorRouter/batch.routes";
-import studentRouter from "./routes/studentRouter/studentRoutes";
+import {studentRouter} from "./routes/studentRouter/studentRoutes";
 
 // Main routes
 app.use("/api/instructor", instructorRouter);
