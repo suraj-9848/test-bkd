@@ -13,33 +13,33 @@ import {
 import { authMiddleware } from "../../middleware/authMiddleware";
  
 
-const router = express.Router();
+const studentRouter = express.Router();
 
 // Apply student authentication middleware to all routes
-router.use(authMiddleware);
+studentRouter.use(authMiddleware);
 
 // Get all courses available to the student
-router.get("/courses", getStudentCourses);
+studentRouter.get("/courses", getStudentCourses);
 
 // Get details of a specific course, including module lock status
-router.get("/courses/:courseId", getStudentCourseById);
+studentRouter.get("/courses/:courseId", getStudentCourseById);
 
 // Get details of a specific module, including day contents and MCQ accessibility
-router.get("/modules/:moduleId", getStudentModuleById);
+studentRouter.get("/modules/:moduleId", getStudentModuleById);
 
 // Get content for a specific day
-router.get("/day-contents/:dayId", getStudentDayContentById);
+studentRouter.get("/day-contents/:dayId", getStudentDayContentById);
 
 // Mark a day’s content as completed
-router.patch("/day-contents/:dayId/complete", markDayAsCompleted);
+studentRouter.patch("/day-contents/:dayId/complete", markDayAsCompleted);
 
 // Get the MCQ questions for a module
-router.get("/modules/:moduleId/mcq", getStudentModuleMCQ);
+studentRouter.get("/modules/:moduleId/mcq", getStudentModuleMCQ);
 
 // Submit responses to a module’s MCQ
-router.post("/modules/:moduleId/mcq/responses", submitMCQResponses);
+studentRouter.post("/modules/:moduleId/mcq/responses", submitMCQResponses);
 
 // Get the latest MCQ results for a module
-router.get("/modules/:moduleId/mcq/results", getMCQResults);
+studentRouter.get("/modules/:moduleId/mcq/results", getMCQResults);
 
-export default router;
+export default studentRouter;
