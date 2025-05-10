@@ -18,6 +18,9 @@ pnpm run mac-dev-build //terminal 2
 git rm -r --cached .
 git add .
 
+> [!WARNING]
+> Run `pnpm run format` before pushing your code!
+
 ### For pull rquest
 
 git merge main

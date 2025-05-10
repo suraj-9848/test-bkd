@@ -67,7 +67,7 @@ export const adminRouter = express.Router();
 // adminRouter.get('/test', getTestData)
 // adminRouter.get('/file', handleFileUpload)
 // TODO: Needs to be deleted in the future
-adminRouter.use(adminMiddleware);
+adminRouter.use(authMiddleware, adminMiddleware);
 
 adminRouter.post("/create-course", validateCourseBody, createCourse);
 adminRouter.delete("/delete-course/:id", deleteCourse);
