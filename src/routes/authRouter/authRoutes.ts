@@ -129,7 +129,7 @@ router.post("/login", async (req: Request, res: Response) => {
 
     return res.status(200).json({
       message: "Login successful",
-      user: { id: user.id, username: user.username },
+      user: { id: user.id, username: user.username, userRole: user.userRole },
     });
   } catch (error) {
     logger.error("Error in Login Route:", error);

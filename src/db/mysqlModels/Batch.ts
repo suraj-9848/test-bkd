@@ -10,7 +10,7 @@ import {
 import { Org } from "./Org";
 import { Course } from "./Course";
 
-@Entity()
+@Entity("batch")
 export class Batch extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
   id: string;
@@ -23,6 +23,9 @@ export class Batch extends BaseEntity {
 
   @Column("uuid")
   org_id: string;
+
+  @Column({ type: "boolean", default: false })
+  is_public: boolean;
 
   @ManyToOne(() => Org, (org) => org.batches)
   @JoinColumn({ name: "org_id" })

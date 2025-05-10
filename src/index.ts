@@ -59,7 +59,9 @@ app.use("/api/courseProgress", courseProgressRoutes);
 app.use("/api/sessionProgress", sessionProgressRoutes);
 
 import { adminRouter } from "./routes/adminRouter/adminRoutes";
+import { instructorRouter } from "./routes/instructorRouter/batch.routes";
 
+app.use("/api/instructor", instructorRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/auth", authRouter);
 

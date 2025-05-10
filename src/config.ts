@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 export const config = {
   CORS_ORIGIN:
     process.env.NODE_ENV === "production"
@@ -40,13 +43,12 @@ export const config = {
 
   // dafault value set to 10mb use to set the payload limit of express
   PAYLOAD_LIMIT: process.env.PAYLOAD_LIMIT || "10mb",
-  // default log level will be info
   LOG_LEVEL: process.env.LOG_LEVEL || "info",
-  // default set to 1024 , Limit size of files created (or modified) by the program in kilobytes
+
   STATIC_CACHE_TIME: {
     etag: true,
     index: false,
-    maxAge: "600000", // earlier this was 1d, instead now made it as 10 mins.
+    maxAge: "600000",
     redirect: false,
     setHeaders(res, path, stat) {
       res.set("x-timestamp", Date.now());

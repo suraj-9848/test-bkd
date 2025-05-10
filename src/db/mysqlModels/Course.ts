@@ -31,4 +31,7 @@ export class Course extends BaseEntity {
 
   @ManyToOne(() => Batch, (batch) => batch.courses, { onDelete: "CASCADE" })
   batch: Batch;
+
+  // @OneToMany(() => Test, (test) => test.course)
+  // tests: Test[];
 }
