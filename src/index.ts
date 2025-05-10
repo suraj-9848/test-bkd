@@ -52,8 +52,8 @@ app.use(express.urlencoded({ extended: true, limit: config.PAYLOAD_LIMIT }));
 app.use(
   express.static(
     path.join(process.cwd(), "../frontend/build"),
-    config.STATIC_CACHE_TIME,
-  ),
+    config.STATIC_CACHE_TIME
+  )
 );
 app.use("/api/courseProgress", courseProgressRoutes);
 app.use("/api/sessionProgress", sessionProgressRoutes);
