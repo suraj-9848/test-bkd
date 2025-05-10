@@ -54,10 +54,17 @@ app.use("/api/sessionProgress", sessionProgressRoutes);
 
 import { adminRouter } from "./routes/adminRouter/adminRoutes";
 import { instructorRouter } from "./routes/instructorRouter/batch.routes";
+import { testRouter } from "./routes/instructorRouter/test.routes";
+import { testAttemptRouter } from "./routes/studentRouter/testAttempt.routes";
 
+// Main routes
 app.use("/api/instructor", instructorRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/auth", authRouter);
+
+// Test-related routes
+app.use("/api/instructor/test", testRouter);
+app.use("/api/student/test", testAttemptRouter);
 
 app.use((req: Request, res: Response) => {
   res.status(404).json({ message: "API route not found" });

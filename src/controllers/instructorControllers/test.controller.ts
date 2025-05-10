@@ -56,7 +56,7 @@ export const createTest = async (req: Request, res: Response) => {
     test.course = course;
 
     const newTest = await createRecord<Test>(
-      Test,
+      Test.getRepository(),
       test,
       `test:course:${courseId}:new`,
       600,

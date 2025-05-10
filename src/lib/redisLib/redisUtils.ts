@@ -18,7 +18,9 @@ export async function getCacheData<T>(key: any) {
 
 export async function setCacheData<T>(key: any, data: any, cacheLimit: number) {
   try {
-    await redisClient.setEx(key, cacheLimit, JSON.stringify(data));
+    // Ensure cacheLimit is a valid positive integer
+    const safeCacheLimit = Math.max(1, Math.floor(cacheLimit) || 60);
+    await redisClient.setEx(key, safeCacheLimit, JSON.stringify(data));
   } catch (err) {
     logger.error("ERROR ON CACHING DATA TO REDIS CHACHE", err);
     throw err;
