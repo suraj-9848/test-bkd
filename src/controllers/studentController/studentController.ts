@@ -78,6 +78,23 @@ export const getStudentCourses = async (req: Request, res: Response) => {
   }
 };
 
+
+export const getStudentCourseModules = async (req: Request, res: Response) => {
+  const { courseId } = req.params;
+
+  try {
+    const modules = await Module.find({
+      where: { course: { id: courseId } },
+      order: { order: "ASC" },
+    });
+
+    res.status(200).json(modules);
+  } catch (error) {
+    console.error("Error fetching modules:", error);
+    res.status(500).json({ message: "Error fetching modules" });
+  }
+};
+
 // GET /student/courses/:courseId
 export const getStudentCourseById = async (req: Request, res: Response) => {
   const { courseId } = req.params;

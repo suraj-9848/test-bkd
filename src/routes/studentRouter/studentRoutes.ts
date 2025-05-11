@@ -8,6 +8,7 @@ import {
   getStudentModuleMCQ,
   submitMCQResponses,
   getMCQResults,
+  getStudentCourseModules,
 } from "../../controllers/studentController/studentController";
 import { authMiddleware } from "../../middleware/authMiddleware";
 
@@ -21,9 +22,11 @@ router.get("/courses", getStudentCourses);
 
 // Get details of a specific course, including module lock status
 router.get("/courses/:courseId", getStudentCourseById);
+router.get("/courses/:courseId/modules", getStudentCourseModules);
 
 // Get details of a specific module, including day contents and MCQ accessibility
 router.get("/modules/:moduleId", getStudentModuleById);
+
 
 // Get content for a specific day
 router.get("/day-contents/:dayId", getStudentDayContentById);
