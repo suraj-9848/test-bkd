@@ -17,7 +17,9 @@ export class UserDayCompletion extends BaseEntity {
   @ManyToOne(() => User, (user) => user.id, { onDelete: "CASCADE" })
   user: User;
 
-  @ManyToOne(() => DayContent, (dayContent) => dayContent.id, { onDelete: "CASCADE" })
+  @ManyToOne(() => DayContent, (dayContent) => dayContent.id, {
+    onDelete: "CASCADE",
+  })
   day: DayContent;
 
   @Column({ default: false })

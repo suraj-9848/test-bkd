@@ -41,7 +41,7 @@ app.use(
   cors({
     origin: "http://localhost:4000",
     credentials: true,
-  })
+  }),
 );
 
 app.disable("X-Powered-By");
@@ -52,8 +52,8 @@ app.use(express.urlencoded({ extended: true, limit: config.PAYLOAD_LIMIT }));
 app.use(
   express.static(
     path.join(process.cwd(), "../frontend/build"),
-    config.STATIC_CACHE_TIME
-  )
+    config.STATIC_CACHE_TIME,
+  ),
 );
 app.use("/api/courseProgress", courseProgressRoutes);
 app.use("/api/sessionProgress", sessionProgressRoutes);
@@ -74,11 +74,9 @@ app.use((req: Request, res: Response) => {
   res.status(404).json({ message: "API route not found" });
 });
 
-
 app.get("/", (req, res) => {
   res.send("App is running");
 });
-
 
 app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);

@@ -8,11 +8,18 @@ const sanitizeContent = (content: string): string => {
   return sanitizeHtml(content, {
     allowedTags: sanitizeHtml.defaults.allowedTags.concat([
       "img",
-      "h1", "h2", "h3", "p", "ul", "ol", "li", "a"
+      "h1",
+      "h2",
+      "h3",
+      "p",
+      "ul",
+      "ol",
+      "li",
+      "a",
     ]),
     allowedAttributes: {
       a: ["href", "target"],
-      img: ["src", "alt"]
+      img: ["src", "alt"],
     },
   });
 };
@@ -75,7 +82,8 @@ export const updateDayContent = async (req: Request, res: Response) => {
 
   try {
     const dayContent = await DayContent.findOne({ where: { id: dayId } });
-    if (!dayContent) return res.status(404).json({ message: "Day content not found" });
+    if (!dayContent)
+      return res.status(404).json({ message: "Day content not found" });
 
     if (content) {
       dayContent.content = sanitizeContent(content);
@@ -95,7 +103,8 @@ export const deleteDayContent = async (req: Request, res: Response) => {
 
   try {
     const dayContent = await DayContent.findOne({ where: { id: dayId } });
-    if (!dayContent) return res.status(404).json({ message: "Day content not found" });
+    if (!dayContent)
+      return res.status(404).json({ message: "Day content not found" });
 
     await dayContent.remove();
     res.status(200).json({ message: "Day content deleted successfully" });
@@ -111,7 +120,8 @@ export const markDayAsCompleted = async (req: Request, res: Response) => {
 
   try {
     const dayContent = await DayContent.findOne({ where: { id: dayId } });
-    if (!dayContent) return res.status(404).json({ message: "Day content not found" });
+    if (!dayContent)
+      return res.status(404).json({ message: "Day content not found" });
 
     dayContent.completed = true;
     await dayContent.save();

@@ -16,7 +16,10 @@ import {
 } from "../../lib/dbLib/sqlUtils";
 
 // Helper function to determine if a module is unlocked for a student
-async function isModuleUnlocked(student: User, module: Module): Promise<boolean> {
+async function isModuleUnlocked(
+  student: User,
+  module: Module,
+): Promise<boolean> {
   // The first module is always unlocked.
   if (module.order === 1) {
     return true;
@@ -29,38 +32,40 @@ async function isModuleUnlocked(student: User, module: Module): Promise<boolean>
   }
 
   const previousModule = await getSingleRecord(Module, {
-    where: { 
+    where: {
       course: { id: courseId },
-      order: module.order - 1
+      order: module.order - 1,
     },
   });
   if (!previousModule) {
     return false;
   }
 
-  const previousMCQ = await getSingleRecord(ModuleMCQ, { 
-    where: { module: { id: previousModule.id } } 
+  const previousMCQ = await getSingleRecord(ModuleMCQ, {
+    where: { module: { id: previousModule.id } },
   });
   if (!previousMCQ) {
     return false;
   }
 
   const response = await getSingleRecord(ModuleMCQResponses, {
-    where: { 
+    where: {
       moduleMCQ: { id: previousMCQ.id },
-      user: { id: student.id } 
+      user: { id: student.id },
     },
   });
   if (!response) {
     return false;
   }
 
-  const correctAnswers = await getAllRecordsWithFilter(ModuleMCQAnswer, { 
-    where: { moduleMCQ: { id: previousMCQ.id } } 
+  const correctAnswers = await getAllRecordsWithFilter(ModuleMCQAnswer, {
+    where: { moduleMCQ: { id: previousMCQ.id } },
   });
   let score = 0;
   response.responses.forEach((res: any) => {
-    const correct = correctAnswers.find((ans: ModuleMCQAnswer) => ans.questionId === res.questionId);
+    const correct = correctAnswers.find(
+      (ans: ModuleMCQAnswer) => ans.questionId === res.questionId,
+    );
     if (correct && correct.correctAnswer === res.answer) {
       score++;
     }
@@ -70,8 +75,13 @@ async function isModuleUnlocked(student: User, module: Module): Promise<boolean>
 }
 
 // Helper function to check if all day contents of a module are completed
-async function areAllDaysCompleted(student: User, module: Module): Promise<boolean> {
-  const days = await getAllRecordsWithFilter(DayContent, { where: { module: { id: module.id } } });
+async function areAllDaysCompleted(
+  student: User,
+  module: Module,
+): Promise<boolean> {
+  const days = await getAllRecordsWithFilter(DayContent, {
+    where: { module: { id: module.id } },
+  });
   for (const day of days) {
     const completion = await getSingleRecord(UserDayCompletion, {
       where: { user: { id: student.id }, day: { id: day.id } },
@@ -93,7 +103,6 @@ export const getStudentCourses = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Error fetching courses" });
   }
 };
-
 
 export const getStudentCourseModules = async (req: Request, res: Response) => {
   const { courseId } = req.params;
@@ -122,13 +131,19 @@ export const getStudentCourseById = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Course not found" });
     }
 
-    const modules = await getAllRecordsWithFilter(Module, { where: { course: { id: courseId } }, order: { order: "ASC" } }, "", false, 0);
+    const modules = await getAllRecordsWithFilter(
+      Module,
+      { where: { course: { id: courseId } }, order: { order: "ASC" } },
+      "",
+      false,
+      0,
+    );
 
     const modulesWithLockStatus = await Promise.all(
       modules.map(async (module: Module) => {
         const isUnlocked = await isModuleUnlocked(student, module);
         return { ...module, isLocked: !isUnlocked };
-      })
+      }),
     );
 
     res.status(200).json({ ...course, modules: modulesWithLockStatus });
@@ -140,7 +155,7 @@ export const getStudentCourseById = async (req: Request, res: Response) => {
 
 // GET /student/modules/:moduleId
 export const getStudentModuleById = async (req: Request, res: Response) => {
-  const { courseId , moduleId } = req.params;
+  const { courseId, moduleId } = req.params;
   const student = req.user as User;
 
   try {
@@ -154,7 +169,13 @@ export const getStudentModuleById = async (req: Request, res: Response) => {
       return res.status(403).json({ message: "Module is locked" });
     }
 
-    const days = await getAllRecordsWithFilter(DayContent, { where: { module: { id: moduleId } }, order: { dayNumber: "ASC" } }, "", false, 0);
+    const days = await getAllRecordsWithFilter(
+      DayContent,
+      { where: { module: { id: moduleId } }, order: { dayNumber: "ASC" } },
+      "",
+      false,
+      0,
+    );
     const allDaysCompleted = await areAllDaysCompleted(student, module);
     const mcqAccessible = allDaysCompleted;
 
@@ -176,7 +197,9 @@ export const getStudentDayContentById = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Day content not found" });
     }
 
-    const module = await getSingleRecord(Module, { where: { id: day.module.id } });
+    const module = await getSingleRecord(Module, {
+      where: { id: day.module.id },
+    });
     const isUnlocked = await isModuleUnlocked(student, module);
     if (!isUnlocked) {
       return res.status(403).json({ message: "Module is locked" });
@@ -205,9 +228,18 @@ export const markDayAsCompleted = async (req: Request, res: Response) => {
     });
 
     if (completion) {
-      await updateRecords(UserDayCompletion, { id: completion.id }, { completed: true }, false);
+      await updateRecords(
+        UserDayCompletion,
+        { id: completion.id },
+        { completed: true },
+        false,
+      );
     } else {
-      const newCompletion = UserDayCompletion.create({ user: student, day, completed: true });
+      const newCompletion = UserDayCompletion.create({
+        user: student,
+        day,
+        completed: true,
+      });
       await createRecord(UserDayCompletion, newCompletion);
     }
 
@@ -225,7 +257,7 @@ export const getStudentModuleMCQ = async (req: Request, res: Response) => {
 
   try {
     console.log(
-      `Fetching MCQ for moduleId: ${moduleId}, student: ${student.id}`
+      `Fetching MCQ for moduleId: ${moduleId}, student: ${student.id}`,
     );
     const module = await getSingleRecord(Module, { where: { id: moduleId } });
     console.log(`Module: ${JSON.stringify(module)}`);
@@ -274,15 +306,21 @@ export const submitMCQResponses = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Module not found" });
     }
 
-    const mcq = await getSingleRecord(ModuleMCQ, { where: { module: { id: moduleId } } });
+    const mcq = await getSingleRecord(ModuleMCQ, {
+      where: { module: { id: moduleId } },
+    });
     if (!mcq) {
       return res.status(404).json({ message: "MCQ not found for this module" });
     }
 
-    const correctAnswers = await getAllRecordsWithFilter(ModuleMCQAnswer, { where: { moduleMCQ: { id: mcq.id } } });
+    const correctAnswers = await getAllRecordsWithFilter(ModuleMCQAnswer, {
+      where: { moduleMCQ: { id: mcq.id } },
+    });
     let score = 0;
     responses.forEach((response: any) => {
-      const correct = correctAnswers.find((ans: ModuleMCQAnswer) => ans.questionId === response.questionId);
+      const correct = correctAnswers.find(
+        (ans: ModuleMCQAnswer) => ans.questionId === response.questionId,
+      );
       if (correct && correct.correctAnswer === response.answer) {
         score++;
       }
@@ -292,7 +330,11 @@ export const submitMCQResponses = async (req: Request, res: Response) => {
     const percentage = (score / totalQuestions) * 100;
     const passed = percentage >= mcq.passingScore;
 
-    const newResponse = ModuleMCQResponses.create({ moduleMCQ: mcq, user: student, responses });
+    const newResponse = ModuleMCQResponses.create({
+      moduleMCQ: mcq,
+      user: student,
+      responses,
+    });
     await createRecord(ModuleMCQResponses, newResponse);
 
     res.status(200).json({ score, passed });
@@ -313,23 +355,33 @@ export const getMCQResults = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Module not found" });
     }
 
-    const mcq = await getSingleRecord(ModuleMCQ, { where: { module: { id: moduleId } } });
+    const mcq = await getSingleRecord(ModuleMCQ, {
+      where: { module: { id: moduleId } },
+    });
     if (!mcq) {
       return res.status(404).json({ message: "MCQ not found for this module" });
     }
 
-    const latestResponse = await getSingleRecord(ModuleMCQResponses, {
-      where: { moduleMCQ: { id: mcq.id }, user: { id: student.id } },
-    }, { order: { createdAt: "DESC" } });
+    const latestResponse = await getSingleRecord(
+      ModuleMCQResponses,
+      {
+        where: { moduleMCQ: { id: mcq.id }, user: { id: student.id } },
+      },
+      { order: { createdAt: "DESC" } },
+    );
 
     if (!latestResponse) {
       return res.status(404).json({ message: "No MCQ response found" });
     }
 
-    const correctAnswers = await getAllRecordsWithFilter(ModuleMCQAnswer, { where: { moduleMCQ: { id: mcq.id } } });
+    const correctAnswers = await getAllRecordsWithFilter(ModuleMCQAnswer, {
+      where: { moduleMCQ: { id: mcq.id } },
+    });
     let score = 0;
     latestResponse.responses.forEach((response: any) => {
-      const correct = correctAnswers.find((ans: ModuleMCQAnswer) => ans.questionId === response.questionId);
+      const correct = correctAnswers.find(
+        (ans: ModuleMCQAnswer) => ans.questionId === response.questionId,
+      );
       if (correct && correct.correctAnswer === response.answer) {
         score++;
       }
@@ -339,7 +391,9 @@ export const getMCQResults = async (req: Request, res: Response) => {
     const percentage = (score / totalQuestions) * 100;
     const passed = percentage >= mcq.passingScore;
 
-    res.status(200).json({ responses: latestResponse.responses, score, passed });
+    res
+      .status(200)
+      .json({ responses: latestResponse.responses, score, passed });
   } catch (error) {
     console.error("Error fetching MCQ results:", error);
     res.status(500).json({ message: "Error fetching MCQ results" });

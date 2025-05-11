@@ -25,7 +25,7 @@ import {
 
 const router = express.Router();
 
-router.use(authMiddleware,instructorMiddleware);
+router.use(authMiddleware, instructorMiddleware);
 
 // Day Content Routes
 router.post("/modules/:moduleId/day-content", addDayContent);

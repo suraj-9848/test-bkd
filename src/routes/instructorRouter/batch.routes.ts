@@ -57,6 +57,4 @@ router.get("/:batchId/courses/:courseId/tests/:testId", fetchTestById);
 router.put("/:batchId/courses/:courseId/tests/:testId", updateTest);
 router.delete("/:batchId/courses/:courseId/tests/:testId", deleteTest);
 
-
-
 export const instructorRouter = router;

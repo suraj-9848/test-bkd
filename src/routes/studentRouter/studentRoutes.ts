@@ -27,7 +27,6 @@ router.get("/courses/:courseId/modules", getStudentCourseModules);
 // Get details of a specific module, including day contents and MCQ accessibility
 router.get("/modules/:moduleId", getStudentModuleById);
 
-
 // Get content for a specific day
 router.get("/day-contents/:dayId", getStudentDayContentById);
 

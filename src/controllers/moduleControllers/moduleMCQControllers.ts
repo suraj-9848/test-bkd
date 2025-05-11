@@ -26,10 +26,13 @@ export const createMCQ = async (req: Request, res: Response) => {
     }
 
     // Check if an MCQ already exists for this module
-    const existingMCQ = await getSingleRecord(ModuleMCQ, { module: { id: moduleId } });
+    const existingMCQ = await getSingleRecord(ModuleMCQ, {
+      module: { id: moduleId },
+    });
     if (existingMCQ) {
       return res.status(400).json({
-        message: "An MCQ test already exists for this module. Use update to modify it.",
+        message:
+          "An MCQ test already exists for this module. Use update to modify it.",
       });
     }
 

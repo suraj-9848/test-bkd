@@ -18,11 +18,11 @@ export class Module extends BaseEntity {
   @ManyToOne(() => Course, (course) => course.modules, { onDelete: "CASCADE" })
   course: Course;
 
-  @Column('longtext')
+  @Column("longtext")
   title: string;
 
   @Column()
-  order: number; 
+  order: number;
 
   @OneToMany(() => DayContent, (day) => day.module, { cascade: true })
   days: DayContent[];
