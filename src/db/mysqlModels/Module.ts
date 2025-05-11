@@ -22,7 +22,7 @@ export class Module extends BaseEntity {
   title: string;
 
   @Column()
-  order: number; // Determines the sequence of modules
+  order: number; 
 
   @OneToMany(() => DayContent, (day) => day.module, { cascade: true })
   days: DayContent[];

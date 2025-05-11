@@ -14,6 +14,7 @@ import {
   markDayAsCompleted,
   updateDayContent,
 } from "../../controllers/moduleControllers/dayContentControllers";
+import { authMiddleware } from "../../middleware/authMiddleware";
 import {
   createModule,
   deleteModule,
@@ -24,7 +25,7 @@ import {
 
 const router = express.Router();
 
-router.use(instructorMiddleware);
+router.use(authMiddleware,instructorMiddleware);
 
 // Day Content Routes
 router.post("/modules/:moduleId/day-content", addDayContent);
@@ -45,4 +46,4 @@ router.get("/mcq/:mcqId", getMCQById);
 router.put("/mcq/:mcqId", updateMCQ);
 router.delete("/mcq/:mcqId", deleteMCQ);
 
-export default router;
+export const moduleRouter = router;

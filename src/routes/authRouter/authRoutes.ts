@@ -62,7 +62,7 @@ router.post("/register", async (req: Request, res: Response) => {
             Org,
             { where: { name: "Default Org" } },
             `org_default`,
-
+            
             true,
             10 * 60
         );
