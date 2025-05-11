@@ -56,6 +56,8 @@ import {
   deleteOrg,
 } from "../../controllers/adminControllers/adminController";
 
+import { createBatch, deleteBatch, updateBatch, fetchAllBatches, fetchBatch } from "../../controllers/instructorControllers/batch.controller";
+
 import { adminMiddleware } from "../../middleware/adminMiddleware";
 import { authMiddleware } from "../../middleware/authMiddleware";
 import { validateCourseBody } from "../../middleware/courseCrudPipes/coursePipe";
@@ -68,6 +70,13 @@ export const adminRouter = express.Router();
 // adminRouter.get('/file', handleFileUpload)
 // TODO: Needs to be deleted in the future
 adminRouter.use(authMiddleware, adminMiddleware);
+
+adminRouter.post("/create-batch", createBatch);
+adminRouter.delete("/delete-batch/:id", deleteBatch);
+adminRouter.put("/update-batch/:id", updateBatch);
+adminRouter.get("/fetch-all-batches", fetchAllBatches);
+adminRouter.get("/fetch-batch/:id", fetchBatch);
+
 
 adminRouter.post("/create-course", validateCourseBody, createCourse);
 adminRouter.delete("/delete-course/:id", deleteCourse);
