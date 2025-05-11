@@ -72,6 +72,12 @@ app.use((req: Request, res: Response) => {
   res.status(404).json({ message: "API route not found" });
 });
 
+
+app.get("/", (req, res) => {
+  res.send("App is running");
+});
+
+
 app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
   logger.info(`Environment: ${process.env.NODE_ENV}`);
