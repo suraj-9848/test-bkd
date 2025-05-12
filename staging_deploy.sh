@@ -1,14 +1,19 @@
 #!/bin/bash
 
-# Navigate to the project directory
-cd "$(dirname "$0")"
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Run pnpm build
-echo "Running pnpm build..."
-pnpm build
+# 1. Navigate to your project directory
+cd /home/ec2-user/lms-backend
 
-# Restart the service
-echo "Restarting stg.service..."
-sudo systemctl restart stg.service
+# 2. Start your Docker Compose services
+docker compose --profile trailbliz up -d
 
-echo "Deployment completed."
+# 3. Install Node dependencies
+pnpm i
+
+# 4. Start TypeScript watcher
+pnpm run watch &
+
+# 5. Start the built app for production-like run
+pnpm run mac-dev-build
