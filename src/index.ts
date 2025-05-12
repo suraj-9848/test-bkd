@@ -70,12 +70,16 @@ app.use("/api/auth", authRouter);
 app.use("/api/student", studentRouter);
 app.use("/api/instructor", moduleRouter);
 
-app.use((req: Request, res: Response) => {
-  res.status(404).json({ message: "API route not found" });
-});
-
 app.get("/", (req, res) => {
   res.send("App is running");
+});
+
+app.get("/ping", (req, res) => {
+  res.json({ message: 'pong' });
+});
+
+app.use((req: Request, res: Response) => {
+  res.status(404).json({ message: "API route not found" });
 });
 
 app.listen(PORT, () => {
