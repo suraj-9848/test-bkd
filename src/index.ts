@@ -75,7 +75,7 @@ app.get("/", (req, res) => {
 });
 
 app.get("/ping", (req, res) => {
-  res.json({ message: 'pong' });
+  res.json({ message: "pong" });
 });
 
 app.use((req: Request, res: Response) => {
@@ -83,6 +83,7 @@ app.use((req: Request, res: Response) => {
 });
 
 app.listen(PORT, () => {
+  logger.info(`db url: ${config.MYSQL_DATABASE_URL}`);
   logger.info(`Server running on port ${PORT}`);
   logger.info(`Environment: ${process.env.NODE_ENV}`);
 });

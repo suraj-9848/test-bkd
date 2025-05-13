@@ -5,7 +5,7 @@ export const config = {
   CORS_ORIGIN:
     process.env.NODE_ENV === "production"
       ? "to be deployed"
-      : "http://localhost:4000", // MANDATORY
+      : process.env.CORS_ORIGIN || "http://localhost:4000", // MANDATORY
   // Tells on what environment it is running
 
   // Tells on what port it is running
@@ -15,8 +15,8 @@ export const config = {
   // Connection url of MySql
   MYSQL_DATABASE_URL:
     process.env.NODE_ENV === "production"
-      ? "mysql://trailbliz:trailbliz@prod-host:3306/prod-db"
-      : "mysql://trailbliz:trailbliz@localhost/trailbliz", // MANDATORY
+      ? process.env.MYSQL_PROD_DATABASE_URL
+      : process.env.MYSQL_DEV_DATABASE_URL, // MANDATORY
   // redis not currently in use
   REDIS_URL:
     process.env.NODE_ENV === "production"

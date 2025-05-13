@@ -56,7 +56,13 @@ import {
   deleteOrg,
 } from "../../controllers/adminControllers/adminController";
 
-import { createBatch, deleteBatch, updateBatch, fetchAllBatches, fetchBatch } from "../../controllers/instructorControllers/batch.controller";
+import {
+  createBatch,
+  deleteBatch,
+  updateBatch,
+  fetchAllBatches,
+  fetchBatch,
+} from "../../controllers/instructorControllers/batch.controller";
 
 import { adminMiddleware } from "../../middleware/adminMiddleware";
 import { authMiddleware } from "../../middleware/authMiddleware";
@@ -76,7 +82,6 @@ adminRouter.delete("/delete-batch/:id", deleteBatch);
 adminRouter.put("/update-batch/:id", updateBatch);
 adminRouter.get("/fetch-all-batches", fetchAllBatches);
 adminRouter.get("/fetch-batch/:id", fetchBatch);
-
 
 adminRouter.post("/create-course", validateCourseBody, createCourse);
 adminRouter.delete("/delete-course/:id", deleteCourse);
