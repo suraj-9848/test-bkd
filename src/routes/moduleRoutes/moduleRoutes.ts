@@ -4,6 +4,7 @@ import {
   createMCQ,
   deleteMCQ,
   getMCQById,
+  getMCQ,
   updateMCQ,
 } from "../../controllers/moduleControllers/moduleMCQControllers";
 import { instructorMiddleware } from "../../middleware/instructorMiddleware";
@@ -42,6 +43,7 @@ router.delete("/modules/:moduleId", deleteModule);
 
 // MCQ Routes
 router.post("/modules/:moduleId/mcq", createMCQ);
+router.get("/modules/:moduleId/mcq", getMCQ);
 router.get("/mcq/:mcqId", getMCQById);
 router.put("/mcq/:mcqId", updateMCQ);
 router.delete("/mcq/:mcqId", deleteMCQ);

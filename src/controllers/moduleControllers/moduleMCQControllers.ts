@@ -16,18 +16,21 @@ import {
 
 // ✅ Create MCQ
 export const createMCQ = async (req: Request, res: Response) => {
-  const { moduleId, questions, passingScore } = req.body;
+  const { moduleId } = req.params;
+  const { questions, passingScore } = req.body;
 
   try {
-    // Check if the module exists
-    const module = await getSingleRecord(Module, { id: moduleId });
-    if (!module) {
+    // Check if the module exists (note the "where" clause)
+    const moduleRecord = await getSingleRecord(Module, {
+      where: { id: moduleId },
+    });
+    if (!moduleRecord) {
       return res.status(404).json({ message: "Module not found" });
     }
 
     // Check if an MCQ already exists for this module
     const existingMCQ = await getSingleRecord(ModuleMCQ, {
-      module: { id: moduleId },
+      where: { module: { id: moduleId } },
     });
     if (existingMCQ) {
       return res.status(400).json({
@@ -38,7 +41,7 @@ export const createMCQ = async (req: Request, res: Response) => {
 
     // Create the new MCQ
     const newMCQ = ModuleMCQ.create({
-      module,
+      module: moduleRecord,
       questions,
       passingScore,
     });
@@ -79,7 +82,7 @@ export const updateMCQ = async (req: Request, res: Response) => {
       ModuleMCQ,
       { id: mcqId },
       { questions, passingScore },
-      false,
+      false
     );
     res.status(200).json(updatedMCQ);
   } catch (error) {
@@ -98,5 +101,24 @@ export const deleteMCQ = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error deleting MCQ:", error);
     res.status(500).json({ message: "Error deleting MCQ" });
+  }
+};
+
+export const getMCQ = async (req: Request, res: Response) => {
+  const { moduleId } = req.params;
+
+  try {
+    // Retrieve the module along with its MCQ test using a relation
+    const moduleData = await getSingleRecord(Module, {
+      where: { id: moduleId },
+      relations: ["mcq"], // ensure this matches your Module entity relation name
+    });
+    if (!moduleData) {
+      return res.status(404).json({ message: "Module not found" });
+    }
+    res.status(200).json(moduleData.mcq);
+  } catch (error) {
+    console.error("Error fetching MCQ:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
