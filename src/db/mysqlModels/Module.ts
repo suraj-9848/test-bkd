@@ -5,6 +5,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
   BaseEntity,
+  OneToOne,
 } from "typeorm";
 import { Course } from "./Course";
 import { DayContent } from "./DayContent";
@@ -32,4 +33,7 @@ export class Module extends BaseEntity {
 
   @OneToMany(() => ModuleMCQ, (test) => test.module, { cascade: true })
   tests: ModuleMCQ[];
+
+  @OneToOne(() => ModuleMCQ, (mcq) => mcq.module)
+  mcq: ModuleMCQ;
 }
