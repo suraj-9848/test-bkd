@@ -4,6 +4,7 @@ import {
   Column,
   ManyToOne,
   BaseEntity,
+  CreateDateColumn,
 } from "typeorm";
 import { ModuleMCQ } from "./ModuleMCQ";
 
@@ -22,4 +23,7 @@ export class ModuleMCQAnswer extends BaseEntity {
 
   @Column()
   correctAnswer: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
 }
