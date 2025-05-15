@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { Course } from "../../db/mysqlModels/Course";
 import { Batch } from "../../db/mysqlModels/Batch";
 import { Module } from "../../db/mysqlModels/Module";
+import { User } from "../../db/mysqlModels/User";
+import { UserCourse } from "../../db/mysqlModels/UserCourse";
 import { DayContent } from "../../db/mysqlModels/DayContent";
 
 import {
@@ -81,12 +83,12 @@ export const createCourse = async (req: Request, res: Response) => {
                   completed: dayData.completed || false,
                 });
                 return day.save();
-              }),
+              })
             );
           }
 
           return module;
-        }),
+        })
       );
     }
 
@@ -94,7 +96,7 @@ export const createCourse = async (req: Request, res: Response) => {
       Course,
       course,
       `course_${course.id}`,
-      10 * 60,
+      10 * 60
     );
 
     return res.status(201).json({
@@ -120,7 +122,7 @@ export const fetchCourse = async (req: Request, res: Response) => {
       },
       `course_${id}`,
       true,
-      10 * 60,
+      10 * 60
     );
 
     if (!course) return res.status(404).json({ message: "Course not found" });
@@ -215,5 +217,69 @@ export const deleteCourse = async (req: Request, res: Response) => {
   } catch (err) {
     console.error("Delete course error:", err);
     return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// ========== Assinging COURSE TO STUDENT =========
+// POST /instructor/assign-course
+export const assignCourseToStudent = async (req: Request, res: Response) => {
+  try {
+    const { userId, courseId } = req.body;
+
+    // Validate input
+    if (!userId || !courseId) {
+      return res
+        .status(400)
+        .json({ message: "userId and courseId are required" });
+    }
+
+    // Fetch user and course
+    const user = await getSingleRecord(User, { where: { id: userId } });
+    const course = await getSingleRecord(Course, { where: { id: courseId } });
+
+    if (!user || !course) {
+      return res.status(404).json({ message: "User or Course not found" });
+    }
+
+    // Check for existing assignment with explicit query
+    const existingAssignment = await UserCourse.findOne({
+      where: { user: { id: userId }, course: { id: courseId } },
+      relations: ["user", "course"],
+    });
+
+    console.log(
+      `Checking assignment: userId=${userId}, courseId=${courseId}, Existing=${JSON.stringify(
+        existingAssignment,
+        null,
+        2
+      )}`
+    );
+
+    if (existingAssignment) {
+      return res.status(400).json({
+        message: "Course already assigned",
+        assignment: existingAssignment,
+      });
+    }
+
+    // Create and save new assignment
+    const userCourse = UserCourse.create({
+      user,
+      course,
+      completed: false,
+      assignedAt: new Date(),
+    });
+
+    await userCourse.save();
+    console.log(`Saved userCourse: ${JSON.stringify(userCourse, null, 2)}`);
+
+    return res
+      .status(201)
+      .json({ message: "Course assigned to student", userCourse });
+  } catch (err) {
+    console.error("Assign course error:", err);
+    return res
+      .status(500)
+      .json({ message: "Internal server error", error: err.message });
   }
 };

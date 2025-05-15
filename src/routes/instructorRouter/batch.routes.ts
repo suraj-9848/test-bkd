@@ -20,6 +20,7 @@ import {
   updateCourse,
   deleteCourse,
   fetchAllCoursesinBatch,
+  assignCourseToStudent,
 } from "../../controllers/courseCrudControllers/courseController";
 
 import {
@@ -49,6 +50,10 @@ router.get("/:batchId/courses", fetchAllCoursesinBatch);
 router.get("/:batchId/courses/:id", fetchCourse);
 router.put("/:batchId/courses/:id", updateCourse);
 router.delete("/:batchId/courses/:id", deleteCourse);
+router.post(
+  "/:batchId/courses/:courseId/assign-student",
+  assignCourseToStudent
+);
 // router.post("/:batchId/courses/:courseId/assign-student", assigningStudent);
 
 router.post("/:batchId/courses/:courseId/tests", createTest);

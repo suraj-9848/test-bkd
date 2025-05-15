@@ -9,6 +9,7 @@ import {
 import { Batch } from "./Batch";
 import { Module } from "./Module";
 import { Test } from "./Test";
+import { UserCourse } from "./UserCourse";
 
 @Entity()
 export class Course extends BaseEntity {
@@ -32,6 +33,9 @@ export class Course extends BaseEntity {
 
   @ManyToOne(() => Batch, (batch) => batch.courses, { onDelete: "CASCADE" })
   batch: Batch;
+
+  @OneToMany(() => UserCourse, (uc) => uc.course)
+  userCourses: UserCourse[];
 
   @OneToMany(() => Test, (test) => test.course)
   tests: Test[];

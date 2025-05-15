@@ -5,7 +5,9 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
+  OneToMany,
 } from "typeorm";
+import { UserCourse } from "./UserCourse";
 import { v4 as uuidv4 } from "uuid";
 import { Org } from "./Org";
 
@@ -42,6 +44,9 @@ export class User extends BaseEntity {
     default: UserRole.STUDENT,
   })
   userRole: UserRole;
+
+  @OneToMany(() => UserCourse, (uc) => uc.user)
+  userCourses: UserCourse[];
 
   @ManyToOne(() => Org, (org) => org.users)
   @JoinColumn({ name: "org_id" })
