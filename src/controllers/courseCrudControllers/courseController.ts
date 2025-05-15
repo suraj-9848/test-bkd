@@ -101,7 +101,13 @@ export const createCourse = async (req: Request, res: Response) => {
 
     return res.status(201).json({
       message: "Course created successfully",
-      course: saved,
+      course: {
+        ...saved,
+        modules: (course.modules || []).map((m) => ({
+          ...m,
+          type: "module",
+        })),
+      },
     });
   } catch (error) {
     console.error("Create course error:", error);
@@ -187,7 +193,9 @@ export const updateCourse = async (req: Request, res: Response) => {
     if (end_date) updateData.end_date = new Date(end_date);
 
     if (batch_id) {
-      const batch = await getSingleRecord(Batch, { where: { id: batch_id } });
+      const batch = await getSingleRecord(Batch, {
+        where: { id: batch_id },
+      });
       if (!batch) return res.status(404).json({ message: "Batch not found" });
       updateData.batch = batch;
     }

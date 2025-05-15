@@ -18,7 +18,7 @@ import {
 // Helper function to determine if a module is unlocked for a student
 async function isModuleUnlocked(
   student: User,
-  module: Module
+  module: Module,
 ): Promise<boolean> {
   if (module.order === 1) {
     return true;
@@ -63,7 +63,7 @@ async function isModuleUnlocked(
   let score = 0;
   response.responses.forEach((res: any) => {
     const correct = correctAnswers.find(
-      (ans: ModuleMCQAnswer) => ans.questionId === res.questionId
+      (ans: ModuleMCQAnswer) => ans.questionId === res.questionId,
     );
     if (correct && correct.correctAnswer === res.answer) {
       score++;
@@ -76,7 +76,7 @@ async function isModuleUnlocked(
 // Helper function to check if all day contents of a module are completed
 async function areAllDaysCompleted(
   student: User,
-  module: Module
+  module: Module,
 ): Promise<boolean> {
   const days = await getAllRecordsWithFilter(DayContent, {
     where: { module: { id: module.id } },
@@ -266,7 +266,7 @@ export const getStudentModuleById = async (req: Request, res: Response) => {
         let score = 0;
         mcqResponse.responses.forEach((response: any) => {
           const correct = correctAnswers.find(
-            (ans: ModuleMCQAnswer) => ans.questionId === response.questionId
+            (ans: ModuleMCQAnswer) => ans.questionId === response.questionId,
           );
           if (correct && correct.correctAnswer === response.answer) {
             score++;
@@ -345,7 +345,7 @@ export const markDayAsCompleted = async (req: Request, res: Response) => {
         UserDayCompletion,
         { id: completion.id },
         { completed: true },
-        false
+        false,
       );
     } else {
       const newCompletion = UserDayCompletion.create({
@@ -493,7 +493,7 @@ export const getMCQResults = async (req: Request, res: Response) => {
       {
         where: { moduleMCQ: { id: mcq.id }, user: { id: student.id } },
       },
-      { order: { createdAt: "DESC" } }
+      { order: { createdAt: "DESC" } },
     );
 
     if (!latestResponse) {
@@ -507,7 +507,7 @@ export const getMCQResults = async (req: Request, res: Response) => {
     let score = 0;
     latestResponse.responses.forEach((response: any) => {
       const correct = correctAnswers.find(
-        (ans: ModuleMCQAnswer) => ans.questionId === response.questionId
+        (ans: ModuleMCQAnswer) => ans.questionId === response.questionId,
       );
       if (correct && correct.correctAnswer === response.answer) {
         score++;
@@ -533,7 +533,7 @@ export const getMCQResults = async (req: Request, res: Response) => {
 // GET /student/modules/:moduleId/completion
 export const getModuleCompletionStatus = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   const { moduleId } = req.params;
   const student = req.user as User;
@@ -569,7 +569,7 @@ export const getModuleCompletionStatus = async (
         let score = 0;
         mcqResponse.responses.forEach((response: any) => {
           const correct = correctAnswers.find(
-            (ans: ModuleMCQAnswer) => ans.questionId === response.questionId
+            (ans: ModuleMCQAnswer) => ans.questionId === response.questionId,
           );
           if (correct && correct.correctAnswer === response.answer) {
             score++;

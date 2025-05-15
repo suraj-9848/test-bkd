@@ -82,7 +82,7 @@ export const updateMCQ = async (req: Request, res: Response) => {
       ModuleMCQ,
       { id: mcqId },
       { questions, passingScore },
-      false
+      false,
     );
     res.status(200).json(updatedMCQ);
   } catch (error) {

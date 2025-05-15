@@ -4,7 +4,8 @@ import { Module } from "../../db/mysqlModels/Module";
 
 // Create Module
 export const createModule = async (req: Request, res: Response) => {
-  const { courseId, title, order } = req.body;
+  const { courseId } = req.params;
+  const { title, order } = req.body;
 
   try {
     const course = await Course.findOne({ where: { id: courseId } });

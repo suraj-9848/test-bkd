@@ -31,7 +31,8 @@ const findModuleById = async (moduleId: string) => {
 
 // Add Day Content
 export const addDayContent = async (req: Request, res: Response) => {
-  const { moduleId, content } = req.body;
+  const { moduleId } = req.params;
+  const { content, dayNumber, title } = req.body;
 
   try {
     const module = await findModuleById(moduleId);
@@ -39,16 +40,21 @@ export const addDayContent = async (req: Request, res: Response) => {
 
     const safeContent = sanitizeContent(content);
 
-    const lastDay = await DayContent.findOne({
-      where: { module: { id: moduleId } },
-      order: { dayNumber: "DESC" },
-    });
-    const newDayNumber = lastDay ? lastDay.dayNumber + 1 : 1;
+    // If dayNumber is not provided, calculate the next day number
+    let newDayNumber = dayNumber;
+    if (!newDayNumber) {
+      const lastDay = await DayContent.findOne({
+        where: { module: { id: moduleId } },
+        order: { dayNumber: "DESC" },
+      });
+      newDayNumber = lastDay ? lastDay.dayNumber + 1 : 1;
+    }
 
     const newDayContent = DayContent.create({
       module,
       content: safeContent,
       dayNumber: newDayNumber,
+      title,
       completed: false,
     });
 
@@ -65,10 +71,17 @@ export const getDayContent = async (req: Request, res: Response) => {
   const { moduleId } = req.params;
 
   try {
-    const module = await findModuleById(moduleId);
+    const module = await Module.findOne({
+      where: { id: moduleId },
+      relations: ["days"],
+    });
+
     if (!module) return res.status(404).json({ message: "Module not found" });
 
-    res.status(200).json(module.days);
+    // Sort days by dayNumber
+    const sortedDays = module.days.sort((a, b) => a.dayNumber - b.dayNumber);
+
+    res.status(200).json(sortedDays);
   } catch (error) {
     console.error("Error fetching day content:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -78,7 +91,7 @@ export const getDayContent = async (req: Request, res: Response) => {
 // Update Day Content
 export const updateDayContent = async (req: Request, res: Response) => {
   const { dayId } = req.params;
-  const { content } = req.body;
+  const { content, title, dayNumber } = req.body;
 
   try {
     const dayContent = await DayContent.findOne({ where: { id: dayId } });
@@ -87,9 +100,17 @@ export const updateDayContent = async (req: Request, res: Response) => {
 
     if (content) {
       dayContent.content = sanitizeContent(content);
-      await dayContent.save();
     }
 
+    if (title) {
+      dayContent.title = title;
+    }
+
+    if (dayNumber) {
+      dayContent.dayNumber = dayNumber;
+    }
+
+    await dayContent.save();
     res.status(200).json(dayContent);
   } catch (error) {
     console.error("Error updating day content:", error);
@@ -126,7 +147,10 @@ export const markDayAsCompleted = async (req: Request, res: Response) => {
     dayContent.completed = true;
     await dayContent.save();
 
-    res.status(200).json({ message: "Day marked as completed", dayContent });
+    res.status(200).json({
+      message: "Day marked as completed",
+      dayContent,
+    });
   } catch (error) {
     console.error("Error marking day as completed:", error);
     res.status(500).json({ message: "Internal server error" });

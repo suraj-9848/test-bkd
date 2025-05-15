@@ -31,35 +31,115 @@ import {
   fetchTestsInCourse,
 } from "../../controllers/instructorControllers/test.controller";
 
+import {
+  createMCQ,
+  deleteMCQ,
+  getMCQById,
+  getMCQ,
+  updateMCQ,
+} from "../../controllers/moduleControllers/moduleMCQControllers";
+
+import {
+  addDayContent,
+  deleteDayContent,
+  getDayContent,
+  markDayAsCompleted,
+  updateDayContent,
+} from "../../controllers/moduleControllers/dayContentControllers";
+
+import {
+  createModule,
+  deleteModule,
+  getAllModules,
+  getSingleModule,
+  updateModule,
+} from "../../controllers/moduleControllers/moduleControllers";
+
 const router = express.Router();
 router.use(authMiddleware, instructorMiddleware);
 
-router.post("/", createBatch);
-router.get("/", fetchAllBatches);
-router.get("/public", fetchPublicBatches);
-router.get("/:id", fetchBatch);
-router.put("/:id", updateBatch);
-router.delete("/:id", deleteBatch);
+// Batch routes
+router.post("/batches", createBatch);
+router.get("/batches", fetchAllBatches);
+router.get("/batches/public", fetchPublicBatches);
+router.get("/batches/:id", fetchBatch);
+router.put("/batches/:id", updateBatch);
+router.delete("/batches/:id", deleteBatch);
 
-router.patch("/:id/visibility", toggleBatchVisibility);
+router.patch("/batches/:id/visibility", toggleBatchVisibility);
 
-router.get("/:id/public-courses", fetchPublicCoursesInBatch);
+router.get("/batches/:id/public-courses", fetchPublicCoursesInBatch);
 
-router.post("/:batchId/courses", createCourse);
-router.get("/:batchId/courses", fetchAllCoursesinBatch);
-router.get("/:batchId/courses/:id", fetchCourse);
-router.put("/:batchId/courses/:id", updateCourse);
-router.delete("/:batchId/courses/:id", deleteCourse);
-router.post(
-  "/:batchId/courses/:courseId/assign-student",
-  assignCourseToStudent
+// Course routes (nested under batch)
+router.post("/batches/:batchId/courses", createCourse);
+router.get("/batches/:batchId/courses", fetchAllCoursesinBatch);
+router.get("/batches/:batchId/courses/:id", fetchCourse);
+router.put("/batches/:batchId/courses/:id", updateCourse);
+router.delete("/batches/:batchId/courses/:id", deleteCourse);
+// router.post("/batches/:batchId/courses/:courseId/assign-student", assigningStudent);
+
+// Test routes (nested under batch and course)
+router.post("/batches/:batchId/courses/:courseId/tests", createTest);
+router.get("/batches/:batchId/courses/:courseId/tests", fetchTestsInCourse);
+router.get("/batches/:batchId/courses/:courseId/tests/:testId", fetchTestById);
+router.put("/batches/:batchId/courses/:courseId/tests/:testId", updateTest);
+router.delete("/batches/:batchId/courses/:courseId/tests/:testId", deleteTest);
+
+// Module routes (nested under batch and course)
+router.post("/batches/:batchId/courses/:courseId/modules", createModule);
+router.get("/batches/:batchId/courses/:courseId/modules", getAllModules);
+router.get(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId",
+  getSingleModule,
 );
-// router.post("/:batchId/courses/:courseId/assign-student", assigningStudent);
+router.put(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId",
+  updateModule,
+);
+router.delete(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId",
+  deleteModule,
+);
 
-router.post("/:batchId/courses/:courseId/tests", createTest);
-router.get("/:batchId/courses/:courseId/tests", fetchTestsInCourse);
-router.get("/:batchId/courses/:courseId/tests/:testId", fetchTestById);
-router.put("/:batchId/courses/:courseId/tests/:testId", updateTest);
-router.delete("/:batchId/courses/:courseId/tests/:testId", deleteTest);
+// Day Content routes (nested under batch, course, and module)
+router.post(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content",
+  addDayContent,
+);
+router.get(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content",
+  getDayContent,
+);
+router.put(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId",
+  updateDayContent,
+);
+router.delete(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId",
+  deleteDayContent,
+);
+router.patch(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId/complete",
+  markDayAsCompleted,
+);
+
+// MCQ routes (nested under batch, course, and module)
+router.post(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/mcq",
+  createMCQ,
+);
+router.get("/batches/:batchId/courses/:courseId/modules/:moduleId/mcq", getMCQ);
+router.get(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/mcq/:mcqId",
+  getMCQById,
+);
+router.put(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/mcq/:mcqId",
+  updateMCQ,
+);
+router.delete(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/mcq/:mcqId",
+  deleteMCQ,
+);
 
 export const instructorRouter = router;

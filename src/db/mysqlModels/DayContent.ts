@@ -18,6 +18,9 @@ export class DayContent extends BaseEntity {
   @Column()
   dayNumber: number; // This will be a continuous sequence, e.g., 1, 2, 3, ..., 11, 12, ...
 
+  @Column({ nullable: true })
+  title: string;
+
   @Column("text")
   content: string;
 
