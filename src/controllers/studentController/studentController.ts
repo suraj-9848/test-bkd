@@ -95,7 +95,6 @@ async function areAllDaysCompleted(
 // GET /student/courses
 export const getStudentCourses = async (req: Request, res: Response) => {
   try {
-    
     const studentId = req.user.id;
     console.log("Authenticated studentId:", studentId);
     const userCourses = await UserCourse.find({
@@ -170,12 +169,13 @@ export const getStudentCourseById = async (req: Request, res: Response) => {
               {
                 where: { moduleMCQ: { id: mcq.id } },
                 order: { createdAt: "ASC" },
-              }
+              },
             );
             let score = 0;
             mcqResponse.responses.forEach((response: any) => {
               const correct = correctAnswers.find(
-                (ans: ModuleMCQAnswer) => ans.questionId === response.questionId
+                (ans: ModuleMCQAnswer) =>
+                  ans.questionId === response.questionId,
               );
               if (correct && correct.correctAnswer === response.answer) {
                 score++;
@@ -198,7 +198,7 @@ export const getStudentCourseById = async (req: Request, res: Response) => {
           mcqScore,
           moduleFullyCompleted,
         };
-      })
+      }),
     );
 
     res.status(200).json({ ...course, modules: modulesWithDetails });
@@ -239,7 +239,7 @@ export const getStudentModuleById = async (req: Request, res: Response) => {
           ...day,
           completed: completion ? completion.completed : false,
         };
-      })
+      }),
     );
 
     const allDaysCompleted = await areAllDaysCompleted(student, module);

@@ -1,15 +1,13 @@
 import {
-    Entity,
-    PrimaryGeneratedColumn,
-    Column,
-    ManyToOne,
-    CreateDateColumn,
-    BaseEntity
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  CreateDateColumn,
+  BaseEntity,
 } from "typeorm";
 import { User } from "./User";
 import { Course } from "./Course";
-
-
 
 @Entity()
 export class UserCourse extends BaseEntity {

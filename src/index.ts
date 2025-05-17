@@ -39,7 +39,17 @@ redisClient
 // app.use(cors({ origin: config.CORS_ORIGIN }));
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN,
+    origin: (origin, callback) => {
+      const allowedOrigins = (process.env.CORS_ORIGIN || "")
+        .split(",")
+        .map((o) => o.trim());
+      // Allow requests with no origin (like mobile apps or curl)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, origin);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   }),
 );

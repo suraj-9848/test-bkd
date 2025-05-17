@@ -83,12 +83,12 @@ export const createCourse = async (req: Request, res: Response) => {
                   completed: dayData.completed || false,
                 });
                 return day.save();
-              })
+              }),
             );
           }
 
           return module;
-        })
+        }),
       );
     }
 
@@ -96,7 +96,7 @@ export const createCourse = async (req: Request, res: Response) => {
       Course,
       course,
       `course_${course.id}`,
-      10 * 60
+      10 * 60,
     );
 
     return res.status(201).json({
@@ -128,7 +128,7 @@ export const fetchCourse = async (req: Request, res: Response) => {
       },
       `course_${id}`,
       true,
-      10 * 60
+      10 * 60,
     );
 
     if (!course) return res.status(404).json({ message: "Course not found" });
@@ -259,8 +259,8 @@ export const assignCourseToStudent = async (req: Request, res: Response) => {
       `Checking assignment: userId=${userId}, courseId=${courseId}, Existing=${JSON.stringify(
         existingAssignment,
         null,
-        2
-      )}`
+        2,
+      )}`,
     );
 
     if (existingAssignment) {

@@ -76,7 +76,10 @@ router.get("/batches/:batchId/courses", fetchAllCoursesinBatch);
 router.get("/batches/:batchId/courses/:id", fetchCourse);
 router.put("/batches/:batchId/courses/:id", updateCourse);
 router.delete("/batches/:batchId/courses/:id", deleteCourse);
-router.post("/batches/:batchId/courses/:courseId/assign-student", assignCourseToStudent);
+router.post(
+  "/batches/:batchId/courses/:courseId/assign-student",
+  assignCourseToStudent,
+);
 
 // Test routes (nested under batch and course)
 router.post("/batches/:batchId/courses/:courseId/tests", createTest);
