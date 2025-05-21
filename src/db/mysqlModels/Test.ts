@@ -72,4 +72,8 @@ export class Test extends BaseEntity {
 
   @UpdateDateColumn()
   lastUpdated: Date;
+
+  @Column({ default: 1 })
+  maxAttempts: number;
+
 }
