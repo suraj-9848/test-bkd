@@ -1,14 +1,20 @@
 import { Request, Response } from "express";
 import { Test, TestStatus } from "../../db/mysqlModels/Test";
+import { Question, QuestionType } from "../../db/mysqlModels/Question";
 import { Course } from "../../db/mysqlModels/Course";
+import { QuizOptions } from "../../db/mysqlModels/QuizOptions";
 import {
   createRecord,
   getSingleRecord,
   deleteRecords,
-  updateRecords,
+  getAllRecordsWithFilter,
 } from "../../lib/dbLib/sqlUtils";
 import { validate } from "class-validator";
+import sanitizeHtml from "sanitize-html";
 
+
+const logger =
+  require("../../utils/logger").getLoggerByName("QuestionController");
 export const createTest = async (req: Request, res: Response) => {
   const { courseId } = req.params;
   const {
@@ -315,6 +321,458 @@ export const deleteTest = async (req: Request, res: Response) => {
     return res.status(500).json({
       error: "Failed to delete test",
       details: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const createQuestion = async (req: Request, res: Response) => {
+  try {
+    const { testId } = req.params;
+    const questionData = req.body;
+
+    // Check authentication (assuming JWT middleware sets req.user)
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized: No user authenticated" });
+    }
+
+    // Validate input
+    if (!questionData || typeof questionData !== "object") {
+      return res.status(400).json({ error: "Invalid question data" });
+    }
+
+    // Fetch Test (ensure entity instance)
+    const test = await getSingleRecord<Test, any>(
+      Test,
+      { where: { id: testId } },
+      `test_${testId}`,
+      false // returnPlain: false to get entity
+    );
+
+    if (!test) {
+      return res.status(404).json({ error: "Test not found" });
+    }
+
+    if (test.status !== TestStatus.DRAFT) {
+      return res.status(400).json({ error: "Cannot add questions to a published test" });
+    }
+
+    const { question_text, type, marks, options, expectedWordCount, codeLanguage } = questionData;
+
+    // Validate required fields
+    if (!question_text || !type || !marks) {
+      return res.status(400).json({ error: "Missing required fields: question_text, type, marks" });
+    }
+
+    if (!["MCQ", "DESCRIPTIVE", "CODE"].includes(type)) {
+      return res.status(400).json({ error: "Invalid question type" });
+    }
+
+    if (marks <= 0) {
+      return res.status(400).json({ error: "Marks must be greater than zero" });
+    }
+
+    // Sanitize question_text
+    const sanitizedQuestionText = sanitizeHtml(question_text, {
+      allowedTags: ["p", "strong", "em", "ul", "ol", "li", "code", "pre"],
+      allowedAttributes: {},
+    }).trim();
+
+    if (!sanitizedQuestionText) {
+      return res.status(400).json({ error: "Question text cannot be empty after sanitization" });
+    }
+
+    // Validate optional fields
+    let validatedExpectedWordCount = null;
+    if ((type === "DESCRIPTIVE" || type === "CODE") && expectedWordCount !== undefined) {
+      if (!Number.isInteger(expectedWordCount) || expectedWordCount < 0) {
+        return res.status(400).json({ error: "Expected word count must be a non-negative integer" });
+      }
+      validatedExpectedWordCount = expectedWordCount;
+    }
+
+    let validatedCodeLanguage = null;
+    if (type === "CODE" && codeLanguage) {
+      validatedCodeLanguage = codeLanguage.trim();
+      if (!validatedCodeLanguage) {
+        return res.status(400).json({ error: "Code language cannot be empty if provided" });
+      }
+    }
+
+    // Create Question
+    const question = new Question();
+    question.question_text = sanitizedQuestionText;
+    question.type = type as QuestionType;
+    question.marks = marks;
+    question.test = test;
+    question.expectedWordCount = validatedExpectedWordCount;
+    question.codeLanguage = validatedCodeLanguage;
+
+    const savedQuestion = (await createRecord(Question.getRepository(), question)) as Question;
+
+    // Handle MCQ options
+    let savedOptions = [];
+    if (type === "MCQ" && options && Array.isArray(options)) {
+      if (options.length < 2) {
+        return res.status(400).json({ error: "MCQ must have at least 2 options" });
+      }
+      if (!options.some((opt: any) => opt.correct)) {
+        return res.status(400).json({ error: "MCQ must have at least one correct option" });
+      }
+      // Check for duplicate or empty option text
+      const optionTexts = options.map((opt: any) => opt.text.trim());
+      if (new Set(optionTexts).size !== optionTexts.length) {
+        return res.status(400).json({ error: "MCQ options must have unique text" });
+      }
+      if (optionTexts.some((text: string) => !text)) {
+        return res.status(400).json({ error: "Option text cannot be empty" });
+      }
+
+      for (const opt of options) {
+        const option = new QuizOptions();
+        option.text = opt.text.trim();
+        option.correct = opt.correct || false;
+        option.question = savedQuestion;
+        const savedOption = await createRecord(QuizOptions.getRepository(), option);
+        savedOptions.push(savedOption);
+      }
+    }
+
+    // Reload question with options
+    const reloadedQuestion = await getSingleRecord<Question, any>(
+      Question,
+      {
+        where: { id: savedQuestion.id },
+        relations: ["options"],
+      },
+      `question_${savedQuestion.id}`,
+      false
+    );
+
+    // Update Test
+    test.lastUpdated = new Date();
+    await test.save();
+
+    logger.info("Question created successfully", {
+      questionId: reloadedQuestion.id,
+      testId,
+      questionData,
+    });
+
+    return res.status(201).json({
+      data: {
+        question: {
+          id: reloadedQuestion.id,
+          question_text: reloadedQuestion.question_text,
+          type: reloadedQuestion.type,
+          marks: reloadedQuestion.marks,
+          expectedWordCount: reloadedQuestion.expectedWordCount,
+          codeLanguage: reloadedQuestion.codeLanguage,
+          options: reloadedQuestion.options || [],
+        },
+      },
+    });
+  } catch (error: any) {
+    logger.error("Error creating question:", {
+      message: error.message,
+      stack: error.stack,
+    });
+    return res.status(500).json({
+      error: error.message || "Failed to create question",
+      details: error.message,
+    });
+  }
+};
+
+export const getQuestions = async (req: Request, res: Response) => {
+  try {
+    const { testId } = req.params;
+
+    // Check authentication
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized: No user authenticated" });
+    }
+
+    // Fetch Test
+    const test = await getSingleRecord<Test, any>(
+      Test,
+      { where: { id: testId } },
+      `test_${testId}`,
+      false
+    );
+
+    if (!test) {
+      return res.status(404).json({ error: "Test not found" });
+    }
+
+    // Fetch Questions
+    const questions = await getAllRecordsWithFilter<Question, any>(
+      Question,
+      {
+        where: { test: { id: testId } },
+        relations: ["options"],
+      },
+      `test_${testId}_questions`,
+      false
+    );
+
+    logger.info("Questions fetched successfully", { testId, questionCount: questions.length });
+
+    return res.status(200).json({
+      data: {
+        questions: questions.map((q) => ({
+          id: q.id,
+          question_text: q.question_text,
+          type: q.type,
+          marks: q.marks,
+          expectedWordCount: q.expectedWordCount,
+          codeLanguage: q.codeLanguage,
+          options: q.options || [],
+        })),
+      },
+    });
+  } catch (error: any) {
+    logger.error("Error fetching questions:", {
+      message: error.message,
+      stack: error.stack,
+      testId: req.params.testId,
+    });
+    return res.status(500).json({
+      error: error.message || "Failed to fetch questions",
+      details: error.message,
+    });
+  }
+};
+
+export const updateQuestion = async (req: Request, res: Response) => {
+  try {
+    const { testId, questionId } = req.params;
+    const questionData = req.body;
+
+    // Check authentication
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized: No user authenticated" });
+    }
+
+    // Fetch Question with Test and Options
+    const question = await getSingleRecord<Question, any>(
+      Question,
+      {
+        where: { id: questionId, test: { id: testId } },
+        relations: ["test", "options"],
+      },
+      `question_${questionId}`,
+      false
+    );
+
+    if (!question) {
+      return res.status(404).json({ error: "Question not found" });
+    }
+
+    if (question.test.status !== TestStatus.DRAFT) {
+      return res.status(400).json({ error: "Cannot update questions on a published test" });
+    }
+
+    // Update fields if provided
+    const { question_text, type, marks, options, expectedWordCount, codeLanguage } = questionData;
+
+    if (question_text) {
+      const sanitizedQuestionText = sanitizeHtml(question_text, {
+        allowedTags: ["p", "strong", "em", "ul", "ol", "li", "code", "pre"],
+        allowedAttributes: {},
+      }).trim();
+      if (!sanitizedQuestionText) {
+        return res.status(400).json({ error: "Question text cannot be empty after sanitization" });
+      }
+      question.question_text = sanitizedQuestionText;
+    }
+
+    if (marks !== undefined) {
+      if (marks <= 0) {
+        return res.status(400).json({ error: "Marks must be greater than zero" });
+      }
+      question.marks = marks;
+    }
+
+    let validatedType = question.type;
+    if (type) {
+      if (!["MCQ", "DESCRIPTIVE", "CODE"].includes(type)) {
+        return res.status(400).json({ error: "Invalid question type" });
+      }
+      validatedType = type as QuestionType;
+      question.type = validatedType;
+    }
+
+    if (expectedWordCount !== undefined && (validatedType === "DESCRIPTIVE" || validatedType === "CODE")) {
+      if (!Number.isInteger(expectedWordCount) || expectedWordCount < 0) {
+        return res.status(400).json({ error: "Expected word count must be a non-negative integer" });
+      }
+      question.expectedWordCount = expectedWordCount;
+    } else if (validatedType !== "MCQ") {
+      question.expectedWordCount = null;
+    }
+
+    if (validatedType === "CODE") {
+      question.codeLanguage = codeLanguage ? codeLanguage.trim() : null;
+      if (codeLanguage && !question.codeLanguage) {
+        return res.status(400).json({ error: "Code language cannot be empty if provided" });
+      }
+    } else {
+      question.codeLanguage = null;
+    }
+
+    // Handle MCQ options
+    if (options && Array.isArray(options) && validatedType === "MCQ") {
+      if (options.length < 2) {
+        return res.status(400).json({ error: "MCQ must have at least 2 options" });
+      }
+      if (!options.some((opt: any) => opt.correct)) {
+        return res.status(400).json({ error: "MCQ must have at least one correct option" });
+      }
+      const optionTexts = options.map((opt: any) => opt.text.trim());
+      if (new Set(optionTexts).size !== optionTexts.length) {
+        return res.status(400).json({ error: "MCQ options must have unique text" });
+      }
+      if (optionTexts.some((text: string) => !text)) {
+        return res.status(400).json({ error: "Option text cannot be empty" });
+      }
+
+      // Update or create options
+      const existingOptionIds = (question.options || []).map((opt) => opt.id);
+      const newOptionIds = options.filter((opt: any) => opt.id).map((opt: any) => opt.id);
+      // Delete options not in the new list
+      const optionsToDelete = existingOptionIds.filter((id) => !newOptionIds.includes(id));
+      if (optionsToDelete.length > 0) {
+        await Promise.all(
+          optionsToDelete.map((id) => deleteRecords(QuizOptions, { id }))
+        );
+      }
+
+      // Update or create options
+      const updatedOptions = [];
+      for (const opt of options) {
+        let option;
+        if (opt.id && existingOptionIds.includes(opt.id)) {
+          // Update existing option
+          option = question.options.find((o) => o.id === opt.id);
+          option.text = opt.text.trim();
+          option.correct = opt.correct || false;
+          await option.save();
+        } else {
+          // Create new option
+          option = new QuizOptions();
+          option.text = opt.text.trim();
+          option.correct = opt.correct || false;
+          option.question = question;
+          await createRecord(QuizOptions.getRepository(), option);
+        }
+        updatedOptions.push(option);
+      }
+      question.options = updatedOptions;
+    } else if (validatedType === "MCQ" && (!options || !Array.isArray(options))) {
+      return res.status(400).json({ error: "MCQ requires valid options array" });
+    } else if (question.options && question.options.length > 0) {
+      // Clear options for non-MCQ types
+      await Promise.all(
+        question.options.map((option) =>
+          deleteRecords(QuizOptions, { id: option.id })
+        )
+      );
+      question.options = [];
+    }
+
+    // Save question
+    await question.save();
+    question.test.lastUpdated = new Date();
+    await question.test.save();
+
+    // Reload updated question
+    const updatedQuestion = await getSingleRecord<Question, any>(
+      Question,
+      {
+        where: { id: questionId },
+        relations: ["options"],
+      },
+      `question_${questionId}`,
+      false
+    );
+
+    logger.info("Question updated successfully", { questionId, testId, questionData });
+
+    return res.status(200).json({
+      data: {
+        question: {
+          id: updatedQuestion.id,
+          question_text: updatedQuestion.question_text,
+          type: updatedQuestion.type,
+          marks: updatedQuestion.marks,
+          expectedWordCount: updatedQuestion.expectedWordCount,
+          codeLanguage: updatedQuestion.codeLanguage,
+          options: updatedQuestion.options || [],
+        },
+      },
+    });
+  } catch (error: any) {
+    logger.error("Error updating question:", {
+      message: error.message,
+      stack: error.stack,
+    });
+    return res.status(500).json({
+      error: error.message || "Failed to update question",
+      details: error.message,
+    });
+  }
+};
+
+export const deleteQuestion = async (req: Request, res: Response) => {
+  try {
+    const { testId, questionId } = req.params;
+
+    // Check authentication
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized: No user authenticated" });
+    }
+
+    // Fetch Question with Test
+    const question = await getSingleRecord<Question, any>(
+      Question,
+      {
+        where: { id: questionId, test: { id: testId } },
+        relations: ["test"],
+      },
+      `question_${questionId}`,
+      false
+    );
+
+    if (!question) {
+      return res.status(404).json({ error: "Question not found" });
+    }
+
+    if (question.test.status !== TestStatus.DRAFT) {
+      return res.status(400).json({ error: "Cannot delete questions from a published test" });
+    }
+
+    // Delete question (cascade deletes options via database constraints)
+    await deleteRecords(Question, { id: questionId });
+
+    // Update Test
+    question.test.lastUpdated = new Date();
+    await question.test.save();
+
+    logger.info("Question deleted successfully", { questionId, testId });
+
+    return res.status(200).json({
+      data: { message: "Question deleted successfully" },
+    });
+  } catch (error: any) {
+    logger.error("Error deleting question:", {
+      message: error.message,
+      stack: error.stack,
+      testId: req.params.testId,
+      questionId: req.params.questionId,
+    });
+    return res.status(500).json({
+      error: error.message || "Failed to delete question",
+      details: error.message,
     });
   }
 };

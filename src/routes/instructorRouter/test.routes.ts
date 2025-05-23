@@ -9,15 +9,6 @@ const router = Router();
 router.use(instructorMiddleware);
 
 // Test management routes
-router.post("/courses/:courseId/tests", TestManagementController.createTest);
-router.get(
-  "/courses/:courseId/tests",
-  TestManagementController.getTestsByCourse,
-);
-router.get("/tests/:testId", TestManagementController.getTestById);
-router.put("/tests/:testId", TestManagementController.updateTest);
-router.delete("/tests/:testId", TestManagementController.deleteTest);
-
 // Question management routes
 router.post("/tests/:testId/questions", TestManagementController.addQuestions);
 router.put(

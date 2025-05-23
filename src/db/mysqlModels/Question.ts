@@ -13,6 +13,7 @@ import { Test } from "./Test";
 export enum QuestionType {
   MCQ = "MCQ",
   DESCRIPTIVE = "DESCRIPTIVE",
+  CODE = "CODE",
 }
 
 @Entity()
@@ -20,7 +21,7 @@ export class Question extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
   id: string = uuidv4();
 
-  @Column()
+  @Column({ type: "text" })
   question_text: string;
 
   @Column({
@@ -30,11 +31,14 @@ export class Question extends BaseEntity {
   })
   type: QuestionType;
 
-  @Column({ default: 1 })
+  @Column({ type: "int", default: 1 })
   marks: number;
 
-  @Column({ nullable: true })
-  expectedWordCount: number;
+  @Column({ type: "int", nullable: true })
+  expectedWordCount: number | null;
+
+  @Column({ type: "varchar", length: 255, nullable: true })
+  codeLanguage: string | null;
 
   @OneToMany(() => QuizOptions, (options) => options.question, {
     cascade: true,
