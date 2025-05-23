@@ -33,6 +33,7 @@ import {
   getQuestions,
   updateQuestion,
   deleteQuestion,
+  teststatustoPublish
 } from "../../controllers/instructorControllers/test.controller";
 
 import {
@@ -101,6 +102,10 @@ router.get("/batches/:batchId/courses/:courseId/tests", fetchTestsInCourse);
 router.get("/batches/:batchId/courses/:courseId/tests/:testId", fetchTestById);
 router.put("/batches/:batchId/courses/:courseId/tests/:testId", updateTest);
 router.delete("/batches/:batchId/courses/:courseId/tests/:testId", deleteTest);
+router.patch(
+  "/batches/:batchId/courses/:courseId/tests/:testId/publish",
+  teststatustoPublish,
+);
 
 // Test Routes of Questions in test
 router.get("/batches/:batchId/courses/:courseId/tests/:testId/questions", getQuestions);

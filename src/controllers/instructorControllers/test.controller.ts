@@ -5,13 +5,15 @@ import { Course } from "../../db/mysqlModels/Course";
 import { QuizOptions } from "../../db/mysqlModels/QuizOptions";
 import {
   createRecord,
+  updateRecords,
   getSingleRecord,
   deleteRecords,
   getAllRecordsWithFilter,
 } from "../../lib/dbLib/sqlUtils";
+import { redisClient } from "../../db/connect";
 import { validate } from "class-validator";
 import sanitizeHtml from "sanitize-html";
-
+import { LessThanOrEqual, MoreThanOrEqual } from "typeorm";
 
 const logger =
   require("../../utils/logger").getLoggerByName("QuestionController");
@@ -298,6 +300,62 @@ export const deleteTest = async (req: Request, res: Response) => {
   }
 
   try {
+    // Fetch test with questions and options
+    const test = await Test.findOne({
+      where: { id: testId },
+      relations: ["questions", "questions.options"],
+    });
+
+    if (!test) {
+      return res.status(404).json({ error: "Test not found" });
+    }
+
+    // Delete in correct order to handle foreign key constraints
+    if (test.questions && test.questions.length > 0) {
+      // First delete all quiz options
+      for (const question of test.questions) {
+        if (question.options && question.options.length > 0) {
+          await QuizOptions.createQueryBuilder()
+            .delete()
+            .where("questionId = :questionId", { questionId: question.id })
+            .execute();
+        }
+      }
+
+      // Then delete all questions
+      await Question.createQueryBuilder()
+        .delete()
+        .where("testId = :testId", { testId: test.id })
+        .execute();
+    }
+
+    // Finally delete the test
+    await Test.createQueryBuilder()
+      .delete()
+      .where("id = :id", { id: test.id })
+      .execute();
+
+    return res.status(200).json({
+      message: "Test and all related content deleted successfully",
+    });
+  } catch (error) {
+    logger.error("Error deleting test:", error);
+    return res.status(500).json({
+      error: "Failed to delete test",
+      details: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const teststatustoPublish = async (req: Request, res: Response) => {
+  const { testId } = req.params;
+
+  // Validate testId
+  if (!testId || typeof testId !== "string") {
+    return res.status(400).json({ error: "Invalid test ID" });
+  }
+
+  try {
     const test = await getSingleRecord<Test, any>(
       Test,
       { where: { id: testId }, relations: ["course"] },
@@ -308,19 +366,25 @@ export const deleteTest = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Test not found" });
     }
 
-    const deletedTest = await deleteRecords(Test, { id: testId });
-
-    if (!deletedTest.affected) {
-      return res.status(404).json({ error: "Test not found" });
+    // Check if test has already started
+    const currentDate = new Date();
+    if (currentDate >= new Date(test.startDate)) {
+      return res.status(400).json({
+        error: "Cannot update test after it has started",
+      });
     }
 
+    // Update test status to PUBLISHED
+    test.status = TestStatus.PUBLISHED;
+    await test.save();
+
     return res.status(200).json({
-      message: "Test deleted successfully",
+      message: "Test status updated to PUBLISHED successfully",
     });
   } catch (error) {
+    console.error("Error updating test status:", error);
     return res.status(500).json({
-      error: "Failed to delete test",
-      details: error instanceof Error ? error.message : "Unknown error",
+      error: "An error occurred while updating the test status",
     });
   }
 };
@@ -332,7 +396,9 @@ export const createQuestion = async (req: Request, res: Response) => {
 
     // Check authentication (assuming JWT middleware sets req.user)
     if (!req.user) {
-      return res.status(401).json({ error: "Unauthorized: No user authenticated" });
+      return res
+        .status(401)
+        .json({ error: "Unauthorized: No user authenticated" });
     }
 
     // Validate input
@@ -353,14 +419,25 @@ export const createQuestion = async (req: Request, res: Response) => {
     }
 
     if (test.status !== TestStatus.DRAFT) {
-      return res.status(400).json({ error: "Cannot add questions to a published test" });
+      return res
+        .status(400)
+        .json({ error: "Cannot add questions to a published test" });
     }
 
-    const { question_text, type, marks, options, expectedWordCount, codeLanguage } = questionData;
+    const {
+      question_text,
+      type,
+      marks,
+      options,
+      expectedWordCount,
+      codeLanguage,
+    } = questionData;
 
     // Validate required fields
     if (!question_text || !type || !marks) {
-      return res.status(400).json({ error: "Missing required fields: question_text, type, marks" });
+      return res
+        .status(400)
+        .json({ error: "Missing required fields: question_text, type, marks" });
     }
 
     if (!["MCQ", "DESCRIPTIVE", "CODE"].includes(type)) {
@@ -378,14 +455,21 @@ export const createQuestion = async (req: Request, res: Response) => {
     }).trim();
 
     if (!sanitizedQuestionText) {
-      return res.status(400).json({ error: "Question text cannot be empty after sanitization" });
+      return res
+        .status(400)
+        .json({ error: "Question text cannot be empty after sanitization" });
     }
 
     // Validate optional fields
     let validatedExpectedWordCount = null;
-    if ((type === "DESCRIPTIVE" || type === "CODE") && expectedWordCount !== undefined) {
+    if (
+      (type === "DESCRIPTIVE" || type === "CODE") &&
+      expectedWordCount !== undefined
+    ) {
       if (!Number.isInteger(expectedWordCount) || expectedWordCount < 0) {
-        return res.status(400).json({ error: "Expected word count must be a non-negative integer" });
+        return res.status(400).json({
+          error: "Expected word count must be a non-negative integer",
+        });
       }
       validatedExpectedWordCount = expectedWordCount;
     }
@@ -394,7 +478,9 @@ export const createQuestion = async (req: Request, res: Response) => {
     if (type === "CODE" && codeLanguage) {
       validatedCodeLanguage = codeLanguage.trim();
       if (!validatedCodeLanguage) {
-        return res.status(400).json({ error: "Code language cannot be empty if provided" });
+        return res
+          .status(400)
+          .json({ error: "Code language cannot be empty if provided" });
       }
     }
 
@@ -407,21 +493,30 @@ export const createQuestion = async (req: Request, res: Response) => {
     question.expectedWordCount = validatedExpectedWordCount;
     question.codeLanguage = validatedCodeLanguage;
 
-    const savedQuestion = (await createRecord(Question.getRepository(), question)) as Question;
+    const savedQuestion = (await createRecord(
+      Question.getRepository(),
+      question
+    )) as Question;
 
     // Handle MCQ options
     let savedOptions = [];
     if (type === "MCQ" && options && Array.isArray(options)) {
       if (options.length < 2) {
-        return res.status(400).json({ error: "MCQ must have at least 2 options" });
+        return res
+          .status(400)
+          .json({ error: "MCQ must have at least 2 options" });
       }
       if (!options.some((opt: any) => opt.correct)) {
-        return res.status(400).json({ error: "MCQ must have at least one correct option" });
+        return res
+          .status(400)
+          .json({ error: "MCQ must have at least one correct option" });
       }
       // Check for duplicate or empty option text
       const optionTexts = options.map((opt: any) => opt.text.trim());
       if (new Set(optionTexts).size !== optionTexts.length) {
-        return res.status(400).json({ error: "MCQ options must have unique text" });
+        return res
+          .status(400)
+          .json({ error: "MCQ options must have unique text" });
       }
       if (optionTexts.some((text: string) => !text)) {
         return res.status(400).json({ error: "Option text cannot be empty" });
@@ -432,7 +527,10 @@ export const createQuestion = async (req: Request, res: Response) => {
         option.text = opt.text.trim();
         option.correct = opt.correct || false;
         option.question = savedQuestion;
-        const savedOption = await createRecord(QuizOptions.getRepository(), option);
+        const savedOption = await createRecord(
+          QuizOptions.getRepository(),
+          option
+        );
         savedOptions.push(savedOption);
       }
     }
@@ -489,7 +587,9 @@ export const getQuestions = async (req: Request, res: Response) => {
 
     // Check authentication
     if (!req.user) {
-      return res.status(401).json({ error: "Unauthorized: No user authenticated" });
+      return res
+        .status(401)
+        .json({ error: "Unauthorized: No user authenticated" });
     }
 
     // Fetch Test
@@ -515,7 +615,10 @@ export const getQuestions = async (req: Request, res: Response) => {
       false
     );
 
-    logger.info("Questions fetched successfully", { testId, questionCount: questions.length });
+    logger.info("Questions fetched successfully", {
+      testId,
+      questionCount: questions.length,
+    });
 
     return res.status(200).json({
       data: {
@@ -550,7 +653,9 @@ export const updateQuestion = async (req: Request, res: Response) => {
 
     // Check authentication
     if (!req.user) {
-      return res.status(401).json({ error: "Unauthorized: No user authenticated" });
+      return res
+        .status(401)
+        .json({ error: "Unauthorized: No user authenticated" });
     }
 
     // Fetch Question with Test and Options
@@ -569,11 +674,20 @@ export const updateQuestion = async (req: Request, res: Response) => {
     }
 
     if (question.test.status !== TestStatus.DRAFT) {
-      return res.status(400).json({ error: "Cannot update questions on a published test" });
+      return res
+        .status(400)
+        .json({ error: "Cannot update questions on a published test" });
     }
 
     // Update fields if provided
-    const { question_text, type, marks, options, expectedWordCount, codeLanguage } = questionData;
+    const {
+      question_text,
+      type,
+      marks,
+      options,
+      expectedWordCount,
+      codeLanguage,
+    } = questionData;
 
     if (question_text) {
       const sanitizedQuestionText = sanitizeHtml(question_text, {
@@ -581,14 +695,18 @@ export const updateQuestion = async (req: Request, res: Response) => {
         allowedAttributes: {},
       }).trim();
       if (!sanitizedQuestionText) {
-        return res.status(400).json({ error: "Question text cannot be empty after sanitization" });
+        return res
+          .status(400)
+          .json({ error: "Question text cannot be empty after sanitization" });
       }
       question.question_text = sanitizedQuestionText;
     }
 
     if (marks !== undefined) {
       if (marks <= 0) {
-        return res.status(400).json({ error: "Marks must be greater than zero" });
+        return res
+          .status(400)
+          .json({ error: "Marks must be greater than zero" });
       }
       question.marks = marks;
     }
@@ -602,9 +720,14 @@ export const updateQuestion = async (req: Request, res: Response) => {
       question.type = validatedType;
     }
 
-    if (expectedWordCount !== undefined && (validatedType === "DESCRIPTIVE" || validatedType === "CODE")) {
+    if (
+      expectedWordCount !== undefined &&
+      (validatedType === "DESCRIPTIVE" || validatedType === "CODE")
+    ) {
       if (!Number.isInteger(expectedWordCount) || expectedWordCount < 0) {
-        return res.status(400).json({ error: "Expected word count must be a non-negative integer" });
+        return res.status(400).json({
+          error: "Expected word count must be a non-negative integer",
+        });
       }
       question.expectedWordCount = expectedWordCount;
     } else if (validatedType !== "MCQ") {
@@ -614,7 +737,9 @@ export const updateQuestion = async (req: Request, res: Response) => {
     if (validatedType === "CODE") {
       question.codeLanguage = codeLanguage ? codeLanguage.trim() : null;
       if (codeLanguage && !question.codeLanguage) {
-        return res.status(400).json({ error: "Code language cannot be empty if provided" });
+        return res
+          .status(400)
+          .json({ error: "Code language cannot be empty if provided" });
       }
     } else {
       question.codeLanguage = null;
@@ -623,14 +748,20 @@ export const updateQuestion = async (req: Request, res: Response) => {
     // Handle MCQ options
     if (options && Array.isArray(options) && validatedType === "MCQ") {
       if (options.length < 2) {
-        return res.status(400).json({ error: "MCQ must have at least 2 options" });
+        return res
+          .status(400)
+          .json({ error: "MCQ must have at least 2 options" });
       }
       if (!options.some((opt: any) => opt.correct)) {
-        return res.status(400).json({ error: "MCQ must have at least one correct option" });
+        return res
+          .status(400)
+          .json({ error: "MCQ must have at least one correct option" });
       }
       const optionTexts = options.map((opt: any) => opt.text.trim());
       if (new Set(optionTexts).size !== optionTexts.length) {
-        return res.status(400).json({ error: "MCQ options must have unique text" });
+        return res
+          .status(400)
+          .json({ error: "MCQ options must have unique text" });
       }
       if (optionTexts.some((text: string) => !text)) {
         return res.status(400).json({ error: "Option text cannot be empty" });
@@ -638,9 +769,13 @@ export const updateQuestion = async (req: Request, res: Response) => {
 
       // Update or create options
       const existingOptionIds = (question.options || []).map((opt) => opt.id);
-      const newOptionIds = options.filter((opt: any) => opt.id).map((opt: any) => opt.id);
+      const newOptionIds = options
+        .filter((opt: any) => opt.id)
+        .map((opt: any) => opt.id);
       // Delete options not in the new list
-      const optionsToDelete = existingOptionIds.filter((id) => !newOptionIds.includes(id));
+      const optionsToDelete = existingOptionIds.filter(
+        (id) => !newOptionIds.includes(id)
+      );
       if (optionsToDelete.length > 0) {
         await Promise.all(
           optionsToDelete.map((id) => deleteRecords(QuizOptions, { id }))
@@ -668,8 +803,13 @@ export const updateQuestion = async (req: Request, res: Response) => {
         updatedOptions.push(option);
       }
       question.options = updatedOptions;
-    } else if (validatedType === "MCQ" && (!options || !Array.isArray(options))) {
-      return res.status(400).json({ error: "MCQ requires valid options array" });
+    } else if (
+      validatedType === "MCQ" &&
+      (!options || !Array.isArray(options))
+    ) {
+      return res
+        .status(400)
+        .json({ error: "MCQ requires valid options array" });
     } else if (question.options && question.options.length > 0) {
       // Clear options for non-MCQ types
       await Promise.all(
@@ -696,7 +836,11 @@ export const updateQuestion = async (req: Request, res: Response) => {
       false
     );
 
-    logger.info("Question updated successfully", { questionId, testId, questionData });
+    logger.info("Question updated successfully", {
+      questionId,
+      testId,
+      questionData,
+    });
 
     return res.status(200).json({
       data: {
@@ -729,7 +873,9 @@ export const deleteQuestion = async (req: Request, res: Response) => {
 
     // Check authentication
     if (!req.user) {
-      return res.status(401).json({ error: "Unauthorized: No user authenticated" });
+      return res
+        .status(401)
+        .json({ error: "Unauthorized: No user authenticated" });
     }
 
     // Fetch Question with Test
@@ -747,8 +893,16 @@ export const deleteQuestion = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Question not found" });
     }
 
-    if (question.test.status !== TestStatus.DRAFT) {
-      return res.status(400).json({ error: "Cannot delete questions from a published test" });
+    if (question.test.status === TestStatus.ACTIVE) {
+      {
+        return res
+          .status(400)
+          .json({ error: "Cannot delete questions from a published test" });
+      }
+    } else if (question.test.status === TestStatus.COMPLETED) {
+      return res
+        .status(400)
+        .json({ error: "Cannot delete questions from a completed test" });
     }
 
     // Delete question (cascade deletes options via database constraints)
