@@ -33,7 +33,10 @@ import {
   getQuestions,
   updateQuestion,
   deleteQuestion,
-  teststatustoPublish
+  teststatustoPublish,
+  evaluateTestSubmission,
+  getSubmissionCount,
+  getSubmissionsForEvaluation
 } from "../../controllers/instructorControllers/test.controller";
 
 import {
@@ -105,6 +108,18 @@ router.delete("/batches/:batchId/courses/:courseId/tests/:testId", deleteTest);
 router.patch(
   "/batches/:batchId/courses/:courseId/tests/:testId/publish",
   teststatustoPublish,
+);
+router.post(
+  "/batches/:batchId/courses/:courseId/tests/:testId/evaluate",
+  evaluateTestSubmission,
+);
+router.get(
+  "/batches/:batchId/courses/:courseId/tests/:testId/submission-count",
+  getSubmissionCount,
+);
+router.get(
+  "/batches/:batchId/courses/:courseId/tests/:testId/submissions",
+  getSubmissionsForEvaluation,
 );
 
 // Test Routes of Questions in test

@@ -10,6 +10,11 @@ import {
   getMCQResults,
   getStudentCourseModules,
   getModuleCompletionStatus,
+  getStudentTestById,
+  getTestSubmissions,
+  getStudentTestResults,
+  submitTest,
+  getStudentTests,
 } from "../../controllers/studentController/studentController";
 import { authMiddleware } from "../../middleware/authMiddleware";
 
@@ -27,5 +32,12 @@ router.get("/modules/:moduleId/mcq", getStudentModuleMCQ);
 router.post("/modules/:moduleId/mcq/responses", submitMCQResponses);
 router.get("/modules/:moduleId/mcq/results", getMCQResults);
 router.get("/modules/:moduleId/completion", getModuleCompletionStatus);
+
+router.get("/tests/:testId", getStudentTestById);
+router.get("/tests/:testId/attempt", getStudentTestById);
+router.get("/tests", getStudentTests);
+router.get("/tests/:testId/submissions", getTestSubmissions);
+router.get("/tests/:testId/results", getStudentTestResults);
+router.post("/tests/:testId/submit", submitTest);
 
 export { router as studentRouter };

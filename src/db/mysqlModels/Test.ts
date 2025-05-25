@@ -10,6 +10,7 @@ import {
 } from "typeorm";
 import { Course } from "./Course";
 import { Question } from "./Question";
+import { TestSubmission } from "./TestSubmission";
 
 export enum TestStatus {
   DRAFT = "DRAFT",
@@ -35,6 +36,9 @@ export class Test extends BaseEntity {
 
   @OneToMany(() => Question, (question) => question.test, { cascade: true })
   questions: Question[];
+
+  @OneToMany(() => TestSubmission, (submission) => submission.test)
+  submissions: TestSubmission[];
 
   @Column()
   maxMarks: number;
@@ -75,5 +79,4 @@ export class Test extends BaseEntity {
 
   @Column({ default: 1 })
   maxAttempts: number;
-
 }

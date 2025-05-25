@@ -11,6 +11,9 @@ import {
   getAllRecordsWithFilter,
 } from "../../lib/dbLib/sqlUtils";
 import { redisClient } from "../../db/connect";
+import { TestSubmission } from "../../db/mysqlModels/TestSubmission";
+import { TestResponse } from "../../db/mysqlModels/TestResponse";
+
 import { validate } from "class-validator";
 import sanitizeHtml from "sanitize-html";
 import { LessThanOrEqual, MoreThanOrEqual } from "typeorm";
@@ -928,5 +931,176 @@ export const deleteQuestion = async (req: Request, res: Response) => {
       error: error.message || "Failed to delete question",
       details: error.message,
     });
+  }
+};
+
+export const getSubmissionCount = async (req: Request, res: Response) => {
+  try {
+    const { testId } = req.params;
+
+    // Validate testId
+    if (!testId || typeof testId !== "string") {
+      return res.status(400).json({ error: "Invalid test ID" });
+    }
+
+    // Count submissions for the given test
+    const submissionCount = await TestSubmission.count({
+      where: { test: { id: testId } },
+    });
+
+    return res.status(200).json({
+      message: "Submission count fetched successfully",
+      data: { submissionCount },
+    });
+  } catch (error) {
+    console.error("Error fetching submission count:", error);
+    return res.status(500).json({
+      error: "Failed to fetch submission count",
+      details: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const evaluateTestSubmission = async (req: Request, res: Response) => {
+  try {
+    const { testId, submissionId } = req.params;
+    const { responses } = req.body;
+
+    // Fetch submission
+    const submission = await getSingleRecord(TestSubmission, {
+      where: { id: submissionId, test: { id: testId } },
+      relations: ["test", "responses", "responses.question"],
+    });
+
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
+
+    // Validate responses
+    if (!Array.isArray(responses)) {
+      return res.status(400).json({ message: "Responses must be an array" });
+    }
+
+    const responseIds = submission.responses.map((r) => r.id);
+    if (!responses.every((r) => responseIds.includes(r.responseId))) {
+      return res.status(400).json({ message: "Invalid response IDs" });
+    }
+
+    // Process evaluations within a transaction
+    const updatedSubmission =
+      await TestSubmission.getRepository().manager.transaction(
+        async (manager) => {
+          let totalScore = submission.mcqScore || 0;
+
+          await Promise.all(
+            responses.map(async (evalResponse) => {
+              const response = submission.responses.find(
+                (r) => r.id === evalResponse.responseId
+              );
+              if (!response || response.question.type === "MCQ") {
+                return;
+              }
+
+              if (
+                evalResponse.score > response.question.marks ||
+                evalResponse.score < 0
+              ) {
+                throw new Error(
+                  `Invalid score for response ${evalResponse.responseId}`
+                );
+              }
+
+              await manager.update(
+                TestResponse,
+                { id: evalResponse.responseId },
+                {
+                  score: evalResponse.score,
+                  evaluationStatus: "EVALUATED",
+                  evaluatorComments: evalResponse.comments || null,
+                }
+              );
+
+              totalScore += evalResponse.score;
+            })
+          );
+
+          // Update submission status
+          const allEvaluated = submission.responses.every(
+            (r) =>
+              r.evaluationStatus === "EVALUATED" || r.question.type === "MCQ"
+          );
+          await manager.update(
+            TestSubmission,
+            { id: submissionId },
+            {
+              totalScore,
+              status: allEvaluated ? "FULLY_EVALUATED" : "PARTIALLY_EVALUATED",
+            }
+          );
+
+          return {
+            ...submission,
+            totalScore,
+            status: allEvaluated ? "FULLY_EVALUATED" : "PARTIALLY_EVALUATED",
+          };
+        }
+      );
+
+    res.status(200).json({
+      message: "Submission evaluated successfully",
+      data: {
+        submissionId: updatedSubmission.id,
+        totalScore: updatedSubmission.totalScore,
+        status: updatedSubmission.status,
+      },
+    });
+  } catch (error) {
+    console.error("Error evaluating submission:", error);
+    res
+      .status(500)
+      .json({ message: error.message || "Error evaluating submission" });
+  }
+};
+
+export const getSubmissionsForEvaluation = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const { testId } = req.params;
+
+    // Fetch submissions for the given test
+    const submissions = await getAllRecordsWithFilter(TestSubmission, {
+      where: { test: { id: testId }, status: "PARTIALLY_EVALUATED" },
+      relations: ["user", "responses", "responses.question"],
+      order: { submittedAt: "DESC" },
+    });
+
+    const processedSubmissions = submissions.map((submission) => ({
+      id: submission.id,
+      submittedAt: submission.submittedAt,
+      studentId: submission.user.id,
+      studentName: submission.user.name,
+      status: submission.status,
+      responses: submission.responses.map((response) => ({
+        responseId: response.id,
+        questionId: response.question.id,
+        questionText: response.question.question_text,
+        type: response.question.type,
+        answer: response.answer, // Ensure the answer is included
+        evaluationStatus: response.evaluationStatus,
+        score: response.score,
+        maxMarks: response.question.marks,
+        evaluatorComments: response.evaluatorComments,
+      })),
+    }));
+
+    res.status(200).json({
+      message: "Submissions fetched successfully",
+      data: { submissions: processedSubmissions },
+    });
+  } catch (error) {
+    console.error("Error fetching submissions for evaluation:", error);
+    res.status(500).json({ message: "Error fetching submissions" });
   }
 };
