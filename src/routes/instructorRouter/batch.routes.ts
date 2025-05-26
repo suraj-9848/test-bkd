@@ -36,7 +36,9 @@ import {
   teststatustoPublish,
   evaluateTestSubmission,
   getSubmissionCount,
-  getSubmissionsForEvaluation
+  getSubmissionsForEvaluation,
+  evaluateTestResponseById,
+  getTestResponses,
 } from "../../controllers/instructorControllers/test.controller";
 
 import {
@@ -63,15 +65,9 @@ import {
   updateModule,
 } from "../../controllers/moduleControllers/moduleControllers";
 
+import {} from "../../controllers/instructorControllers/testEvaluation.controller";
 
-import {
-
-} from "../../controllers/instructorControllers/testEvaluation.controller";
-
-import {
-
-} from "../../controllers/instructorControllers/testManagement.controller";
-
+import {} from "../../controllers/instructorControllers/testManagement.controller";
 
 const router = express.Router();
 router.use(authMiddleware, instructorMiddleware);
@@ -121,13 +117,28 @@ router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/submissions",
   getSubmissionsForEvaluation,
 );
+router.get(
+  "/batches/:batchId/courses/:courseId/tests/:testId/responses",
+  getTestResponses,
+);
+router.put(
+  "/batches/:batchId/courses/:courseId/tests/:testId/responses/:responseId/evaluate",
+  evaluateTestResponseById,
+);
 
 // Test Routes of Questions in test
-router.get("/batches/:batchId/courses/:courseId/tests/:testId/questions", getQuestions);
-router.post("/batches/:batchId/courses/:courseId/tests/:testId/questions", createQuestion);
+router.get(
+  "/batches/:batchId/courses/:courseId/tests/:testId/questions",
+  getQuestions,
+);
+router.post(
+  "/batches/:batchId/courses/:courseId/tests/:testId/questions",
+  createQuestion,
+);
 router.delete(
   "/batches/:batchId/courses/:courseId/tests/:testId/questions/:questionId",
-  deleteQuestion);
+  deleteQuestion,
+);
 router.put(
   "/batches/:batchId/courses/:courseId/tests/:testId/questions/:questionId",
   updateQuestion,
