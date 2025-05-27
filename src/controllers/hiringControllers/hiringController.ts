@@ -14,7 +14,7 @@ import {
   getAllRecordsWithFilter,
 } from "../../lib/dbLib/sqlUtils";
 import { User } from "../../db/mysqlModels/User";
-import { s3Service } from "../../utils/s3Service";
+import  s3Service  from "../../utils/s3Service";
 
 // ==================== ADMIN CONTROLLERS ====================
 
