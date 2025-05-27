@@ -29,7 +29,7 @@ export class Org extends BaseEntity {
 
   @OneToMany(() => Batch, (batch) => batch.organization)
   batches: Batch[];
-  
+
   @OneToMany(() => Job, (job) => job.organization)
   jobs: Job[];
 }

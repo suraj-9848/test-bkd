@@ -67,7 +67,7 @@ app.use(
 );
 
 // Serve uploaded files
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 app.use("/api/courseProgress", courseProgressRoutes);
 app.use("/api/sessionProgress", sessionProgressRoutes);
@@ -75,7 +75,10 @@ app.use("/api/sessionProgress", sessionProgressRoutes);
 import { adminRouter } from "./routes/adminRouter/adminRoutes";
 import { instructorRouter } from "./routes/instructorRouter/batch.routes";
 import { studentRouter } from "./routes/studentRouter/studentRoutes";
-import { hiringAdminRouter, hiringUserRouter } from "./routes/hiringRouter/hiringRoutes";
+import {
+  hiringAdminRouter,
+  hiringUserRouter,
+} from "./routes/hiringRouter/hiringRoutes";
 
 // Main routes
 app.use("/api/instructor", instructorRouter);

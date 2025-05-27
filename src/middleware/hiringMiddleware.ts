@@ -1,21 +1,44 @@
 import { Request, Response, NextFunction } from "express";
 
-export const validateJobBody = (req: Request, res: Response, next: NextFunction) => {
-  const { title, companyName, description, skills, eligibleBranches, org_id } = req.body;
+export const validateJobBody = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const { title, companyName, description, skills, eligibleBranches, org_id } =
+    req.body;
 
   // Check for required fields
-  if (!title || !companyName || !description || !skills || !eligibleBranches || !org_id) {
+  if (
+    !title ||
+    !companyName ||
+    !description ||
+    !skills ||
+    !eligibleBranches ||
+    !org_id
+  ) {
     return res.status(400).json({
       message: "Missing required fields",
-      required: ["title", "companyName", "description", "skills", "eligibleBranches", "org_id"]
+      required: [
+        "title",
+        "companyName",
+        "description",
+        "skills",
+        "eligibleBranches",
+        "org_id",
+      ],
     });
   }
 
   // Validate field types
-  if (typeof title !== "string" || typeof companyName !== "string" || typeof description !== "string") {
+  if (
+    typeof title !== "string" ||
+    typeof companyName !== "string" ||
+    typeof description !== "string"
+  ) {
     return res.status(400).json({
       message: "Invalid field types",
-      details: "title, companyName, and description must be strings"
+      details: "title, companyName, and description must be strings",
     });
   }
 
@@ -27,7 +50,7 @@ export const validateJobBody = (req: Request, res: Response, next: NextFunction)
     } else if (!Array.isArray(skills)) {
       return res.status(400).json({
         message: "Invalid field type",
-        details: "skills must be an array or string"
+        details: "skills must be an array or string",
       });
     }
 
@@ -36,7 +59,7 @@ export const validateJobBody = (req: Request, res: Response, next: NextFunction)
     } else if (!Array.isArray(eligibleBranches)) {
       return res.status(400).json({
         message: "Invalid field type",
-        details: "eligibleBranches must be an array or string"
+        details: "eligibleBranches must be an array or string",
       });
     }
   }
@@ -44,7 +67,11 @@ export const validateJobBody = (req: Request, res: Response, next: NextFunction)
   next();
 };
 
-export const validateApplicationBody = (req: Request, res: Response, next: NextFunction) => {
+export const validateApplicationBody = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   // Check if resume file exists
   if (!req.file) {
     return res.status(400).json({
@@ -53,7 +80,7 @@ export const validateApplicationBody = (req: Request, res: Response, next: NextF
   }
 
   // Check file type (already handled by multer, but double-checking)
-  if (req.file.mimetype !== 'application/pdf') {
+  if (req.file.mimetype !== "application/pdf") {
     return res.status(400).json({
       message: "Only PDF files are allowed for resumes",
     });

@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import fs from "fs";
+import path from "path";
 
 /**
  * Service for handling file operations for the hiring portal
@@ -22,7 +22,11 @@ class FileService {
    * @param directory The directory to save the file to
    * @returns The file path
    */
-  public saveFile(fileBuffer: Buffer, fileName: string, directory: string): string {
+  public saveFile(
+    fileBuffer: Buffer,
+    fileName: string,
+    directory: string,
+  ): string {
     this.ensureDirectoryExists(directory);
     const filePath = path.join(directory, fileName);
     fs.writeFileSync(filePath, fileBuffer);
@@ -48,27 +52,30 @@ class FileService {
    * @param prefix An optional prefix for the file name
    * @returns A unique file name
    */
-  public generateUniqueFileName(originalName: string, prefix: string = ''): string {
+  public generateUniqueFileName(
+    originalName: string,
+    prefix: string = "",
+  ): string {
     const timestamp = Date.now();
     const extension = path.extname(originalName);
-    const sanitizedPrefix = prefix.replace(/\s+/g, '_');
+    const sanitizedPrefix = prefix.replace(/\s+/g, "_");
     return `${timestamp}_${sanitizedPrefix}${extension}`;
   }
-  
+
   /**
    * Gets the JD file directory path
    * @returns The JD file directory path
    */
   public getJDFileDirectory(): string {
-    return path.join(process.cwd(), 'uploads', 'jd_files');
+    return path.join(process.cwd(), "uploads", "jd_files");
   }
-  
+
   /**
    * Gets the resume directory path
    * @returns The resume directory path
    */
   public getResumeDirectory(): string {
-    return path.join(process.cwd(), 'uploads', 'resumes');
+    return path.join(process.cwd(), "uploads", "resumes");
   }
 }
 
