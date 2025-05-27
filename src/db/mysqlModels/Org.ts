@@ -8,6 +8,7 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { User } from "./User";
 import { Batch } from "./Batch";
+import { Job } from "./Job";
 
 @Entity()
 export class Org extends BaseEntity {
@@ -28,4 +29,7 @@ export class Org extends BaseEntity {
 
   @OneToMany(() => Batch, (batch) => batch.organization)
   batches: Batch[];
+  
+  @OneToMany(() => Job, (job) => job.organization)
+  jobs: Job[];
 }

@@ -29,6 +29,12 @@ export const config = {
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "10d",
   JWT_COOKIE_EXPIRES_IN:
     parseInt(process.env.JWT_COOKIE_EXPIRES_IN ?? "864000000") || 864000000,
+    
+  // AWS S3 Configuration
+  AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
+  AWS_REGION: process.env.AWS_REGION || 'us-east-1',
+  AWS_S3_BUCKET_NAME: process.env.AWS_S3_BUCKET_NAME,
   JWT_SECRET: process.env.JWT_SECRET, // MANDATORY
   //JWT Token for Mobile Users
 

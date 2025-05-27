@@ -65,18 +65,25 @@ app.use(
     config.STATIC_CACHE_TIME,
   ),
 );
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
 app.use("/api/courseProgress", courseProgressRoutes);
 app.use("/api/sessionProgress", sessionProgressRoutes);
 
 import { adminRouter } from "./routes/adminRouter/adminRoutes";
 import { instructorRouter } from "./routes/instructorRouter/batch.routes";
 import { studentRouter } from "./routes/studentRouter/studentRoutes";
+import { hiringAdminRouter, hiringUserRouter } from "./routes/hiringRouter/hiringRoutes";
 
 // Main routes
 app.use("/api/instructor", instructorRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/student", studentRouter);
+app.use("/api/admin/hiring", hiringAdminRouter);
+app.use("/api/hiring", hiringUserRouter);
 
 app.get("/", (req, res) => {
   res.send("App is running");
