@@ -33,6 +33,9 @@ export class Job extends BaseEntity {
   @Column("text")
   description: string;
 
+  @Column("text")
+  location: string;
+  
   @Column("simple-array")
   skills: string[];
 
