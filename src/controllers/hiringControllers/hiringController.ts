@@ -14,7 +14,7 @@ import {
   getAllRecordsWithFilter,
 } from "../../lib/dbLib/sqlUtils";
 import { User } from "../../db/mysqlModels/User";
-import { s3Service } from "../../utils/s3Service";
+import s3Service from "../../utils/s3Service";
 
 // ==================== ADMIN CONTROLLERS ====================
 
@@ -28,9 +28,10 @@ export const createJob = async (req: Request, res: Response) => {
       skills,
       eligibleBranches,
       org_id,
+      location, // New field here
     } = req.body;
 
-    // Check if organization exists (org_id is mandatory)
+    // Basic required fields validation
     if (!org_id) {
       return res.status(400).json({
         message: "Organization ID is required",
@@ -38,7 +39,20 @@ export const createJob = async (req: Request, res: Response) => {
         success: false,
       });
     }
+    if (!title || !description) {
+      return res.status(400).json({
+        message: "Title and description are required",
+        success: false,
+      });
+    }
+    if (!location) {
+      return res.status(400).json({
+        message: "Location is required",
+        success: false,
+      });
+    }
 
+    // Validate organization exists
     try {
       const organization = await getSingleRecord(Org, {
         where: { id: org_id },
@@ -60,22 +74,29 @@ export const createJob = async (req: Request, res: Response) => {
       });
     }
 
-    // Create new job
+    // Ensure skills and eligibleBranches are arrays
+    const skillsArray = Array.isArray(skills) ? skills : skills ? [skills] : [];
+    const branchesArray = Array.isArray(eligibleBranches)
+      ? eligibleBranches
+      : eligibleBranches
+        ? [eligibleBranches]
+        : [];
+
+    // Create new job with location included
     const job = Job.create({
       title,
       companyName,
       description,
-      skills: Array.isArray(skills) ? skills : [skills],
-      eligibleBranches: Array.isArray(eligibleBranches)
-        ? eligibleBranches
-        : [eligibleBranches],
+      skills: skillsArray,
+      eligibleBranches: branchesArray,
       status: JobStatus.OPEN,
       org_id,
+      location, // Include location here
     });
 
     await job.save();
 
-    // Get the job with organization details
+    // Fetch job with organization details
     const createdJob = await getSingleRecord(Job, {
       where: { id: job.id },
       relations: ["organization"],
@@ -107,6 +128,7 @@ export const updateJob = async (req: Request, res: Response) => {
       skills,
       eligibleBranches,
       status,
+      location, // ✅ included here
     } = req.body;
 
     if (!jobId) {
@@ -142,6 +164,7 @@ export const updateJob = async (req: Request, res: Response) => {
       if (title !== undefined) updateData.title = title;
       if (companyName !== undefined) updateData.companyName = companyName;
       if (description !== undefined) updateData.description = description;
+      if (location !== undefined) updateData.location = location; // ✅ new line
       if (skills !== undefined)
         updateData.skills = Array.isArray(skills) ? skills : [skills];
       if (eligibleBranches !== undefined)
@@ -422,7 +445,7 @@ export const updateApplicationStatus = async (req: Request, res: Response) => {
         JobApplication,
         { id: applicationId },
         { status },
-        false,
+        false
       );
 
       // Get updated application with relations
@@ -551,7 +574,7 @@ export const applyForJob = async (req: Request, res: Response) => {
         // Generate a unique file name for S3
         const fileName = s3Service.generateUniqueFileName(
           req.file.originalname,
-          `user_${userId}`,
+          `user_${userId}`
         );
 
         // Upload the file to S3
@@ -559,7 +582,7 @@ export const applyForJob = async (req: Request, res: Response) => {
           req.file.buffer,
           fileName,
           "application/pdf",
-          "resumes",
+          "resumes"
         );
       } catch (uploadError) {
         console.error("Error uploading resume:", uploadError);
