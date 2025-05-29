@@ -17,6 +17,7 @@ import {
   getOpenJobs,
   applyForJob,
   getUserApplications,
+  getJobApplications,
 } from "../../controllers/hiringControllers/hiringController";
 
 export const hiringAdminRouter = express.Router();
@@ -48,6 +49,7 @@ hiringAdminRouter.put("/jobs/:jobId", updateJob);
 hiringAdminRouter.delete("/jobs/:jobId", deleteJob);
 hiringAdminRouter.get("/jobs", getAllJobs);
 hiringAdminRouter.get("/jobs/:jobId", getJobById);
+hiringAdminRouter.get("/jobs/:jobId/applications", getJobApplications);
 hiringAdminRouter.put(
   "/applications/:applicationId/status",
   updateApplicationStatus,

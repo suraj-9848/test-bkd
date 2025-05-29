@@ -76,6 +76,7 @@ async function generateSampleData() {
         eligibleBranches: ["Computer Science", "Information Technology"],
         status: JobStatus.OPEN,
         org_id: organization.id,
+        location: "San Francisco, CA", // Added location field
       });
       await job.save();
       console.log(`Job created: ${title} with ID: ${job.id}`);

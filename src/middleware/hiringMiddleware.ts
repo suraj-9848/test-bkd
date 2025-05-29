@@ -5,7 +5,7 @@ export const validateJobBody = (
   res: Response,
   next: NextFunction,
 ) => {
-  const { title, companyName, description, skills, eligibleBranches, org_id } =
+  const { title, companyName, description, skills, eligibleBranches, org_id, location } =
     req.body;
 
   // Check for required fields
@@ -15,7 +15,8 @@ export const validateJobBody = (
     !description ||
     !skills ||
     !eligibleBranches ||
-    !org_id
+    !org_id ||
+    !location
   ) {
     return res.status(400).json({
       message: "Missing required fields",
@@ -26,6 +27,7 @@ export const validateJobBody = (
         "skills",
         "eligibleBranches",
         "org_id",
+        "location",
       ],
     });
   }

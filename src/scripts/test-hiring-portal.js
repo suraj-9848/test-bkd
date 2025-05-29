@@ -48,6 +48,7 @@ async function createJob(token) {
       skills: ["JavaScript", "TypeScript", "React", "Node.js"],
       eligibleBranches: ["Computer Science", "Information Technology"],
       org_id: org_id, // Now mandatory
+      location: "Remote", // Now mandatory
     };
 
     const response = await axios.post(
@@ -253,6 +254,7 @@ async function runTests() {
         const updatedJob = await updateJob(adminToken, jobId, {
           title: "Senior Software Engineer",
           description: "Updated job description with more details",
+          location: "Hybrid - San Francisco",
         });
         console.log(`✅ Successfully updated job to: ${updatedJob.title}`);
       } else {
