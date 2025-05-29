@@ -60,8 +60,8 @@ class S3Service {
       Bucket: bucketName,
       Key: s3Key,
       Body: fileBuffer,
-      ContentType: contentType,
-      ACL: 'public-read' // Make sure the file is publicly accessible
+      ContentType: contentType
+      // ACL removed as it's not supported by the bucket
     };
     
     try {
@@ -107,6 +107,8 @@ class S3Service {
       console.error('Error deleting from S3:', error);
       return false;
     }
+  }
+  
   /**
    * Tests connection to S3 bucket
    * @returns Promise resolving to true if connection is successful
@@ -135,4 +137,8 @@ class S3Service {
   }
 }
 
-export const s3Service = new S3Service();
+// Create an instance of S3Service
+const s3Service = new S3Service();
+
+// Export as default
+export default s3Service;

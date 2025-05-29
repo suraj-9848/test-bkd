@@ -586,10 +586,15 @@ export const applyForJob = async (req: Request, res: Response) => {
         );
       } catch (uploadError) {
         console.error("Error uploading resume:", uploadError);
+        // Log more detailed error information
+        if (uploadError instanceof Error) {
+          console.error("Error details:", uploadError.message, uploadError.stack);
+        }
         return res.status(500).json({
           message: "Failed to upload resume",
           details:
             "There was an error uploading your resume to storage. Please try again.",
+          error: uploadError instanceof Error ? uploadError.message : "Unknown error",
           success: false,
         });
       }
