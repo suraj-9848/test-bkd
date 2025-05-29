@@ -43,8 +43,12 @@ export class TestSubmission extends BaseEntity {
   @Column({ type: "float", nullable: true })
   totalScore: number;
 
-  @OneToMany(() => TestResponse, (response: TestResponse) => response.submission, {
-    cascade: true,
-  })
+  @OneToMany(
+    () => TestResponse,
+    (response: TestResponse) => response.submission,
+    {
+      cascade: true,
+    },
+  )
   responses: TestResponse[];
 }
