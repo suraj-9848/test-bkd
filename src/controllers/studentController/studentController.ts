@@ -97,10 +97,9 @@ export const getStudentTests = async (req: Request, res: Response) => {
 export const getStudentTestById = async (req: Request, res: Response) => {
   try {
     const { testId } = req.params;
-    const studentId = req.user.id;
 
-    // Fetch test with questions and options
-    const test = await getSingleRecord(Test, {
+    // Fetch the test details with relations using TypeORM
+    const test = await Test.findOne({
       where: { id: testId },
       relations: ["course", "questions", "questions.options"],
     });
@@ -109,81 +108,23 @@ export const getStudentTestById = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Test not found" });
     }
 
-    // Check if student is enrolled in the course
-    const userCourse = await getSingleRecord(UserCourse, {
-      where: {
-        user: { id: studentId },
-        course: { id: test.course.id },
-      },
-    });
-
-    if (!userCourse) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
-    if (test.status !== "PUBLISHED") {
-      return res.status(403).json({ message: "Test is not available" });
-    }
-
-    const currentTime = new Date();
-    const testStatus = getTestStatus(test, currentTime);
-
-    if (testStatus !== "ONGOING") {
-      return res.status(403).json({
-        message:
-          testStatus === "UPCOMING"
-            ? "Test has not started yet"
-            : "Test has ended",
+    // Sort MCQ options for each question
+    if (test.questions) {
+      test.questions = test.questions.map((question) => {
+        if (question.type === "MCQ" && question.options) {
+          question.options.sort((a, b) => a.id.localeCompare(b.id)); // Sort by `id` or any other property
+        }
+        return question;
       });
     }
 
-    // Shuffle questions if enabled
-    const questions = test.shuffleQuestions
-      ? [...test.questions].sort(() => Math.random() - 0.5)
-      : test.questions;
-
-    // Process questions to exclude correct answers
-    const processedQuestions = questions.map((q) => ({
-      id: q.id,
-      question_text: q.question_text,
-      type: q.type,
-      marks: q.marks,
-      expectedWordCount: q.expectedWordCount,
-      codeLanguage: q.codeLanguage,
-      options:
-        q.type === "MCQ"
-          ? q.options.map((o) => ({
-              id: o.id,
-              option_text: o.option_text,
-            }))
-          : [],
-    }));
-
-    const testData = {
-      id: test.id,
-      title: test.title,
-      description: test.description,
-      maxMarks: test.maxMarks,
-      passingMarks: test.passingMarks,
-      durationInMinutes: test.durationInMinutes,
-      startDate: test.startDate,
-      endDate: test.endDate,
-      shuffleQuestions: test.shuffleQuestions,
-      maxAttempts: test.maxAttempts,
-      course: {
-        id: test.course.id,
-        title: test.course.title,
-      },
-      questions: processedQuestions,
-    };
-
-    res.status(200).json({
+    return res.status(200).json({
       message: "Test fetched successfully",
-      data: { test: testData },
+      data: { test },
     });
   } catch (error) {
-    console.error("Error fetching test details:", error);
-    res.status(500).json({ message: "Error fetching test details" });
+    console.error("Error fetching test:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -228,8 +169,16 @@ export const submitTest = async (req: Request, res: Response) => {
       where: { test: { id: testId }, user: { id: student.id } },
     });
 
+    // Debug log for maximum attempts
+    console.log({
+      previousAttempts: previousAttempts.length,
+      maxAttempts: test.maxAttempts,
+    });
+
     if (previousAttempts.length >= test.maxAttempts) {
-      return res.status(403).json({ message: "Maximum attempts reached" });
+      return res.status(403).json({
+        message: `Maximum attempts reached. You have already attempted ${previousAttempts.length} out of ${test.maxAttempts} allowed attempts.`,
+      });
     }
 
     // Validate responses
