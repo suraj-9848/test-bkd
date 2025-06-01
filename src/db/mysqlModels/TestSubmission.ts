@@ -2,9 +2,10 @@ import {
   Entity,
   Column,
   PrimaryGeneratedColumn,
-  ManyToOne,
-  OneToMany,
   BaseEntity,
+  OneToMany,
+  CreateDateColumn,
+  ManyToOne,
 } from "typeorm";
 import { TestResponse } from "./TestResponse";
 import { Test } from "./Test";
@@ -15,40 +16,26 @@ export class TestSubmission extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @ManyToOne(() => User)
-  user: User;
-
   @ManyToOne(() => Test, (test) => test.submissions)
   test: Test;
 
-  @Column({ type: "timestamp" })
-  submittedAt: Date;
+  @ManyToOne(() => User, (user) => user.submissions)
+  user: User;
 
-  @Column({
-    type: "enum",
-    enum: ["SUBMITTED", "PARTIALLY_EVALUATED", "FULLY_EVALUATED"],
-    default: "SUBMITTED",
+  @OneToMany(() => TestResponse, (response) => response.submission, {
+    cascade: true,
   })
-  status: "SUBMITTED" | "PARTIALLY_EVALUATED" | "FULLY_EVALUATED";
+  responses: TestResponse[];
 
-  @Column({ type: "float", nullable: true })
-  mcqScore: number;
-
-  @Column({ type: "float", nullable: true })
-  totalMcqMarks: number;
-
-  @Column({ type: "float", nullable: true })
-  mcqPercentage: number;
-
-  @Column({ type: "float", nullable: true })
+  @Column({ nullable: true })
   totalScore: number;
 
-  @OneToMany(
-    () => TestResponse,
-    (response: TestResponse) => response.submission,
-    {
-      cascade: true,
-    },
-  )
-  responses: TestResponse[];
+  @Column({ nullable: true })
+  mcqScore: number;
+
+  @Column({ nullable: true })
+  status: string;
+
+  @CreateDateColumn()
+  submittedAt: Date;
 }

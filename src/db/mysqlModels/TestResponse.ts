@@ -13,21 +13,21 @@ export class TestResponse extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column("text")
-  answer: string;
-
   @ManyToOne(() => TestSubmission, (submission) => submission.responses)
   submission: TestSubmission;
 
   @ManyToOne(() => Question, (question) => question.responses)
   question: Question;
 
-  @Column("enum", { enum: ["PENDING", "EVALUATED"], default: "PENDING" })
-  evaluationStatus: string;
+  @Column({ nullable: true })
+  answer: string;
 
-  @Column("float", { nullable: true })
+  @Column({ nullable: true })
   score: number;
 
-  @Column("text", { nullable: true })
+  @Column({ default: "PENDING" })
+  evaluationStatus: string;
+
+  @Column({ nullable: true })
   evaluatorComments: string;
 }

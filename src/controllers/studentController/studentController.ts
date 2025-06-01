@@ -129,6 +129,7 @@ export const getStudentTestById = async (req: Request, res: Response) => {
 };
 
 // POST /student/tests/:testId/submit
+// POST /student/tests/:testId/submit
 export const submitTest = async (req: Request, res: Response) => {
   try {
     const { testId } = req.params;
@@ -137,12 +138,12 @@ export const submitTest = async (req: Request, res: Response) => {
 
     // Validate test exists and is accessible
     const test = await getSingleRecord(Test, {
-      where: { id: testId },
+      where: { id: testId, status: "PUBLISHED" },
       relations: ["questions", "course", "questions.options"],
     });
 
     if (!test) {
-      return res.status(404).json({ message: "Test not found" });
+      return res.status(404).json({ message: "Test not found or not published" });
     }
 
     // Check course enrollment
@@ -154,14 +155,14 @@ export const submitTest = async (req: Request, res: Response) => {
     });
 
     if (!userCourse) {
-      return res.status(403).json({ message: "Access denied" });
+      return res.status(403).json({ message: "Not enrolled in this course" });
     }
 
     // Check if test is ongoing
     const currentTime = new Date();
     const testStatus = getTestStatus(test, currentTime);
     if (testStatus !== "ONGOING") {
-      return res.status(403).json({ message: "Test is not active" });
+      return res.status(403).json({ message: `Test is ${testStatus.toLowerCase()}, cannot submit` });
     }
 
     // Check previous attempts
@@ -169,63 +170,57 @@ export const submitTest = async (req: Request, res: Response) => {
       where: { test: { id: testId }, user: { id: student.id } },
     });
 
-    // Debug log for maximum attempts
-    console.log({
-      previousAttempts: previousAttempts.length,
-      maxAttempts: test.maxAttempts,
-    });
-
     if (previousAttempts.length >= test.maxAttempts) {
       return res.status(403).json({
-        message: `Maximum attempts reached. You have already attempted ${previousAttempts.length} out of ${test.maxAttempts} allowed attempts.`,
+        message: `Maximum attempts reached (${previousAttempts.length}/${test.maxAttempts})`,
       });
     }
 
     // Validate responses
-    if (!Array.isArray(responses)) {
-      return res.status(400).json({ message: "Responses must be an array" });
+    if (!Array.isArray(responses) || responses.length === 0) {
+      return res.status(400).json({ message: "Responses must be a non-empty array" });
     }
 
     const questionIds = test.questions.map((q) => q.id);
-    if (!responses.every((r) => questionIds.includes(r.questionId))) {
-      return res
-        .status(400)
-        .json({ message: "Invalid or missing question responses" });
+    if (!responses.every((r) => r.questionId && questionIds.includes(r.questionId))) {
+      return res.status(400).json({ message: "Invalid or missing question IDs in responses" });
     }
 
     // Create submission within a transaction
     const submission = await TestSubmission.getRepository().manager.transaction(
       async (manager) => {
+        // Create submission record
         const submission = await manager.save(TestSubmission, {
           test,
           user: student,
           submittedAt: new Date(),
           status: "SUBMITTED",
+          mcqScore: 0,
+          mcqPercentage: 0,
         });
 
         let mcqScore = 0;
         let totalMcqMarks = 0;
 
         // Process responses
-        await Promise.all(
+        const testResponses = await Promise.all(
           responses.map(async (response) => {
-            const question = test.questions.find(
-              (q) => q.id === response.questionId,
-            );
-            if (!question) return;
+            const question = test.questions.find((q) => q.id === response.questionId);
+            if (!question) {
+              throw new Error(`Question ${response.questionId} not found`);
+            }
 
             let evaluationStatus: "EVALUATED" | "PENDING" = "PENDING";
             let score = 0;
 
             // Evaluate MCQs immediately
             if (question.type === "MCQ") {
-              const validOption = question.options?.some(
-                (o) => o.id === response.answer,
-              );
+              if (!response.answer) {
+                throw new Error(`Answer missing for MCQ question ${question.id}`);
+              }
+              const validOption = question.options?.some((o) => o.id === response.answer);
               if (!validOption) {
-                throw new Error(
-                  `Invalid MCQ answer for question ${question.id}`,
-                );
+                throw new Error(`Invalid MCQ answer for question ${question.id}`);
               }
               evaluationStatus = "EVALUATED";
               if (response.answer === question.correctAnswer) {
@@ -235,30 +230,31 @@ export const submitTest = async (req: Request, res: Response) => {
               totalMcqMarks += question.marks;
             }
 
-            await manager.save(TestResponse, {
+            return {
               submission,
               question,
-              answer: response.answer,
+              answer: response.answer || null,
               evaluationStatus,
               score,
               evaluatorComments: null,
-            });
+            };
           }),
         );
 
+        // Save all responses
+        await manager.save(TestResponse, testResponses);
+
         // Update submission with MCQ scores
-        const mcqPercentage =
-          totalMcqMarks > 0 ? (mcqScore / totalMcqMarks) * 100 : 0;
-        const status = test.questions.some((q) => q.type !== "MCQ")
+        const mcqPercentage = totalMcqMarks > 0 ? (mcqScore / totalMcqMarks) * 100 : 0;
+        const status = test.questions.some((q: { type: string; }) => q.type !== "MCQ")
           ? "PARTIALLY_EVALUATED"
           : "FULLY_EVALUATED";
+
         await manager.update(
           TestSubmission,
           { id: submission.id },
           {
             mcqScore,
-            totalMcqMarks,
-            mcqPercentage,
             status,
           },
         );
@@ -280,6 +276,7 @@ export const submitTest = async (req: Request, res: Response) => {
         mcqScore: submission.mcqScore,
         totalMcqMarks: submission.totalMcqMarks,
         mcqPercentage: submission.mcqPercentage,
+        status: submission.status,
         message:
           submission.status === "PARTIALLY_EVALUATED"
             ? "Descriptive and code questions will be evaluated by the instructor"
@@ -291,7 +288,6 @@ export const submitTest = async (req: Request, res: Response) => {
     res.status(500).json({ message: error.message || "Error submitting test" });
   }
 };
-
 // GET /student/tests/:testId/submissions
 export const getTestSubmissions = async (req: Request, res: Response) => {
   try {
@@ -343,30 +339,131 @@ export const getTestSubmissions = async (req: Request, res: Response) => {
   }
 };
 
+// GET /student/tests/:testId/results
 export const getStudentTestResults = async (req: Request, res: Response) => {
   try {
     const { testId } = req.params;
     const student = req.user as User;
 
+    // Validate test exists
+    const test = await getSingleRecord(Test, {
+      where: { id: testId },
+      relations: ["course", "questions"], // Ensure questions are loaded
+    });
+    if (!test) {
+      return res.status(404).json({ message: "Test not found" });
+    }
+
+    // Check course enrollment
+    const userCourse = await getSingleRecord(UserCourse, {
+      where: {
+        user: { id: student.id },
+        course: { id: test.course.id },
+      },
+    });
+    if (!userCourse) {
+      return res.status(403).json({ message: "Not enrolled in this course" });
+    }
+
+    // Fetch submissions with relations
     const submissions = await getAllRecordsWithFilter(TestSubmission, {
       where: {
         test: { id: testId },
         user: { id: student.id },
       },
-      relations: ["test", "responses", "responses.question"],
+      relations: ["test", "responses", "responses.question", "responses.question.options"], // Ensure all necessary relations are loaded
       order: { submittedAt: "DESC" },
+    });
+
+    if (!submissions.length) {
+      return res.status(200).json({
+        message: "No submissions found for this test",
+        data: { submissions: [] },
+      });
+    }
+
+    // Process submissions
+    const processedSubmissions = submissions.map((submission) => {
+      const totalMcqMarks = test.questions
+        ?.filter((q) => q.type === "MCQ")
+        .reduce((sum, q) => sum + q.marks, 0) || 0;
+
+      let mcqScore = 0;
+
+      const responses = submission.responses.map((response) => {
+        const question = response.question;
+
+        if (question.type === "MCQ") {
+          // Automatically evaluate MCQ
+          const isCorrect = response.answer === question.correctAnswer;
+          const score = isCorrect ? question.marks : 0;
+          mcqScore += score;
+
+          return {
+            questionId: question.id,
+            questionText: question.question_text,
+            type: question.type,
+            answer: response.answer,
+            score,
+            maxMarks: question.marks,
+            evaluationStatus: "EVALUATED",
+            evaluatorComments: null,
+            options: question.options?.map((option) => ({
+              id: option.id,
+              text: option.text,
+              correct: option.correct,
+            })) || [],
+            correctAnswer: question.correctAnswer,
+          };
+        } else {
+          // Descriptive and code questions require manual evaluation
+          return {
+            questionId: question.id,
+            questionText: question.question_text,
+            type: question.type,
+            answer: response.answer,
+            score: response.score || 0,
+            maxMarks: question.marks,
+            evaluationStatus: response.evaluationStatus,
+            evaluatorComments: response.evaluatorComments,
+          };
+        }
+      });
+
+      const mcqPercentage =
+        totalMcqMarks > 0 ? (mcqScore / totalMcqMarks) * 100 : 0;
+
+      return {
+        submissionId: submission.id,
+        testId: submission.test.id,
+        testTitle: submission.test.title,
+        submittedAt: submission.submittedAt,
+        status: submission.status,
+        mcqScore,
+        totalMcqMarks,
+        mcqPercentage,
+        totalScore: submission.totalScore || null,
+        maxMarks: submission.test.maxMarks,
+        percentage:
+          submission.totalScore !== null && submission.test.maxMarks > 0
+            ? (submission.totalScore / submission.test.maxMarks) * 100
+            : null,
+        passed:
+          submission.totalScore !== null &&
+          submission.totalScore >= submission.test.passingMarks,
+        responses,
+      };
     });
 
     res.status(200).json({
       message: "Test results fetched successfully",
-      data: { submissions },
+      data: { submissions: processedSubmissions },
     });
   } catch (error) {
     console.error("Error fetching test results:", error);
     res.status(500).json({ message: "Error fetching test results" });
   }
 };
-
 // Helper function to determine if a module is unlocked for a student
 async function isModuleUnlocked(
   student: User,

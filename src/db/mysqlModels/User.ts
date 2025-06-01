@@ -10,6 +10,7 @@ import {
 import { UserCourse } from "./UserCourse";
 import { v4 as uuidv4 } from "uuid";
 import { Org } from "./Org";
+import { TestSubmission } from "./TestSubmission";
 
 export enum UserRole {
   STUDENT = "student",
@@ -49,6 +50,9 @@ export class User extends BaseEntity {
   userCourses: UserCourse[];
 
   @ManyToOne(() => Org, (org) => org.users)
+  @OneToMany(() => TestSubmission, (submission) => submission.user)
+  submissions: TestSubmission[];
+
   @JoinColumn({ name: "org_id" })
   organization: Org;
 }
