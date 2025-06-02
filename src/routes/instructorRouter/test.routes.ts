@@ -2,22 +2,19 @@ import { Router } from "express";
 import * as TestManagementController from "../../controllers/instructorControllers/testManagement.controller";
 import * as TestEvaluationController from "../../controllers/instructorControllers/testEvaluation.controller";
 import { instructorMiddleware } from "../../middleware/instructorMiddleware";
-
+import {
+  getSubmissionsForEvaluation,
+  getSubmissionForEvaluation,
+  evaluateResponse,
+  bulkEvaluateResponses,
+  getEvaluationStatistics,
+} from "../../controllers/instructorControllers/evaluation.controller";
 const router = Router();
 
 // Apply instructor authentication middleware to all routes
 router.use(instructorMiddleware);
 
 // Test management routes
-router.post("/courses/:courseId/tests", TestManagementController.createTest);
-router.get(
-  "/courses/:courseId/tests",
-  TestManagementController.getTestsByCourse,
-);
-router.get("/tests/:testId", TestManagementController.getTestById);
-router.put("/tests/:testId", TestManagementController.updateTest);
-router.delete("/tests/:testId", TestManagementController.deleteTest);
-
 // Question management routes
 router.post("/tests/:testId/questions", TestManagementController.addQuestions);
 router.put(
@@ -54,6 +51,27 @@ router.post(
 router.get(
   "/tests/:testId/evaluation-stats",
   TestEvaluationController.getEvaluationStats,
+);
+// Submission evaluation routes
+router.get(
+  "/tests/:testId/submissions",
+  getSubmissionsForEvaluation,
+);
+router.get(
+  "/tests/:testId/submissions/:submissionId",
+  getSubmissionForEvaluation,
+);
+router.post(
+  "/tests/:testId/submissions/:submissionId/evaluate",
+  evaluateResponse,
+);
+router.post(
+  "/tests/:testId/submissions/bulk-evaluate",
+  bulkEvaluateResponses,
+);
+router.get(
+  "/tests/:testId/evaluation-statistics",
+  getEvaluationStatistics,
 );
 
 export const testRouter = router;

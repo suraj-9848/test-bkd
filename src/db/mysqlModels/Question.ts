@@ -6,21 +6,22 @@ import {
   ManyToOne,
   BaseEntity,
 } from "typeorm";
-import { v4 as uuidv4 } from "uuid";
 import { QuizOptions } from "./QuizOptions";
 import { Test } from "./Test";
+import { TestResponse } from "./TestResponse";
 
 export enum QuestionType {
   MCQ = "MCQ",
   DESCRIPTIVE = "DESCRIPTIVE",
+  CODE = "CODE",
 }
 
 @Entity()
 export class Question extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
-  id: string = uuidv4();
+  id: string;
 
-  @Column()
+  @Column({ type: "text" })
   question_text: string;
 
   @Column({
@@ -30,16 +31,27 @@ export class Question extends BaseEntity {
   })
   type: QuestionType;
 
-  @Column({ default: 1 })
+  @Column({ type: "int", default: 1 })
   marks: number;
 
+  @Column({ type: "int", nullable: true })
+  expectedWordCount: number | null;
+
+  @Column({ type: "varchar", length: 255, nullable: true })
+  codeLanguage: string | null;
+
   @Column({ nullable: true })
-  expectedWordCount: number;
+  correctAnswer: string;
 
   @OneToMany(() => QuizOptions, (options) => options.question, {
     cascade: true,
   })
   options: QuizOptions[];
+
+  @OneToMany(() => TestResponse, (response) => response.question, {
+    cascade: true,
+  })
+  responses: TestResponse[];
 
   @ManyToOne(() => Test, (test) => test.questions, { onDelete: "CASCADE" })
   test: Test;

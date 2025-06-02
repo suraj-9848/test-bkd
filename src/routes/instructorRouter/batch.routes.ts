@@ -15,6 +15,14 @@ import {
 } from "../../controllers/instructorControllers/batch.controller";
 
 import {
+  getSubmissionsForEvaluation,
+  getSubmissionForEvaluation,
+  evaluateResponse,
+  bulkEvaluateResponses,
+  getEvaluationStatistics,
+} from "../../controllers/instructorControllers/evaluation.controller";
+
+import {
   createCourse,
   fetchCourse,
   updateCourse,
@@ -29,6 +37,15 @@ import {
   updateTest,
   deleteTest,
   fetchTestsInCourse,
+  createQuestion,
+  getQuestions,
+  updateQuestion,
+  deleteQuestion,
+  teststatustoPublish,
+  evaluateTestSubmission,
+  getSubmissionCount,
+  evaluateTestResponseById,
+  getTestResponses,
 } from "../../controllers/instructorControllers/test.controller";
 
 import {
@@ -54,6 +71,7 @@ import {
   getSingleModule,
   updateModule,
 } from "../../controllers/moduleControllers/moduleControllers";
+
 
 const router = express.Router();
 router.use(authMiddleware, instructorMiddleware);
@@ -87,6 +105,48 @@ router.get("/batches/:batchId/courses/:courseId/tests", fetchTestsInCourse);
 router.get("/batches/:batchId/courses/:courseId/tests/:testId", fetchTestById);
 router.put("/batches/:batchId/courses/:courseId/tests/:testId", updateTest);
 router.delete("/batches/:batchId/courses/:courseId/tests/:testId", deleteTest);
+router.patch(
+  "/batches/:batchId/courses/:courseId/tests/:testId/publish",
+  teststatustoPublish,
+);
+router.post(
+  "/batches/:batchId/courses/:courseId/tests/:testId/evaluate",
+  evaluateTestSubmission,
+);
+router.get(
+  "/batches/:batchId/courses/:courseId/tests/:testId/submission-count",
+  getSubmissionCount,
+);
+router.get(
+  "/batches/:batchId/courses/:courseId/tests/:testId/submissions",
+  getSubmissionsForEvaluation,
+);
+router.get(
+  "/batches/:batchId/courses/:courseId/tests/:testId/responses",
+  getTestResponses,
+);
+router.put(
+  "/batches/:batchId/courses/:courseId/tests/:testId/responses/:responseId/evaluate",
+  evaluateTestResponseById,
+);
+
+// Test Routes of Questions in test
+router.get(
+  "/batches/:batchId/courses/:courseId/tests/:testId/questions",
+  getQuestions,
+);
+router.post(
+  "/batches/:batchId/courses/:courseId/tests/:testId/questions",
+  createQuestion,
+);
+router.delete(
+  "/batches/:batchId/courses/:courseId/tests/:testId/questions/:questionId",
+  deleteQuestion,
+);
+router.put(
+  "/batches/:batchId/courses/:courseId/tests/:testId/questions/:questionId",
+  updateQuestion,
+);
 
 // Module routes (nested under batch and course)
 router.post("/batches/:batchId/courses/:courseId/modules", createModule);
@@ -143,6 +203,27 @@ router.put(
 router.delete(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/mcq/:mcqId",
   deleteMCQ,
+);
+
+router.get(
+  "/batches/:batchId/courses/:courseId/tests/:testId/submissions",
+  getSubmissionsForEvaluation
+);
+router.get(
+  "/batches/:batchId/courses/:courseId/tests/:testId/submissions/:submissionId",
+  getSubmissionForEvaluation
+);
+router.post(
+  "/batches/:batchId/courses/:courseId/tests/:testId/submissions/:submissionId/evaluate",
+  evaluateResponse
+);
+router.post(
+  "/batches/:batchId/courses/:courseId/tests/:testId/submissions/bulk-evaluate",
+  bulkEvaluateResponses
+);
+router.get(
+  "/batches/:batchId/courses/:courseId/tests/:testId/evaluation-statistics",
+  getEvaluationStatistics
 );
 
 export const instructorRouter = router;

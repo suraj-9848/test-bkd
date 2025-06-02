@@ -90,6 +90,7 @@ router.post("/register", async (req: Request, res: Response) => {
   }
 });
 
+// First, update the login route to set better cookie options
 router.post("/login", async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
@@ -118,19 +119,21 @@ router.post("/login", async (req: Request, res: Response) => {
     const token = jwt.sign(
       { id: user.id, username: user.username, userRole: user.userRole },
       process.env.JWT_SECRET,
-      { expiresIn: config.JWT_EXPIRES_IN },
+      { expiresIn: "24h" }, // Set token expiry to 24 hours
     );
 
+    // Set cookie with improved options
     res.cookie("token", token, {
       httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      maxAge: config.JWT_COOKIE_EXPIRES_IN,
+      secure: process.env.NODE_ENV === "production", // Only use HTTPS in production
+      sameSite: "lax", // Changed from 'none' to 'lax' for better browser support
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
+      path: "/", // Ensure cookie is available across all paths
     });
 
     return res.status(200).json({
       message: "Login successful",
-      token, // Include the token in the response
+      token,
       user: {
         id: user.id,
         username: user.username,
@@ -143,8 +146,15 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
+// Update the logout route to properly clear the cookie
 router.post("/logout", (_req: Request, res: Response) => {
-  res.clearCookie("token");
+  res.cookie("token", "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    expires: new Date(0), // Immediately expire the cookie
+    path: "/",
+  });
   return res.status(200).json({ message: "Logged out successfully" });
 });
 
