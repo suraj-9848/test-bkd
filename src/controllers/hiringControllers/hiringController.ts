@@ -445,7 +445,7 @@ export const updateApplicationStatus = async (req: Request, res: Response) => {
         JobApplication,
         { id: applicationId },
         { status },
-        false
+        false,
       );
 
       // Get updated application with relations
@@ -513,13 +513,25 @@ export const applyForJob = async (req: Request, res: Response) => {
     const { jobId } = req.params;
     // Get userId from req.user if available (authenticated) or use null for anonymous applications
     const userId = req.user?.id || null;
-    const applicantName = req.body.applicantName || 'Anonymous Applicant';
+    const applicantName = req.body.applicantName || "Anonymous Applicant";
     const applicantEmail = req.body.applicantEmail || null;
+    const college = req.body.college || null;
+    const graduationYear = req.body.graduationYear || null;
+    const branch = req.body.branch || null;
+    const skills = req.body.skills || [];
 
     // Validate parameters
     if (!jobId) {
       return res.status(400).json({
         message: "Job ID is required",
+        success: false,
+      });
+    }
+
+    // Validate required fields for anonymous applications
+    if (!userId && (!applicantName || !applicantEmail)) {
+      return res.status(400).json({
+        message: "Name and email are required for anonymous applications",
         success: false,
       });
     }
@@ -577,12 +589,14 @@ export const applyForJob = async (req: Request, res: Response) => {
         }
 
         // Generate a unique identifier for anonymous users
-        const userIdentifier = userId ? `user_${userId}` : `anon_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+        const userIdentifier = userId
+          ? `user_${userId}`
+          : `anon_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
 
         // Generate a unique file name for S3
         const fileName = s3Service.generateUniqueFileName(
           req.file.originalname,
-          userIdentifier
+          userIdentifier,
         );
 
         // Upload the file to S3
@@ -590,19 +604,26 @@ export const applyForJob = async (req: Request, res: Response) => {
           req.file.buffer,
           fileName,
           "application/pdf",
-          "resumes"
+          "resumes",
         );
       } catch (uploadError) {
         console.error("Error uploading resume:", uploadError);
         // Log more detailed error information
         if (uploadError instanceof Error) {
-          console.error("Error details:", uploadError.message, uploadError.stack);
+          console.error(
+            "Error details:",
+            uploadError.message,
+            uploadError.stack,
+          );
         }
         return res.status(500).json({
           message: "Failed to upload resume",
           details:
             "There was an error uploading your resume to storage. Please try again.",
-          error: uploadError instanceof Error ? uploadError.message : "Unknown error",
+          error:
+            uploadError instanceof Error
+              ? uploadError.message
+              : "Unknown error",
           success: false,
         });
       }
@@ -615,21 +636,23 @@ export const applyForJob = async (req: Request, res: Response) => {
 
     // Create job application
     try {
-      // Store anonymous application info in resumePath if needed
-      // e.g., resumePath could be prefixed with applicant info if no user_id
-      // This is a workaround since we don't have a metadata field
-      let enhancedResumePath = resumePath;
-      if (!userId && (applicantName || applicantEmail)) {
-        // Add applicant info to the path or filename
-        // Or handle this in a way that fits your application's needs
-        console.log(`Anonymous application from: ${applicantName}, ${applicantEmail}`);
-      }
-      
+      // Generate unique identifier for anonymous applications
+      const applicationIdentifier = !userId
+        ? `app_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
+        : null;
+
       const application = JobApplication.create({
-        user_id: userId, // This will be null for anonymous users, make sure your database allows this
+        user_id: userId, // This will be null for anonymous users
         job_id: jobId,
-        resumePath: enhancedResumePath,
-        status: ApplicationStatus.APPLIED
+        resumePath,
+        status: ApplicationStatus.APPLIED,
+        applicationIdentifier,
+        applicantName,
+        applicantEmail,
+        college,
+        graduationYear: graduationYear ? graduationYear.toString() : null,
+        branch,
+        skills: Array.isArray(skills) ? skills : skills ? [skills] : [],
       });
 
       await application.save();
@@ -643,6 +666,7 @@ export const applyForJob = async (req: Request, res: Response) => {
       return res.status(201).json({
         message: "Job application submitted successfully",
         application: createdApplication,
+        applicationIdentifier,
         success: true,
       });
     } catch (dbError) {
@@ -742,7 +766,7 @@ export const getJobApplications = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       message: "Applications retrieved successfully",
-      applications: applications.map(app => ({
+      applications: applications.map((app) => ({
         id: app.id,
         status: app.status,
         appliedAt: app.appliedAt,
@@ -751,8 +775,8 @@ export const getJobApplications = async (req: Request, res: Response) => {
         user: {
           id: app.user.id,
           username: app.user.username,
-          email: app.user.email
-        }
+          email: app.user.email,
+        },
       })),
       count: applications.length,
       success: true,
@@ -762,6 +786,73 @@ export const getJobApplications = async (req: Request, res: Response) => {
     return res.status(500).json({
       message: "Failed to retrieve job applications",
       details: error instanceof Error ? error.message : "Unknown error",
+      success: false,
+    });
+  }
+};
+
+// Get all applications with full details (admin view)
+export const getAllApplicationsWithDetails = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const { limit = 10, offset = 0 } = req.query;
+
+    try {
+      const applications = await getAllRecordsWithFilter(JobApplication, {
+        relations: ["job", "job.organization", "user"],
+        order: { appliedAt: "DESC" },
+        take: parseInt(limit as string),
+        skip: parseInt(offset as string),
+      });
+
+      const formattedApplications = applications.map((app) => ({
+        id: app.id,
+        applicationIdentifier: app.applicationIdentifier,
+        // Student details (either from User or anonymous)
+        studentInfo: {
+          name: app.applicantName || app.user?.username || "N/A",
+          email: app.applicantEmail || app.user?.email || "N/A",
+          college: app.college || "N/A",
+          graduationYear: app.graduationYear || "N/A",
+          branch: app.branch || "N/A",
+          skills: app.skills || [],
+          isAnonymous: !app.user_id,
+        },
+        // Job details
+        jobInfo: {
+          title: app.job.title,
+          companyName: app.job.companyName,
+          location: app.job.location,
+        },
+        // Application details
+        status: app.status,
+        resumePath: app.resumePath,
+        appliedAt: app.appliedAt,
+        updatedAt: app.updatedAt,
+      }));
+
+      return res.status(200).json({
+        message: "Applications fetched successfully",
+        count: applications.length,
+        applications: formattedApplications,
+        success: true,
+      });
+    } catch (dbError) {
+      console.error("Database error fetching applications:", dbError);
+      return res.status(500).json({
+        message: "Failed to fetch applications",
+        details:
+          "There was an error retrieving applications from the database.",
+        success: false,
+      });
+    }
+  } catch (error) {
+    console.error("Error fetching applications:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+      details: "An unexpected error occurred while retrieving applications.",
       success: false,
     });
   }

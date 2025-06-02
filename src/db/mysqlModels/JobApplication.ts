@@ -34,6 +34,29 @@ export class JobApplication extends BaseEntity {
   @Column({ nullable: true })
   resumePath: string;
 
+  // Unique identifier for anonymous applications
+  @Column({ nullable: true, unique: true })
+  applicationIdentifier: string;
+
+  // Additional fields for anonymous applications
+  @Column({ nullable: true })
+  applicantName: string;
+
+  @Column({ nullable: true })
+  applicantEmail: string;
+
+  @Column({ nullable: true })
+  college: string;
+
+  @Column({ nullable: true })
+  graduationYear: string;
+
+  @Column({ nullable: true })
+  branch: string;
+
+  @Column("simple-array", { nullable: true })
+  skills: string[];
+
   @Column({
     type: "enum",
     enum: ApplicationStatus,

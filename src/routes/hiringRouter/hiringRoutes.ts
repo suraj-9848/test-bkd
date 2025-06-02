@@ -18,7 +18,9 @@ import {
   applyForJob,
   getUserApplications,
   getJobApplications,
+  getAllApplicationsWithDetails,
 } from "../../controllers/hiringControllers/hiringController";
+import { getApplicationByIdentifier } from "../../controllers/hiringControllers/applicationController";
 
 export const hiringAdminRouter = express.Router();
 export const hiringUserRouter = express.Router();
@@ -57,6 +59,7 @@ hiringPublicRouter.post(
   validateApplicationBody,
   applyForJob,
 );
+hiringPublicRouter.get("/applications/:identifier", getApplicationByIdentifier);
 
 // Admin routes
 hiringAdminRouter.use(authMiddleware, adminMiddleware);
@@ -67,6 +70,7 @@ hiringAdminRouter.delete("/jobs/:jobId", deleteJob);
 hiringAdminRouter.get("/jobs", getAllJobs);
 hiringAdminRouter.get("/jobs/:jobId", getJobById);
 hiringAdminRouter.get("/jobs/:jobId/applications", getJobApplications);
+hiringAdminRouter.get("/applications", getAllApplicationsWithDetails); // New route to view all applications
 hiringAdminRouter.put(
   "/applications/:applicationId/status",
   updateApplicationStatus,

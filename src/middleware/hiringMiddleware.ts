@@ -5,8 +5,15 @@ export const validateJobBody = (
   res: Response,
   next: NextFunction,
 ) => {
-  const { title, companyName, description, skills, eligibleBranches, org_id, location } =
-    req.body;
+  const {
+    title,
+    companyName,
+    description,
+    skills,
+    eligibleBranches,
+    org_id,
+    location,
+  } = req.body;
 
   // Check for required fields
   if (
@@ -88,5 +95,34 @@ export const validateApplicationBody = (
     });
   }
 
+  // For anonymous applications, require name and email
+  if (!req.user && (!req.body.applicantName || !req.body.applicantEmail)) {
+    return res.status(400).json({
+      message: "Name and email are required for applications",
+    });
+  }
+
+  // Validate email format if provided
+  if (req.body.applicantEmail && !isValidEmail(req.body.applicantEmail)) {
+    return res.status(400).json({
+      message: "Invalid email format",
+    });
+  }
+
+  // Convert skills to array if needed
+  if (req.body.skills && !Array.isArray(req.body.skills)) {
+    if (typeof req.body.skills === "string") {
+      req.body.skills = [req.body.skills];
+    } else {
+      req.body.skills = [];
+    }
+  }
+
   next();
 };
+
+// Helper function to validate email format
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}

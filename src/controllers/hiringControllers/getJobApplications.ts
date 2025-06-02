@@ -1,7 +1,10 @@
 import { Request, Response } from "express";
 import { Job } from "../../db/mysqlModels/Job";
 import { JobApplication } from "../../db/mysqlModels/JobApplication";
-import { getSingleRecord, getAllRecordsWithFilter } from "../../lib/dbLib/sqlUtils";
+import {
+  getSingleRecord,
+  getAllRecordsWithFilter,
+} from "../../lib/dbLib/sqlUtils";
 
 // Get all applications for a specific job
 export const getJobApplications = async (req: Request, res: Response) => {
@@ -34,7 +37,7 @@ export const getJobApplications = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       message: "Applications retrieved successfully",
-      applications: applications.map(app => ({
+      applications: applications.map((app) => ({
         id: app.id,
         status: app.status,
         appliedAt: app.appliedAt,
@@ -43,8 +46,8 @@ export const getJobApplications = async (req: Request, res: Response) => {
         user: {
           id: app.user.id,
           username: app.user.username,
-          email: app.user.email
-        }
+          email: app.user.email,
+        },
       })),
       count: applications.length,
       success: true,
