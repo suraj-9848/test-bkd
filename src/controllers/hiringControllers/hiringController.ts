@@ -511,7 +511,10 @@ export const getOpenJobs = async (req: Request, res: Response) => {
 export const applyForJob = async (req: Request, res: Response) => {
   try {
     const { jobId } = req.params;
-    const userId = req.user.id;
+    // Get userId from req.user if available (authenticated) or use null for anonymous applications
+    const userId = req.user?.id || null;
+    const applicantName = req.body.applicantName || 'Anonymous Applicant';
+    const applicantEmail = req.body.applicantEmail || null;
 
     // Validate parameters
     if (!jobId) {
@@ -543,18 +546,20 @@ export const applyForJob = async (req: Request, res: Response) => {
       });
     }
 
-    // Check if user has already applied
-    const existingApplication = await getSingleRecord(JobApplication, {
-      where: { user_id: userId, job_id: jobId },
-    });
-
-    if (existingApplication) {
-      return res.status(400).json({
-        message: "You have already applied for this job",
-        applicationId: existingApplication.id,
-        status: existingApplication.status,
-        success: false,
+    // If user is authenticated, check if they have already applied
+    if (userId) {
+      const existingApplication = await getSingleRecord(JobApplication, {
+        where: { user_id: userId, job_id: jobId },
       });
+
+      if (existingApplication) {
+        return res.status(400).json({
+          message: "You have already applied for this job",
+          applicationId: existingApplication.id,
+          status: existingApplication.status,
+          success: false,
+        });
+      }
     }
 
     let resumePath = null;
@@ -571,10 +576,13 @@ export const applyForJob = async (req: Request, res: Response) => {
           });
         }
 
+        // Generate a unique identifier for anonymous users
+        const userIdentifier = userId ? `user_${userId}` : `anon_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+
         // Generate a unique file name for S3
         const fileName = s3Service.generateUniqueFileName(
           req.file.originalname,
-          `user_${userId}`
+          userIdentifier
         );
 
         // Upload the file to S3
@@ -607,11 +615,21 @@ export const applyForJob = async (req: Request, res: Response) => {
 
     // Create job application
     try {
+      // Store anonymous application info in resumePath if needed
+      // e.g., resumePath could be prefixed with applicant info if no user_id
+      // This is a workaround since we don't have a metadata field
+      let enhancedResumePath = resumePath;
+      if (!userId && (applicantName || applicantEmail)) {
+        // Add applicant info to the path or filename
+        // Or handle this in a way that fits your application's needs
+        console.log(`Anonymous application from: ${applicantName}, ${applicantEmail}`);
+      }
+      
       const application = JobApplication.create({
-        user_id: userId,
+        user_id: userId, // This will be null for anonymous users, make sure your database allows this
         job_id: jobId,
-        resumePath,
-        status: ApplicationStatus.APPLIED,
+        resumePath: enhancedResumePath,
+        status: ApplicationStatus.APPLIED
       });
 
       await application.save();

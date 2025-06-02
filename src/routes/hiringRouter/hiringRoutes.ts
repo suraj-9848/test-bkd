@@ -22,6 +22,7 @@ import {
 
 export const hiringAdminRouter = express.Router();
 export const hiringUserRouter = express.Router();
+export const hiringPublicRouter = express.Router();
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -41,6 +42,22 @@ const upload = multer({
   },
 });
 
+// Public routes - no authentication required
+hiringPublicRouter.get("/test", (req, res) => {
+  return res.status(200).json({
+    message: "Public test route works!",
+    success: true,
+  });
+});
+hiringPublicRouter.get("/jobs", getOpenJobs);
+hiringPublicRouter.get("/jobs/:jobId", getJobById);
+hiringPublicRouter.post(
+  "/jobs/:jobId/apply",
+  upload.single("resume"),
+  validateApplicationBody,
+  applyForJob,
+);
+
 // Admin routes
 hiringAdminRouter.use(authMiddleware, adminMiddleware);
 
@@ -55,14 +72,8 @@ hiringAdminRouter.put(
   updateApplicationStatus,
 );
 
-// User routes
+// User routes that require authentication
 hiringUserRouter.use(authMiddleware);
 
-hiringUserRouter.get("/jobs", getOpenJobs);
-hiringUserRouter.post(
-  "/jobs/:jobId/apply",
-  upload.single("resume"),
-  validateApplicationBody,
-  applyForJob,
-);
+// User's applications - requires authentication
 hiringUserRouter.get("/applications", getUserApplications);

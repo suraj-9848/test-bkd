@@ -78,6 +78,7 @@ import { studentRouter } from "./routes/studentRouter/studentRoutes";
 import {
   hiringAdminRouter,
   hiringUserRouter,
+  hiringPublicRouter,
 } from "./routes/hiringRouter/hiringRoutes";
 
 // Main routes
@@ -86,6 +87,7 @@ app.use("/api/admin", adminRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/student", studentRouter);
 app.use("/api/admin/hiring", hiringAdminRouter);
+app.use("/api/hiring", hiringPublicRouter); // Public routes must come before authenticated routes
 app.use("/api/hiring", hiringUserRouter);
 
 app.get("/", (req, res) => {

@@ -1,3 +1,8 @@
+import { Request, Response } from "express";
+import { Job } from "../../db/mysqlModels/Job";
+import { JobApplication } from "../../db/mysqlModels/JobApplication";
+import { getSingleRecord, getAllRecordsWithFilter } from "../../lib/dbLib/sqlUtils";
+
 // Get all applications for a specific job
 export const getJobApplications = async (req: Request, res: Response) => {
   try {

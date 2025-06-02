@@ -25,8 +25,8 @@ export class JobApplication extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
   id: string = uuidv4();
 
-  @Column("uuid")
-  user_id: string;
+  @Column("uuid", { nullable: true }) // Make nullable to allow anonymous applications
+  user_id: string | null;
 
   @Column("uuid")
   job_id: string;
