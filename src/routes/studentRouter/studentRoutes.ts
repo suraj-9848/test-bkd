@@ -15,6 +15,7 @@ import {
   getStudentTestResults,
   submitTest,
   getStudentTests,
+  getGlobalTestLeaderboard,
 } from "../../controllers/studentController/studentController";
 import { authMiddleware } from "../../middleware/authMiddleware";
 
@@ -23,6 +24,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 router.get("/courses", getStudentCourses);
+router.get("/tests/leaderboard", getGlobalTestLeaderboard);
 router.get("/courses/:courseId", getStudentCourseById);
 router.get("/courses/:courseId/modules", getStudentCourseModules);
 router.get("/modules/:moduleId", getStudentModuleById);

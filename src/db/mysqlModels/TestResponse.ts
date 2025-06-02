@@ -30,4 +30,10 @@ export class TestResponse extends BaseEntity {
 
   @Column({ nullable: true })
   evaluatorComments: string;
+
+  @Column()
+  submissionId: string;
+
+  @Column()
+  questionId: string;
 }
