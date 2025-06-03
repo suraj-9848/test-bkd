@@ -10,6 +10,7 @@ import {
 import { UserCourse } from "./UserCourse";
 import { v4 as uuidv4 } from "uuid";
 import { Org } from "./Org";
+import { JobApplication } from "./JobApplication";
 import { TestSubmission } from "./TestSubmission";
 
 export enum UserRole {
@@ -48,6 +49,9 @@ export class User extends BaseEntity {
 
   @OneToMany(() => UserCourse, (uc) => uc.user)
   userCourses: UserCourse[];
+
+  @OneToMany(() => JobApplication, (application) => application.user)
+  jobApplications: JobApplication[];
 
   @ManyToOne(() => Org, (org) => org.users)
   @OneToMany(() => TestSubmission, (submission) => submission.user)
