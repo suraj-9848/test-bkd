@@ -125,8 +125,8 @@ router.post("/login", async (req: Request, res: Response) => {
     // Set cookie with improved options
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // Only use HTTPS in production
-      sameSite: "lax", // Changed from 'none' to 'lax' for better browser support
+      secure: true, 
+      sameSite: "none", 
       maxAge: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
       path: "/", // Ensure cookie is available across all paths
     });
@@ -150,8 +150,8 @@ router.post("/login", async (req: Request, res: Response) => {
 router.post("/logout", (_req: Request, res: Response) => {
   res.cookie("token", "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: true,
+    sameSite: "none",
     expires: new Date(0), // Immediately expire the cookie
     path: "/",
   });
