@@ -4,7 +4,7 @@
 set -euo pipefail
 
 # 1. Navigate to your project directory
-cd /home/ec2-user/lms-backend
+cd /home/ec2-user/nirudhyog-backend
 
 # 2. Start your Docker Compose services
 docker compose --profile trailbliz up -d
