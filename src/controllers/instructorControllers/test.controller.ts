@@ -676,11 +676,7 @@ export const updateQuestion = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Question not found" });
     }
 
-    if (question.test.status !== TestStatus.DRAFT) {
-      return res
-        .status(400)
-        .json({ error: "Cannot update questions on a published test" });
-    }
+    
 
     // Update fields if provided
     const {
