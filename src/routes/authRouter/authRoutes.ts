@@ -235,4 +235,35 @@ router.get("/profile", async (req: Request, res: Response) => {
   }
 });
 
+// Validate OAuth JWT from NextAuth
+router.post("/validate-oauth", async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authorization header missing or malformed" });
+    }
+    const token = authHeader.split(" ")[1];
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET);
+    } catch (err) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+    const email = decoded.email;
+    if (!email) {
+      return res.status(400).json({ error: "Email claim not found in token" });
+    }
+    const user = await userRepository.findOne({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    // Remove sensitive data
+    const { password, ...userData } = user;
+    return res.status(200).json({ user: userData });
+  } catch (error) {
+    logger.error("Error in /validate-oauth route:", error);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
 export { router as authRouter };
