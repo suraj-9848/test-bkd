@@ -6,11 +6,13 @@ import { AppDataSource } from "../../db/connect";
 import { User } from "../../db/mysqlModels/User";
 import { Org } from "../../db/mysqlModels/Org";
 import { getSingleRecord } from "../../lib/dbLib/sqlUtils";
+import { OAuth2Client } from "google-auth-library";
 
 const logger = require("../../utils/logger").getLogger();
 const router = express.Router();
 const userRepository = AppDataSource.getRepository(User);
 const orgRepository = AppDataSource.getRepository(Org);
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 /**
  * User Registration Route
@@ -236,34 +238,71 @@ router.get("/profile", async (req: Request, res: Response) => {
 });
 
 // Validate OAuth JWT from NextAuth
-router.post("/validate-oauth", async (req: Request, res: Response) => {
+async function verifyGoogleToken(idToken) {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Authorization header missing or malformed" });
-    }
-    const token = authHeader.split(" ")[1];
-    let decoded: any;
-    try {
-      decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET);
-    } catch (err) {
-      return res.status(401).json({ error: "Invalid or expired token" });
-    }
-    const email = decoded.email;
-    if (!email) {
-      return res.status(400).json({ error: "Email claim not found in token" });
-    }
-    const user = await userRepository.findOne({ where: { email } });
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-    // Remove sensitive data
-    const { password, ...userData } = user;
-    return res.status(200).json({ user: userData });
+    const ticket = await client.verifyIdToken({
+      idToken: idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    
+    const payload = ticket.getPayload();
+    return payload; // Contains user info
   } catch (error) {
-    logger.error("Error in /validate-oauth route:", error);
-    return res.status(500).json({ error: "Server error" });
+    console.error('Google token verification failed:', error);
+    throw error;
+  }
+}
+
+router.post('/google-login', async (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  const idToken = authHeader?.split(" ")[1];
+
+  if (!idToken) {
+    return res.status(400).json({ error: 'ID token is required' });
+  }
+
+  try {
+    const payload = await verifyGoogleToken(idToken);
+
+    const user = await getSingleRecord<User, any>(
+      User,
+      { where: { email: payload.email } },
+      `user_email_${payload.email}`,
+      true,
+      10 * 60,
+    );
+
+    if (!user) {
+      logger.warn(`Unauthorized Google login attempt for email: ${payload.email}`);
+      return res.status(403).json({ 
+        error: "Access denied. User not found in our system. Please contact administrator." 
+      });
+    }
+
+    // Generate JWT token for the existing user
+    // const token = jwt.sign(
+    //   { id: user.id, username: user.username, userRole: user.userRole },
+    //   process.env.JWT_SECRET,
+    //   { expiresIn: "24h" },
+    // );
+
+    return res.status(200).json({
+      message: "Login successful",
+      // token,
+      user: {
+        id: user.id,
+        username: user.username,
+        userRole: user.userRole,
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    logger.error("Error in Google Login Route:", error);
+    return res.status(500).json({ error: "Failed to login with Google" });
   }
 });
+
+
+
 
 export { router as authRouter };
