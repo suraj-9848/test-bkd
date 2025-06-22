@@ -244,10 +244,13 @@ async function verifyGoogleToken(idToken) {
       idToken: idToken,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
+    console.log("Google token verified successfully", ticket);
 
     const payload = ticket.getPayload();
     return payload; // Contains user info
   } catch (error) {
+    
+
     console.error("Google token verification failed:", error);
     throw error;
   }
@@ -257,12 +260,17 @@ router.post("/google-login", async (req: Request, res: Response) => {
   const authHeader = req.headers.authorization;
   const idToken = authHeader?.split(" ")[1];
 
+
+  
   if (!idToken) {
     return res.status(400).json({ error: "ID token is required" });
   }
 
+
   try {
     const payload = await verifyGoogleToken(idToken);
+
+
 
     let user = await getSingleRecord<User, any>(
       User,
@@ -288,11 +296,55 @@ router.post("/google-login", async (req: Request, res: Response) => {
       user.email = email;
       user.batch_id = [];
       user.password = email.split("@")[0] + `${day}-${month}-${year}`;
-      user.userRole = UserRole.STUDENT; // Default role
+      user.userRole = UserRole.ADMIN; // Default role
       await user.save();
       // console.log("New user created:", email);
       // console.log("Password set", user.password);
     }
+
+    // Generate JWT token for the existing user
+    // const token = jwt.sign(
+    //   { id: user.id, username: user.username, userRole: user.userRole },
+    //   process.env.JWT_SECRET,
+    //   { expiresIn: "24h" },
+    // );
+
+    return res.status(200).json({
+      message: "Login successful",
+      // token,
+      user: {
+        id: user.id,
+        username: user.username,
+        userRole: user.userRole,
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    logger.error("Error in Google Login Route:", error);
+    return res.status(500).json({ error: "Failed to login with Google" });
+  }
+});
+
+
+router.post("/admin-login", async (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  const idToken = authHeader?.split(" ")[1];
+
+  if (!idToken) {
+    return res.status(400).json({ error: "ID token is required" });
+  }
+
+  try {
+    const payload = await verifyGoogleToken(idToken);
+
+    let user = await getSingleRecord<User, any>(
+      User,
+      { where: { email: payload.email } },
+      `user_email_${payload.email}`,
+      true,
+      10 * 60
+    );
+   
 
     // Generate JWT token for the existing user
     // const token = jwt.sign(
