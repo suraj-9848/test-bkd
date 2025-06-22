@@ -275,15 +275,23 @@ router.post("/google-login", async (req: Request, res: Response) => {
     const name = payload.name;
     const email = payload.email;
 
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, "0");
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const year = now.getFullYear();
+
     if (!user) {
+      
       // Create new user if doesn't exist
       user = new User();
-      user.username = name || email.split("@")[0];
+      user.username = email.split("@")[0] || name;
       user.email = email;
       user.batch_id = [];
+      user.password = email.split("@")[0] + `${day}-${month}-${year}`;
       user.userRole = UserRole.STUDENT; // Default role
       await user.save();
-      console.log("New user created:", email);
+      // console.log("New user created:", email);
+      // console.log("Password set", user.password);
     }
 
     // Generate JWT token for the existing user
