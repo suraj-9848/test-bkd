@@ -238,7 +238,7 @@ router.get("/profile", async (req: Request, res: Response) => {
 });
 
 // Validate OAuth JWT from NextAuth
-async function verifyGoogleToken(idToken) {
+async function verifyGoogleToken(idToken:string) {
   try {
     const ticket = await client.verifyIdToken({
       idToken: idToken,
