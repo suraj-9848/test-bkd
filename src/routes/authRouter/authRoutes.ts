@@ -288,29 +288,23 @@ router.post("/google-login", async (req: Request, res: Response) => {
       user.email = email;
       user.batch_id = [];
       user.password = email.split("@")[0] + `${day}-${month}-${year}`;
-      user.userRole = UserRole.ADMIN; // Default role
+      user.userRole = UserRole.STUDENT; // Default role
       await user.save();
       // console.log("New user created:", email);
       // console.log("Password set", user.password);
     }
 
-    // Generate JWT token for the existing user
-    // const token = jwt.sign(
-    //   { id: user.id, username: user.username, userRole: user.userRole },
-    //   process.env.JWT_SECRET,
-    //   { expiresIn: "24h" },
-    // );
-
-    return res.status(200).json({
+    const responsePayload = {
       message: "Login successful",
-      // token,
       user: {
         id: user.id,
         username: user.username,
         userRole: user.userRole,
         email: user.email,
       },
-    });
+    };
+    console.log("Google login response:", responsePayload); // Debug log for response
+    return res.status(200).json(responsePayload);
   } catch (error) {
     logger.error("Error in Google Login Route:", error);
     return res.status(500).json({ error: "Failed to login with Google" });
