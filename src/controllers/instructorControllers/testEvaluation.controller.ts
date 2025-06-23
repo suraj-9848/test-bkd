@@ -345,7 +345,7 @@ export const getEvaluationStats = async (req: Request, res: Response) => {
       .filter((a) => a.status === AttemptStatus.EVALUATED)
       .map((a) => a.score);
 
-    let scoreDistribution = {};
+    const scoreDistribution = {};
     if (evaluatedScores.length > 0) {
       // Create score ranges (0-10%, 10-20%, etc.)
       const rangeSize = 10;

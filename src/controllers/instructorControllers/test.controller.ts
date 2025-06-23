@@ -502,7 +502,7 @@ export const createQuestion = async (req: Request, res: Response) => {
     )) as Question;
 
     // Handle MCQ options
-    let savedOptions = [];
+    const savedOptions = [];
     if (type === "MCQ" && options && Array.isArray(options)) {
       if (options.length < 2) {
         return res

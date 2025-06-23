@@ -504,7 +504,7 @@ export const getStudentTestResults = async (req: Request, res: Response) => {
           ?.filter((q) => q.type === "MCQ")
           .reduce((sum, q) => sum + q.marks, 0) || 0;
 
-      let mcqScore = 0;
+      const mcqScore = 0;
 
       const responses = submission.responses.map((response) => {
         const question = response.question;

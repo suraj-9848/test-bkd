@@ -328,7 +328,7 @@ router.post("/admin-login", async (req: Request, res: Response) => {
   try {
     const payload = await verifyGoogleToken(idToken);
 
-    let user = await getSingleRecord<User, any>(
+    const user = await getSingleRecord<User, any>(
       User,
       { where: { email: payload.email } },
       `user_email_${payload.email}`,

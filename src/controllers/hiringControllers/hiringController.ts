@@ -292,7 +292,7 @@ export const getAllJobs = async (req: Request, res: Response) => {
     const { org_id, status } = req.query;
 
     // Build the where condition
-    let whereCondition: any = {};
+    const whereCondition: any = {};
 
     if (org_id) {
       whereCondition.org_id = org_id.toString();
