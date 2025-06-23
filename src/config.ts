@@ -9,7 +9,7 @@ export const config = {
   // Tells on what environment it is running
 
   // Tells on what port it is running
-  PORT: process.env.PORT || 3001, // NOT MANDATORY
+  PORT: process.env.PORT || 3000, // NOT MANDATORY
   // Connection string of MongoDB
   MONGO_DB_CONNECTION_STRING: process.env.MONGO_KEY, // MANDATORY
   // Connection url of MySql

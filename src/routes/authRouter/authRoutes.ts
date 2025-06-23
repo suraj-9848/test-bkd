@@ -48,7 +48,7 @@ router.post("/register", async (req: Request, res: Response) => {
       { where: [{ email }, { username }] },
       `user_${email}_${username}`,
       true,
-      10 * 60
+      10 * 60,
     );
 
     if (existingUser) {
@@ -67,7 +67,7 @@ router.post("/register", async (req: Request, res: Response) => {
       `org_default`,
 
       true,
-      10 * 60
+      10 * 60,
     );
 
     if (!defaultOrg) {
@@ -106,7 +106,7 @@ router.post("/login", async (req: Request, res: Response) => {
       { where: { email } },
       `user_email_${email}`,
       true,
-      10 * 60
+      10 * 60,
     );
 
     if (!user) {
@@ -121,7 +121,7 @@ router.post("/login", async (req: Request, res: Response) => {
     const token = jwt.sign(
       { id: user.id, username: user.username, userRole: user.userRole },
       process.env.JWT_SECRET,
-      { expiresIn: "24h" } // Set token expiry to 24 hours
+      { expiresIn: "24h" }, // Set token expiry to 24 hours
     );
 
     // Set cookie with improved options
@@ -181,7 +181,7 @@ router.get("/me", async (req: Request, res: Response) => {
       { where: { id: decoded.id } },
       `user_id_${decoded.id}`,
       true,
-      10 * 60
+      10 * 60,
     );
 
     if (!user) {
@@ -221,7 +221,7 @@ router.get("/profile", async (req: Request, res: Response) => {
       { where: { id: decoded.id } },
       `user_id_${decoded.id}`,
       true,
-      10 * 60
+      10 * 60,
     );
 
     if (!user) {
@@ -238,7 +238,7 @@ router.get("/profile", async (req: Request, res: Response) => {
 });
 
 // Validate OAuth JWT from NextAuth
-async function verifyGoogleToken(idToken:string) {
+async function verifyGoogleToken(idToken: string) {
   try {
     const ticket = await client.verifyIdToken({
       idToken: idToken,
@@ -249,8 +249,6 @@ async function verifyGoogleToken(idToken:string) {
     const payload = ticket.getPayload();
     return payload; // Contains user info
   } catch (error) {
-    
-
     console.error("Google token verification failed:", error);
     throw error;
   }
@@ -260,24 +258,19 @@ router.post("/google-login", async (req: Request, res: Response) => {
   const authHeader = req.headers.authorization;
   const idToken = authHeader?.split(" ")[1];
 
-
-  
   if (!idToken) {
     return res.status(400).json({ error: "ID token is required" });
   }
 
-
   try {
     const payload = await verifyGoogleToken(idToken);
-
-
 
     let user = await getSingleRecord<User, any>(
       User,
       { where: { email: payload.email } },
       `user_email_${payload.email}`,
       true,
-      10 * 60
+      10 * 60,
     );
 
     const name = payload.name;
@@ -289,7 +282,6 @@ router.post("/google-login", async (req: Request, res: Response) => {
     const year = now.getFullYear();
 
     if (!user) {
-      
       // Create new user if doesn't exist
       user = new User();
       user.username = email.split("@")[0] || name;
@@ -325,7 +317,6 @@ router.post("/google-login", async (req: Request, res: Response) => {
   }
 });
 
-
 router.post("/admin-login", async (req: Request, res: Response) => {
   const authHeader = req.headers.authorization;
   const idToken = authHeader?.split(" ")[1];
@@ -342,9 +333,8 @@ router.post("/admin-login", async (req: Request, res: Response) => {
       { where: { email: payload.email } },
       `user_email_${payload.email}`,
       true,
-      10 * 60
+      10 * 60,
     );
-   
 
     // Generate JWT token for the existing user
     // const token = jwt.sign(

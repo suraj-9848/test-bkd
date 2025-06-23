@@ -53,10 +53,7 @@ router.get(
   TestEvaluationController.getEvaluationStats,
 );
 // Submission evaluation routes
-router.get(
-  "/tests/:testId/submissions",
-  getSubmissionsForEvaluation,
-);
+router.get("/tests/:testId/submissions", getSubmissionsForEvaluation);
 router.get(
   "/tests/:testId/submissions/:submissionId",
   getSubmissionForEvaluation,
@@ -65,13 +62,7 @@ router.post(
   "/tests/:testId/submissions/:submissionId/evaluate",
   evaluateResponse,
 );
-router.post(
-  "/tests/:testId/submissions/bulk-evaluate",
-  bulkEvaluateResponses,
-);
-router.get(
-  "/tests/:testId/evaluation-statistics",
-  getEvaluationStatistics,
-);
+router.post("/tests/:testId/submissions/bulk-evaluate", bulkEvaluateResponses);
+router.get("/tests/:testId/evaluation-statistics", getEvaluationStatistics);
 
 export const testRouter = router;

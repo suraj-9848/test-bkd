@@ -15,7 +15,7 @@ const logger = getLogger();
 // Get all test submissions that need evaluation (descriptive/code questions only)
 export const getSubmissionsForEvaluation = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   try {
     const { testId } = req.params;
@@ -40,7 +40,7 @@ export const getSubmissionsForEvaluation = async (
     if (
       status &&
       ["SUBMITTED", "PARTIALLY_EVALUATED", "FULLY_EVALUATED"].includes(
-        status as string
+        status as string,
       )
     ) {
       whereCondition.status = status;
@@ -59,7 +59,7 @@ export const getSubmissionsForEvaluation = async (
         (response) =>
           (response.question.type === QuestionType.DESCRIPTIVE ||
             response.question.type === QuestionType.CODE) &&
-          response.evaluationStatus === "PENDING"
+          response.evaluationStatus === "PENDING",
       );
     });
 
@@ -68,14 +68,14 @@ export const getSubmissionsForEvaluation = async (
         const descriptiveResponses = submission.responses.filter(
           (response) =>
             response.question.type === QuestionType.DESCRIPTIVE ||
-            response.question.type === QuestionType.CODE
+            response.question.type === QuestionType.CODE,
         );
 
         const pendingCount = descriptiveResponses.filter(
-          (r) => r.evaluationStatus === "PENDING"
+          (r) => r.evaluationStatus === "PENDING",
         ).length;
         const evaluatedCount = descriptiveResponses.filter(
-          (r) => r.evaluationStatus === "EVALUATED"
+          (r) => r.evaluationStatus === "EVALUATED",
         ).length;
 
         return {
@@ -93,7 +93,7 @@ export const getSubmissionsForEvaluation = async (
           totalScore: submission.totalScore || 0,
           needsEvaluation: pendingCount > 0,
         };
-      }
+      },
     );
 
     return res.status(200).json({
@@ -113,7 +113,7 @@ export const getSubmissionsForEvaluation = async (
 // Get detailed submission for evaluation with descriptive/code responses only
 export const getSubmissionForEvaluation = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   try {
     const { submissionId } = req.params;
@@ -138,7 +138,7 @@ export const getSubmissionForEvaluation = async (
     const descriptiveAndCodeResponses = submission.responses.filter(
       (response) =>
         response.question.type === QuestionType.DESCRIPTIVE ||
-        response.question.type === QuestionType.CODE
+        response.question.type === QuestionType.CODE,
     );
 
     const formattedResponses = descriptiveAndCodeResponses.map((response) => ({
@@ -161,7 +161,7 @@ export const getSubmissionForEvaluation = async (
     // Calculate evaluation statistics
     const totalResponses = formattedResponses.length;
     const evaluatedResponses = formattedResponses.filter(
-      (r) => r.isEvaluated
+      (r) => r.isEvaluated,
     ).length;
     const pendingResponses = totalResponses - evaluatedResponses;
 
@@ -251,7 +251,7 @@ export const evaluateResponse = async (req: Request, res: Response) => {
         evaluatorComments: comments || null,
         // isEvaluated: true, // <-- REMOVE THIS LINE
       },
-      false
+      false,
     );
 
     if (!updateResult) {
@@ -269,16 +269,16 @@ export const evaluateResponse = async (req: Request, res: Response) => {
       (r) =>
         (r.evaluationStatus === "EVALUATED" ||
           r.question.type === QuestionType.MCQ) &&
-        typeof r.score === "number"
+        typeof r.score === "number",
     );
     const totalScore = evaluatedResponses.reduce(
       (sum, resp) => sum + (resp.score || 0),
-      0
+      0,
     );
 
     // Check if all non-MCQ questions are now evaluated
     const nonMcqResponses = submission.responses.filter(
-      (r) => r.question.type !== QuestionType.MCQ
+      (r) => r.question.type !== QuestionType.MCQ,
     );
     const allNonMcqEvaluated =
       nonMcqResponses.length === 0
@@ -297,7 +297,7 @@ export const evaluateResponse = async (req: Request, res: Response) => {
         totalScore: totalScore,
         status: newStatus,
       },
-      false
+      false,
     );
 
     logger.info("Response evaluated successfully", {
@@ -387,8 +387,8 @@ export const bulkEvaluateResponses = async (req: Request, res: Response) => {
           evaluationStatus: "EVALUATED",
           evaluatorComments: evaluation.comments || null,
         },
-        false
-      )
+        false,
+      ),
     );
 
     await Promise.all(updatePromises);
@@ -397,7 +397,7 @@ export const bulkEvaluateResponses = async (req: Request, res: Response) => {
     const evaluatedResponses = submission.responses.filter(
       (r) =>
         r.evaluationStatus === "EVALUATED" ||
-        evaluations.some((e) => e.responseId === r.id)
+        evaluations.some((e) => e.responseId === r.id),
     );
 
     const totalScore = evaluatedResponses.reduce((sum, resp) => {
@@ -408,12 +408,12 @@ export const bulkEvaluateResponses = async (req: Request, res: Response) => {
 
     // Check completion status
     const nonMcqResponses = submission.responses.filter(
-      (r) => r.question.type !== QuestionType.MCQ
+      (r) => r.question.type !== QuestionType.MCQ,
     );
     const allNonMcqEvaluated = nonMcqResponses.every(
       (r) =>
         r.evaluationStatus === "EVALUATED" ||
-        evaluations.some((e) => e.responseId === r.id)
+        evaluations.some((e) => e.responseId === r.id),
     );
 
     const newStatus = allNonMcqEvaluated
@@ -428,7 +428,7 @@ export const bulkEvaluateResponses = async (req: Request, res: Response) => {
         totalScore: totalScore,
         status: newStatus,
       },
-      false
+      false,
     );
 
     logger.info("Bulk evaluation completed", {
@@ -478,20 +478,21 @@ export const getEvaluationStatistics = async (req: Request, res: Response) => {
     // Calculate statistics
     const totalSubmissions = submissions.length;
     const fullyEvaluated = submissions.filter(
-      (s) => s.status === "FULLY_EVALUATED"
+      (s) => s.status === "FULLY_EVALUATED",
     ).length;
     const partiallyEvaluated = submissions.filter(
-      (s) => s.status === "PARTIALLY_EVALUATED"
+      (s) => s.status === "PARTIALLY_EVALUATED",
     ).length;
     const pending = submissions.filter((s) => s.status === "SUBMITTED").length;
 
     // Count descriptive/code questions
     const descriptiveQuestions = test.questions.filter(
-      (q) => q.type === QuestionType.DESCRIPTIVE || q.type === QuestionType.CODE
+      (q) =>
+        q.type === QuestionType.DESCRIPTIVE || q.type === QuestionType.CODE,
     ).length;
 
     const mcqQuestions = test.questions.filter(
-      (q) => q.type === QuestionType.MCQ
+      (q) => q.type === QuestionType.MCQ,
     ).length;
 
     // Calculate total responses needing evaluation
@@ -502,12 +503,12 @@ export const getEvaluationStatistics = async (req: Request, res: Response) => {
       const descriptiveResponses = submission.responses.filter(
         (r) =>
           r.question.type === QuestionType.DESCRIPTIVE ||
-          r.question.type === QuestionType.CODE
+          r.question.type === QuestionType.CODE,
       );
 
       totalDescriptiveResponses += descriptiveResponses.length;
       evaluatedDescriptiveResponses += descriptiveResponses.filter(
-        (r) => r.evaluationStatus === "EVALUATED"
+        (r) => r.evaluationStatus === "EVALUATED",
       ).length;
     });
 

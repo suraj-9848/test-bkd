@@ -676,8 +676,6 @@ export const updateQuestion = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Question not found" });
     }
 
-    
-
     // Update fields if provided
     const {
       question_text,

@@ -72,7 +72,6 @@ import {
   updateModule,
 } from "../../controllers/moduleControllers/moduleControllers";
 
-
 const router = express.Router();
 router.use(authMiddleware, instructorMiddleware);
 
@@ -207,23 +206,23 @@ router.delete(
 
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/submissions",
-  getSubmissionsForEvaluation
+  getSubmissionsForEvaluation,
 );
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/submissions/:submissionId",
-  getSubmissionForEvaluation
+  getSubmissionForEvaluation,
 );
 router.post(
   "/batches/:batchId/courses/:courseId/tests/:testId/submissions/:submissionId/evaluate",
-  evaluateResponse
+  evaluateResponse,
 );
 router.post(
   "/batches/:batchId/courses/:courseId/tests/:testId/submissions/bulk-evaluate",
-  bulkEvaluateResponses
+  bulkEvaluateResponses,
 );
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/evaluation-statistics",
-  getEvaluationStatistics
+  getEvaluationStatistics,
 );
 
 export const instructorRouter = router;
