@@ -288,7 +288,7 @@ router.post("/google-login", async (req: Request, res: Response) => {
       user.email = email;
       user.batch_id = [];
       user.password = email.split("@")[0] + `${day}-${month}-${year}`;
-      user.userRole = UserRole.ADMIN; // Default role
+      user.userRole = UserRole.STUDENT; // Default role
       await user.save();
       // console.log("New user created:", email);
       // console.log("Password set", user.password);
