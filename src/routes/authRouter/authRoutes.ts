@@ -3,14 +3,16 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { config } from "../../config";
 import { AppDataSource } from "../../db/connect";
-import { User } from "../../db/mysqlModels/User";
+import { User, UserRole } from "../../db/mysqlModels/User";
 import { Org } from "../../db/mysqlModels/Org";
 import { getSingleRecord } from "../../lib/dbLib/sqlUtils";
+import { OAuth2Client } from "google-auth-library";
 
 const logger = require("../../utils/logger").getLogger();
 const router = express.Router();
 const userRepository = AppDataSource.getRepository(User);
 const orgRepository = AppDataSource.getRepository(Org);
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 /**
  * User Registration Route
@@ -46,7 +48,7 @@ router.post("/register", async (req: Request, res: Response) => {
       { where: [{ email }, { username }] },
       `user_${email}_${username}`,
       true,
-      10 * 60,
+      10 * 60
     );
 
     if (existingUser) {
@@ -65,7 +67,7 @@ router.post("/register", async (req: Request, res: Response) => {
       `org_default`,
 
       true,
-      10 * 60,
+      10 * 60
     );
 
     if (!defaultOrg) {
@@ -104,7 +106,7 @@ router.post("/login", async (req: Request, res: Response) => {
       { where: { email } },
       `user_email_${email}`,
       true,
-      10 * 60,
+      10 * 60
     );
 
     if (!user) {
@@ -119,14 +121,14 @@ router.post("/login", async (req: Request, res: Response) => {
     const token = jwt.sign(
       { id: user.id, username: user.username, userRole: user.userRole },
       process.env.JWT_SECRET,
-      { expiresIn: "24h" }, // Set token expiry to 24 hours
+      { expiresIn: "24h" } // Set token expiry to 24 hours
     );
 
     // Set cookie with improved options
     res.cookie("token", token, {
       httpOnly: true,
-      secure: true, 
-      sameSite: "none", 
+      secure: true,
+      sameSite: "none",
       maxAge: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
       path: "/", // Ensure cookie is available across all paths
     });
@@ -179,7 +181,7 @@ router.get("/me", async (req: Request, res: Response) => {
       { where: { id: decoded.id } },
       `user_id_${decoded.id}`,
       true,
-      10 * 60,
+      10 * 60
     );
 
     if (!user) {
@@ -219,7 +221,7 @@ router.get("/profile", async (req: Request, res: Response) => {
       { where: { id: decoded.id } },
       `user_id_${decoded.id}`,
       true,
-      10 * 60,
+      10 * 60
     );
 
     if (!user) {
@@ -232,6 +234,138 @@ router.get("/profile", async (req: Request, res: Response) => {
   } catch (error) {
     logger.error("Error in Profile Route:", error);
     return res.status(500).json({ error: "Failed to fetch profile" });
+  }
+});
+
+// Validate OAuth JWT from NextAuth
+async function verifyGoogleToken(idToken:string) {
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken: idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    console.log("Google token verified successfully", ticket);
+
+    const payload = ticket.getPayload();
+    return payload; // Contains user info
+  } catch (error) {
+    
+
+    console.error("Google token verification failed:", error);
+    throw error;
+  }
+}
+
+router.post("/google-login", async (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  const idToken = authHeader?.split(" ")[1];
+
+
+  
+  if (!idToken) {
+    return res.status(400).json({ error: "ID token is required" });
+  }
+
+
+  try {
+    const payload = await verifyGoogleToken(idToken);
+
+
+
+    let user = await getSingleRecord<User, any>(
+      User,
+      { where: { email: payload.email } },
+      `user_email_${payload.email}`,
+      true,
+      10 * 60
+    );
+
+    const name = payload.name;
+    const email = payload.email;
+
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, "0");
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const year = now.getFullYear();
+
+    if (!user) {
+      
+      // Create new user if doesn't exist
+      user = new User();
+      user.username = email.split("@")[0] || name;
+      user.email = email;
+      user.batch_id = [];
+      user.password = email.split("@")[0] + `${day}-${month}-${year}`;
+      user.userRole = UserRole.ADMIN; // Default role
+      await user.save();
+      // console.log("New user created:", email);
+      // console.log("Password set", user.password);
+    }
+
+    // Generate JWT token for the existing user
+    // const token = jwt.sign(
+    //   { id: user.id, username: user.username, userRole: user.userRole },
+    //   process.env.JWT_SECRET,
+    //   { expiresIn: "24h" },
+    // );
+
+    return res.status(200).json({
+      message: "Login successful",
+      // token,
+      user: {
+        id: user.id,
+        username: user.username,
+        userRole: user.userRole,
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    logger.error("Error in Google Login Route:", error);
+    return res.status(500).json({ error: "Failed to login with Google" });
+  }
+});
+
+
+router.post("/admin-login", async (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  const idToken = authHeader?.split(" ")[1];
+
+  if (!idToken) {
+    return res.status(400).json({ error: "ID token is required" });
+  }
+
+  try {
+    const payload = await verifyGoogleToken(idToken);
+
+    let user = await getSingleRecord<User, any>(
+      User,
+      { where: { email: payload.email } },
+      `user_email_${payload.email}`,
+      true,
+      10 * 60
+    );
+   
+
+    // Generate JWT token for the existing user
+    // const token = jwt.sign(
+    //   { id: user.id, username: user.username, userRole: user.userRole },
+    //   process.env.JWT_SECRET,
+    //   { expiresIn: "24h" },
+    // );
+
+    return res.status(200).json({
+      message: "Login successful",
+      // token,
+      user: {
+        id: user.id,
+        username: user.username,
+        userRole: user.userRole,
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    logger.error("Error in Google Login Route:", error);
+    return res.status(500).json({ error: "Failed to login with Google" });
   }
 });
 
