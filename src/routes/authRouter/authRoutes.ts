@@ -342,6 +342,11 @@ router.post("/admin-login", async (req: Request, res: Response) => {
     //   process.env.JWT_SECRET,
     //   { expiresIn: "24h" },
     // );
+    if (!user || !user?.userRole || user?.userRole === UserRole.STUDENT) {
+      return res
+        .status(403)
+        .json({ error: "Access denied. Admin role required." });
+    }
 
     return res.status(200).json({
       message: "Login successful",
