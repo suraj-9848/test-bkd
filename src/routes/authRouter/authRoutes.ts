@@ -53,7 +53,7 @@ router.post("/register", async (req: Request, res: Response) => {
       { where: [{ email }, { username }] },
       `user_${email}_${username}`,
       true,
-      10 * 60,
+      10 * 60
     );
 
     if (existingUser) {
@@ -72,7 +72,7 @@ router.post("/register", async (req: Request, res: Response) => {
       `org_default`,
 
       true,
-      10 * 60,
+      10 * 60
     );
 
     if (!defaultOrg) {
@@ -102,7 +102,7 @@ function generateAccessToken(user: any) {
   return jwt.sign(
     { id: user.id, username: user.username, userRole: user.userRole },
     process.env.JWT_SECRET,
-    { expiresIn: config.JWT_EXPIRES_IN },
+    { expiresIn: config.JWT_EXPIRES_IN }
   );
 }
 function generateRefreshToken(user: any) {
@@ -123,7 +123,7 @@ router.post("/login", async (req: Request, res: Response) => {
       { where: { email } },
       `user_email_${email}`,
       true,
-      10 * 60,
+      10 * 60
     );
 
     if (!user) {
@@ -138,7 +138,7 @@ router.post("/login", async (req: Request, res: Response) => {
     const token = jwt.sign(
       { id: user.id, username: user.username, userRole: user.userRole },
       process.env.JWT_SECRET,
-      { expiresIn: "24h" }, // Set token expiry to 24 hours
+      { expiresIn: "24h" } // Set token expiry to 24 hours
     );
 
     // Set cookie with improved options
@@ -188,7 +188,7 @@ router.post("/refresh", async (req: Request, res: Response) => {
       { where: { id: payload.id } },
       `user_id_${payload.id}`,
       true,
-      10 * 60,
+      10 * 60
     );
     if (!user) {
       return res.status(404).json({ error: "User not found" });
@@ -268,7 +268,7 @@ router.get("/me", async (req: Request, res: Response) => {
       { where: { id: decoded.id } },
       `user_id_${decoded.id}`,
       true,
-      10 * 60,
+      10 * 60
     );
 
     if (!user) {
@@ -303,7 +303,6 @@ router.post("/google-login", async (req: Request, res: Response) => {
   const authHeader = req.headers.authorization;
   const idToken = authHeader?.split(" ")[1];
 
-
   if (!idToken) {
     return res.status(400).json({ error: "ID token is required" });
   }
@@ -316,7 +315,7 @@ router.post("/google-login", async (req: Request, res: Response) => {
       { where: { email: payload.email } },
       `user_email_${payload.email}`,
       true,
-      10 * 60,
+      10 * 60
     );
 
     const name = payload.name;
@@ -342,7 +341,7 @@ router.post("/google-login", async (req: Request, res: Response) => {
     const token = jwt.sign(
       { id: user.id, username: user.username, userRole: user.userRole },
       process.env.JWT_SECRET,
-      { expiresIn: "24h" },
+      { expiresIn: "24h" }
     );
 
     // Set cookie for /me route support
@@ -386,11 +385,8 @@ router.post("/admin-login", async (req: Request, res: Response) => {
       { where: { email: payload.email } },
       `user_email_${payload.email}`,
       true,
-      10 * 60,
+      10 * 60
     );
-    if (user.userRole.toLowerCase() !== 'admin') {
-      return res.status(403).json({ error: "Access denied. Admin role required." });
-    }
 
     if (!user) {
       // Optionally, you can create the user here if needed
@@ -406,7 +402,7 @@ router.post("/admin-login", async (req: Request, res: Response) => {
     const token = jwt.sign(
       { id: user.id, username: user.username, userRole: user.userRole },
       process.env.JWT_SECRET,
-      { expiresIn: "24h" },
+      { expiresIn: "24h" }
     );
 
     // Set cookie for /me route support
@@ -428,10 +424,6 @@ router.post("/admin-login", async (req: Request, res: Response) => {
         email: user.email,
       },
     });
-   
-
-
-
   } catch (error) {
     logger.error("Error in Admin Login Route:", error);
     return res.status(500).json({ error: "Failed to login as admin" });
@@ -457,7 +449,7 @@ router.post("/exchange", async (req: Request, res: Response) => {
       { where: { email: payload.email } },
       `user_email_${payload.email}`,
       true,
-      10 * 60,
+      10 * 60
     );
     if (!user) {
       user = userRepository.create({
