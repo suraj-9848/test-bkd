@@ -7,6 +7,7 @@ import {
   getSingleRecord,
   deleteRecords,
   updateRecords,
+  getAllRecordsWithFilter,
 } from "../../lib/dbLib/sqlUtils";
 import { User, UserRole } from "../../db/mysqlModels/User";
 
@@ -83,6 +84,47 @@ export const deleteOrg = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error deleting organization:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+export const updateOrg = async (req: Request, res: Response) => {
+  const { org_id } = req.params;
+  const { name, description, address } = req.body;
+  if (!org_id) return res.status(400).json({ error: "Org Id is required" });
+
+  try {
+    const org = await getSingleRecord<Org, { where: { id: string } }>(Org, {
+      where: { id: org_id },
+    });
+    if (!org) {
+      return res.status(404).json({ message: "Organization not found" });
+    }
+
+    org.name = name || org.name;
+    org.description = description || org.description;
+    org.address = address || org.address;
+
+    const errors = await validate(org);
+    if (errors.length > 0) {
+      return res.status(400).json({ errors: errors.map((e) => e.toString()) });
+    }
+
+    const updatedOrg = await updateRecords<Org, { id: string }, any, any>(
+      Org,
+      { id: org_id },
+      {
+        name: org.name,
+        description: org.description,
+        address: org.address,
+      },
+      false,
+    );
+    return res.status(200).json({
+      message: "Organization updated successfully",
+      org: updatedOrg,
+    });
+  } catch (error) {
+    console.error("Error updating organization:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -238,3 +280,25 @@ export const deleteStudent = (req: Request, res: Response) =>
 
 export const updateStudent = (req: Request, res: Response) =>
   updateUserWithRole(req, res, UserRole.STUDENT);
+
+export const getAllUsers = async (req: Request, res: Response) => {
+  try {
+    const { role } = req.body;
+    let users;
+    if (role) {
+      users = await getAllRecordsWithFilter<User, { where: { userRole: UserRole } }>(
+        User,
+        { where: { userRole: role } },
+      );
+    } else {
+      users = await getAllRecords<User>(User);
+    }
+    return res.status(200).json({
+      message: "Users fetched successfully",
+      users,
+    });
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};

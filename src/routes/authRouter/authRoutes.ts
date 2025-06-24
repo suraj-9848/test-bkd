@@ -388,6 +388,9 @@ router.post("/admin-login", async (req: Request, res: Response) => {
       true,
       10 * 60,
     );
+    if (user.userRole.toLowerCase() !== 'admin') {
+      return res.status(403).json({ error: "Access denied. Admin role required." });
+    }
 
     if (!user) {
       // Optionally, you can create the user here if needed
@@ -425,6 +428,10 @@ router.post("/admin-login", async (req: Request, res: Response) => {
         email: user.email,
       },
     });
+   
+
+
+
   } catch (error) {
     logger.error("Error in Admin Login Route:", error);
     return res.status(500).json({ error: "Failed to login as admin" });

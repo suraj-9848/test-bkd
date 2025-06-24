@@ -54,6 +54,8 @@ import {
   getSingleOrg,
   createOrg,
   deleteOrg,
+  updateOrg,
+  getAllUsers,
 } from "../../controllers/adminControllers/adminController";
 
 import {
@@ -64,8 +66,9 @@ import {
   fetchBatch,
 } from "../../controllers/instructorControllers/batch.controller";
 
-import { adminMiddleware } from "../../middleware/adminMiddleware";
-import { authMiddleware } from "../../middleware/authMiddleware";
+// import { adminMiddleware } from "../../middleware/adminMiddleware";
+// import { authMiddleware } from "../../middleware/authMiddleware";
+import { adminAuthMiddleware } from "../../middleware/authMiddleware";
 import { validateCourseBody } from "../../middleware/courseCrudPipes/coursePipe";
 
 export const adminRouter = express.Router();
@@ -75,7 +78,7 @@ export const adminRouter = express.Router();
 // adminRouter.get('/test', getTestData)
 // adminRouter.get('/file', handleFileUpload)
 // TODO: Needs to be deleted in the future
-adminRouter.use(authMiddleware, adminMiddleware);
+adminRouter.use(adminAuthMiddleware);
 
 adminRouter.post("/create-batch", createBatch);
 adminRouter.delete("/delete-batch/:id", deleteBatch);
@@ -93,23 +96,26 @@ adminRouter.get("/fetch-all-courses", fetchAllCourses);
 adminRouter.get("/get-all-org", getAllOrg);
 adminRouter.post("/create-org", createOrg);
 adminRouter.delete("/delete-org", deleteOrg);
+adminRouter.put("/update-org/:org_id", updateOrg);
+adminRouter.delete("/delete-org/:org_id", deleteOrg);
 
 //College admin CRUD
 // adminRouter.get("/get-all-org", getAllOrg);
 adminRouter.post("/create-college-admin", createCollegeAdmin);
-adminRouter.delete("/delete-college-admin", deleteCollegeAdmin);
-adminRouter.put("update-college-admin", updateCollegeAdmin);
-
+adminRouter.delete("/delete-college-admin/:user_id", deleteCollegeAdmin);
+adminRouter.put("/update-college-admin/:user_id", updateCollegeAdmin);
 //Instructor CRUD
 // adminRouter.get("/get-all-org", getAllOrg);
 adminRouter.post("/create-instructor", createInstructor);
-adminRouter.delete("/delete-instructor", deleteInstructor);
-adminRouter.put("update-instructor", updateInstructor);
+adminRouter.delete("/delete-instructor/:user_id", deleteInstructor);
+adminRouter.put("/update-instructor/:user_id", updateInstructor);
 
 //Sudent Crud
 
 //College admuin CRUD
 // adminRouter.get("/get-all-org", getAllOrg);
 adminRouter.post("/create-student", createStudent);
-adminRouter.delete("/delete-student", deleteStudent);
-adminRouter.put("/update-student", updateStudent);
+adminRouter.delete("/delete-student/:user_id", deleteStudent);
+adminRouter.put("/update-student/:user_id", updateStudent);
+
+adminRouter.post("/get-all-users", getAllUsers);
