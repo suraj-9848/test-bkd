@@ -6,6 +6,8 @@ import morgan from "morgan";
 import courseProgressRoutes from "./routes/courseRouter/courseprogressRoutes";
 import sessionProgressRoutes from "./routes/sessionRouter/sessionprogressRoutes";
 import path from "path";
+import swaggerUi from "swagger-ui-express";
+import { specs } from "./config/swagger";
 
 dotenv.config({
   path: "./.env",
@@ -13,8 +15,9 @@ dotenv.config({
 import { config } from "./config";
 import { AppDataSource, redisClient } from "./db/connect";
 import { authRouter } from "./routes/authRouter/authRoutes";
+import { getLogger } from "./utils/logger";
 
-const logger = require("./utils/logger").getLogger();
+const logger = getLogger();
 const app = express();
 const PORT = config.PORT;
 
@@ -96,6 +99,37 @@ app.get("/", (req, res) => {
 
 app.get("/ping", (req, res) => {
   res.json({ message: "pong" });
+});
+
+// Swagger UI Documentation
+app.use(
+  "/api-docs",
+  swaggerUi.serve,
+  swaggerUi.setup(specs, {
+    explorer: true,
+    customCss: `
+    .swagger-ui .topbar { display: none }
+    .swagger-ui .info { margin: 50px 0 }
+    .swagger-ui .info .title {
+      color: #3b4151;
+      font-family: sans-serif;
+      font-size: 36px;
+    }
+  `,
+    customSiteTitle: "Nirudhyog API Documentation",
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      filter: true,
+      tryItOutEnabled: true,
+    },
+  }),
+);
+
+// OpenAPI JSON specification
+app.get("/api-docs.json", (req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.json(specs);
 });
 
 app.use((req: Request, res: Response) => {
