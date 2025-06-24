@@ -7,6 +7,11 @@ import { User, UserRole } from "../../db/mysqlModels/User";
 import { Org } from "../../db/mysqlModels/Org";
 import { getSingleRecord } from "../../lib/dbLib/sqlUtils";
 import { OAuth2Client } from "google-auth-library";
+import {
+  saveRefreshToken,
+  getRefreshToken,
+  deleteRefreshToken,
+} from "./refreshTokenStore";
 
 const logger = require("../../utils/logger").getLogger();
 const router = express.Router();
@@ -92,6 +97,18 @@ router.post("/register", async (req: Request, res: Response) => {
   }
 });
 
+// Helper to generate tokens
+function generateAccessToken(user: any) {
+  return jwt.sign(
+    { id: user.id, username: user.username, userRole: user.userRole },
+    process.env.JWT_SECRET,
+    { expiresIn: config.JWT_EXPIRES_IN },
+  );
+}
+function generateRefreshToken(user: any) {
+  return jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+}
+
 // First, update the login route to set better cookie options
 router.post("/login", async (req: Request, res: Response) => {
   const { email, password } = req.body;
@@ -118,24 +135,28 @@ router.post("/login", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    const token = jwt.sign(
-      { id: user.id, username: user.username, userRole: user.userRole },
-      process.env.JWT_SECRET,
-      { expiresIn: "24h" }, // Set token expiry to 24 hours
-    );
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+    saveRefreshToken(user.id, refreshToken);
 
-    // Set cookie with improved options
-    res.cookie("token", token, {
+    res.cookie("token", accessToken, {
       httpOnly: true,
       secure: true,
       sameSite: "none",
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
-      path: "/", // Ensure cookie is available across all paths
+      maxAge: 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
     });
 
     return res.status(200).json({
       message: "Login successful",
-      token,
+      token: accessToken,
       user: {
         id: user.id,
         username: user.username,
@@ -148,13 +169,70 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
-// Update the logout route to properly clear the cookie
-router.post("/logout", (_req: Request, res: Response) => {
+// Refresh endpoint
+router.post("/refresh", async (req: Request, res: Response) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+    if (!refreshToken) {
+      return res.status(401).json({ error: "No refresh token provided" });
+    }
+    let payload: any;
+    try {
+      payload = jwt.verify(refreshToken, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ error: "Invalid refresh token" });
+    }
+    const storedToken = getRefreshToken(payload.id);
+    if (storedToken !== refreshToken) {
+      return res.status(401).json({ error: "Refresh token mismatch" });
+    }
+    // Issue new access token
+    const user = await getSingleRecord<User, any>(
+      User,
+      { where: { id: payload.id } },
+      `user_id_${payload.id}`,
+      true,
+      10 * 60,
+    );
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    const newAccessToken = generateAccessToken(user);
+    res.cookie("token", newAccessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+    return res.status(200).json({ token: newAccessToken });
+  } catch (error) {
+    logger.error("Error in Refresh Route:", error);
+    return res.status(500).json({ error: "Failed to refresh token" });
+  }
+});
+
+// Update logout to clear refresh token
+router.post("/logout", (req: Request, res: Response) => {
+  const refreshToken = req.cookies.refreshToken;
+  if (refreshToken) {
+    try {
+      const payload: any = jwt.verify(refreshToken, process.env.JWT_SECRET);
+      deleteRefreshToken(payload.id);
+    } catch {}
+  }
   res.cookie("token", "", {
     httpOnly: true,
     secure: true,
     sameSite: "none",
-    expires: new Date(0), // Immediately expire the cookie
+    expires: new Date(0),
+    path: "/",
+  });
+  res.cookie("refreshToken", "", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    expires: new Date(0),
     path: "/",
   });
   return res.status(200).json({ message: "Logged out successfully" });
@@ -165,8 +243,15 @@ router.post("/logout", (_req: Request, res: Response) => {
  */
 router.get("/me", async (req: Request, res: Response) => {
   try {
-    // Get token from the cookie
-    const token = req.cookies.token;
+    // Check Authorization header first
+    let token: string | undefined;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    } else if (req.cookies && req.cookies.token) {
+      // Fallback to cookie
+      token = req.cookies.token;
+    }
 
     if (!token) {
       return res.status(401).json({ error: "Unauthorized - No token found" });
@@ -295,15 +380,24 @@ router.post("/google-login", async (req: Request, res: Response) => {
     }
 
     // Generate JWT token for the existing user
-    // const token = jwt.sign(
-    //   { id: user.id, username: user.username, userRole: user.userRole },
-    //   process.env.JWT_SECRET,
-    //   { expiresIn: "24h" },
-    // );
+    const token = jwt.sign(
+      { id: user.id, username: user.username, userRole: user.userRole },
+      process.env.JWT_SECRET,
+      { expiresIn: config.JWT_EXPIRES_IN },
+    );
+
+    // Set the token as an HTTP-only cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 24 * 60 * 60 * 1000,
+      path: "/",
+    });
 
     return res.status(200).json({
       message: "Login successful",
-      // token,
+      token, // <-- return the JWT for frontend use
       user: {
         id: user.id,
         username: user.username,
@@ -361,6 +455,56 @@ router.post("/admin-login", async (req: Request, res: Response) => {
   } catch (error) {
     logger.error("Error in Google Login Route:", error);
     return res.status(500).json({ error: "Failed to login with Google" });
+  }
+});
+
+// Exchange Google JWT for backend JWT
+router.post("/exchange", async (req: Request, res: Response) => {
+  const { token: googleJwt } = req.body;
+  if (!googleJwt) return res.status(400).json({ error: "No token" });
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken: googleJwt,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    if (!payload || !payload.email) {
+      return res.status(400).json({ error: "Invalid Google token" });
+    }
+    // Find or create user
+    let user = await getSingleRecord<User, any>(
+      User,
+      { where: { email: payload.email } },
+      `user_email_${payload.email}`,
+      true,
+      10 * 60,
+    );
+    if (!user) {
+      user = userRepository.create({
+        username: payload.email.split("@")[0],
+        email: payload.email,
+        password: "", // Not used for Google users
+        batch_id: [],
+        org_id: null,
+        userRole: UserRole.STUDENT,
+      });
+      await userRepository.save(user);
+    }
+    // Issue backend JWT and refresh token
+    const backendJwt = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+    saveRefreshToken(user.id, refreshToken);
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+    res.status(200).json({ token: backendJwt });
+  } catch (err) {
+    logger.error("Error in /exchange:", err);
+    res.status(401).json({ error: "Invalid Google token" });
   }
 });
 
