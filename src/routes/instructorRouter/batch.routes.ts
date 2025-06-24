@@ -9,9 +9,6 @@ import {
   updateBatch,
   fetchAllBatches,
   fetchBatch,
-  toggleBatchVisibility,
-  fetchPublicBatches,
-  fetchPublicCoursesInBatch,
 } from "../../controllers/instructorControllers/batch.controller";
 
 import {
@@ -78,14 +75,9 @@ router.use(authMiddleware, instructorMiddleware);
 // Batch routes
 router.post("/batches", createBatch);
 router.get("/batches", fetchAllBatches);
-router.get("/batches/public", fetchPublicBatches);
 router.get("/batches/:id", fetchBatch);
 router.put("/batches/:id", updateBatch);
 router.delete("/batches/:id", deleteBatch);
-
-router.patch("/batches/:id/visibility", toggleBatchVisibility);
-
-router.get("/batches/:id/public-courses", fetchPublicCoursesInBatch);
 
 // Course routes (nested under batch)
 router.post("/batches/:batchId/courses", createCourse);
@@ -93,6 +85,7 @@ router.get("/batches/:batchId/courses", fetchAllCoursesinBatch);
 router.get("/batches/:batchId/courses/:id", fetchCourse);
 router.put("/batches/:batchId/courses/:id", updateCourse);
 router.delete("/batches/:batchId/courses/:id", deleteCourse);
+router.put("/batches/:batchId/courses/:courseId/public", updateCourse);
 router.post(
   "/batches/:batchId/courses/:courseId/assign-student",
   assignCourseToStudent,

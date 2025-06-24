@@ -33,7 +33,4 @@ export class Module extends BaseEntity {
 
   @OneToMany(() => ModuleMCQ, (test) => test.module, { cascade: true })
   tests: ModuleMCQ[];
-
-  @OneToOne(() => ModuleMCQ, (mcq) => mcq.module)
-  mcq: ModuleMCQ;
 }

@@ -5,6 +5,7 @@ import { Module } from "../../db/mysqlModels/Module";
 import { User } from "../../db/mysqlModels/User";
 import { UserCourse } from "../../db/mysqlModels/UserCourse";
 import { DayContent } from "../../db/mysqlModels/DayContent";
+import { getManager } from "typeorm"; // Add this import for transaction
 
 import {
   createRecord,
@@ -18,6 +19,7 @@ interface DayData {
   dayNumber: number;
   content: string;
   completed?: boolean;
+  title?: string; // Add title field as it exists in DayContent model
 }
 
 interface ModuleData {
@@ -33,6 +35,8 @@ interface CourseData {
   start_date: string;
   end_date: string;
   batch_id: string;
+  is_public: boolean;
+  instructor_name: string;
   modules?: ModuleData[];
 }
 
@@ -41,77 +45,165 @@ export const createCourse = async (req: Request, res: Response) => {
   try {
     const courseData: CourseData = req.body;
 
-    const { title, logo, start_date, end_date, batch_id, modules } = courseData;
-    if (!title || !start_date || !end_date || !batch_id) {
+    const {
+      title,
+      logo,
+      start_date,
+      end_date,
+      batch_id,
+      is_public,
+      instructor_name,
+      modules,
+    } = courseData;
+
+    // Validate required fields
+    if (
+      !title ||
+      !start_date ||
+      !end_date ||
+      !batch_id ||
+      is_public === undefined ||
+      !instructor_name
+    ) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
+    // Validate dates
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return res.status(400).json({ message: "Invalid date format" });
+    }
+
+    if (startDate >= endDate) {
+      return res
+        .status(400)
+        .json({ message: "End date must be after start date" });
+    }
+
+    // Check if batch exists
     const batch = await getSingleRecord(Batch, { where: { id: batch_id } });
     if (!batch) {
       return res.status(404).json({ message: "Batch not found" });
     }
 
-    const course = Course.create({
-      title,
-      logo,
-      start_date: new Date(start_date),
-      end_date: new Date(end_date),
-      batch,
-    });
+    // Use transaction to ensure data consistency
+    const result = await getManager().transaction(
+      async (transactionalEntityManager) => {
+        // Create course first
+        const course = new Course();
+        course.title = title;
+        course.logo = logo || null;
+        course.start_date = startDate;
+        course.end_date = endDate;
+        course.batch = batch;
+        course.is_public = is_public;
+        course.instructor_name = instructor_name;
 
-    await course.save();
+        const savedCourse = await transactionalEntityManager.save(
+          Course,
+          course,
+        );
 
-    // Handle nested modules
-    if (modules?.length) {
-      course.modules = await Promise.all(
-        modules.map(async (modData: ModuleData) => {
-          const module = Module.create({
-            title: modData.title,
-            order: modData.order,
-            isLocked: modData.isLocked,
-            course,
-          });
-          await module.save();
+        // Create modules if provided
+        if (modules && modules.length > 0) {
+          const savedModules = [];
 
-          if (modData.days?.length) {
-            module.days = await Promise.all(
-              modData.days.map(async (dayData: DayData) => {
-                const day = DayContent.create({
-                  module,
-                  dayNumber: dayData.dayNumber,
-                  content: dayData.content,
-                  completed: dayData.completed || false,
-                });
-                return day.save();
-              }),
+          for (const modData of modules) {
+            // Validate module data
+            if (!modData.title || typeof modData.order !== "number") {
+              throw new Error(
+                `Invalid module data: title and order are required`,
+              );
+            }
+
+            // Create module
+            const module = new Module();
+            module.title = modData.title;
+            module.order = modData.order;
+            module.isLocked =
+              modData.isLocked !== undefined
+                ? modData.isLocked
+                : modData.order !== 1;
+            module.course = savedCourse;
+
+            const savedModule = await transactionalEntityManager.save(
+              Module,
+              module,
             );
+
+            // Create day contents if provided
+            if (modData.days && modData.days.length > 0) {
+              const savedDays = [];
+
+              for (const dayData of modData.days) {
+                // Validate day data
+                if (typeof dayData.dayNumber !== "number" || !dayData.content) {
+                  throw new Error(
+                    `Invalid day data: dayNumber and content are required`,
+                  );
+                }
+
+                const day = new DayContent();
+                day.module = savedModule;
+                day.dayNumber = dayData.dayNumber;
+                day.title = dayData.title || `Day ${dayData.dayNumber}`;
+                day.content = dayData.content;
+                day.completed = dayData.completed || false;
+
+                const savedDay = await transactionalEntityManager.save(
+                  DayContent,
+                  day,
+                );
+                savedDays.push(savedDay);
+              }
+
+              savedModule.days = savedDays;
+            }
+
+            savedModules.push(savedModule);
           }
 
-          return module;
-        }),
-      );
-    }
+          savedCourse.modules = savedModules;
+        }
 
-    const saved = await createRecord(
+        return savedCourse;
+      },
+    );
+
+    // Fetch the complete course with relations for response
+    const completeCourse = await getSingleRecord(
       Course,
-      course,
-      `course_${course.id}`,
+      {
+        where: { id: result.id },
+        relations: ["modules", "modules.days", "batch"],
+      },
+      `course_${result.id}`,
+      false,
       10 * 60,
     );
 
     return res.status(201).json({
       message: "Course created successfully",
-      course: {
-        ...saved,
-        modules: (course.modules || []).map((m) => ({
-          ...m,
-          type: "module",
-        })),
-      },
+      course: completeCourse,
     });
   } catch (error) {
     console.error("Create course error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+
+    // Provide more specific error messages
+    if (error.message.includes("Invalid")) {
+      return res.status(400).json({
+        message: "Validation error",
+        details: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      message: "Internal server error",
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
   }
 };
 
@@ -120,18 +212,32 @@ export const fetchCourse = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
+    if (!id) {
+      return res.status(400).json({ message: "Course ID is required" });
+    }
+
     const course = await getSingleRecord(
       Course,
       {
         where: { id },
-        relations: ["modules", "modules.days"],
+        relations: ["modules", "modules.days", "batch"],
+        order: {
+          modules: {
+            order: "ASC",
+            days: {
+              dayNumber: "ASC",
+            },
+          },
+        },
       },
       `course_${id}`,
       true,
       10 * 60,
     );
 
-    if (!course) return res.status(404).json({ message: "Course not found" });
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
 
     return res.status(200).json({
       message: "Course fetched successfully",
@@ -146,7 +252,11 @@ export const fetchCourse = async (req: Request, res: Response) => {
 // ========== FETCH ALL COURSES ==========
 export const fetchAllCourses = async (_: Request, res: Response) => {
   try {
-    const courses = await getAllRecords(Course, "all_courses", true, 10 * 60);
+    const courses = await getAllRecords(Course, {
+      relations: ["batch"],
+      order: { createdAt: "DESC" },
+    });
+
     return res.status(200).json({
       message: "Courses fetched successfully",
       courses,
@@ -160,14 +270,21 @@ export const fetchAllCourses = async (_: Request, res: Response) => {
 // ========== FETCH COURSES BY BATCH ==========
 export const fetchAllCoursesinBatch = async (req: Request, res: Response) => {
   try {
-    const { batch_id } = req.params;
-    const batch = await getSingleRecord(Batch, { where: { id: batch_id } });
+    const { batchId } = req.params; // Changed from batch_id to batchId
 
-    if (!batch) return res.status(404).json({ message: "Batch not found" });
+    if (!batchId) {
+      return res.status(400).json({ message: "Batch ID is required" });
+    }
+
+    const batch = await getSingleRecord(Batch, { where: { id: batchId } }); // Changed batch_id to batchId
+    if (!batch) {
+      return res.status(404).json({ message: "Batch not found" });
+    }
 
     const courses = await getAllRecords(Course, {
-      where: { batch: { id: batch_id } },
-      relations: ["modules"],
+      where: { batch: { id: batchId } }, // Changed batch_id to batchId
+      relations: ["modules", "batch"],
+      order: { createdAt: "DESC" },
     });
 
     return res.status(200).json({
@@ -184,28 +301,74 @@ export const fetchAllCoursesinBatch = async (req: Request, res: Response) => {
 export const updateCourse = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { title, logo, start_date, end_date, batch_id } = req.body;
+    const {
+      title,
+      logo,
+      start_date,
+      end_date,
+      batch_id,
+      is_public,
+      instructor_name,
+    } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ message: "Course ID is required" });
+    }
 
     const updateData: Partial<Course> = {};
+
     if (title) updateData.title = title;
-    if (logo) updateData.logo = logo;
-    if (start_date) updateData.start_date = new Date(start_date);
-    if (end_date) updateData.end_date = new Date(end_date);
+    if (logo !== undefined) updateData.logo = logo;
+    if (start_date) {
+      const startDate = new Date(start_date);
+      if (isNaN(startDate.getTime())) {
+        return res.status(400).json({ message: "Invalid start date format" });
+      }
+      updateData.start_date = startDate;
+    }
+    if (end_date) {
+      const endDate = new Date(end_date);
+      if (isNaN(endDate.getTime())) {
+        return res.status(400).json({ message: "Invalid end date format" });
+      }
+      updateData.end_date = endDate;
+    }
+    if (is_public !== undefined) updateData.is_public = is_public;
+    if (instructor_name) updateData.instructor_name = instructor_name;
 
     if (batch_id) {
-      const batch = await getSingleRecord(Batch, {
-        where: { id: batch_id },
-      });
-      if (!batch) return res.status(404).json({ message: "Batch not found" });
+      const batch = await getSingleRecord(Batch, { where: { id: batch_id } });
+      if (!batch) {
+        return res.status(404).json({ message: "Batch not found" });
+      }
       updateData.batch = batch;
     }
 
-    const result = await updateRecords(Course, { id }, updateData, false);
-    if (!result || result.affected === 0)
-      return res.status(404).json({ message: "Course not found" });
+    // Validate date combination if both are provided
+    if (
+      updateData.start_date &&
+      updateData.end_date &&
+      updateData.start_date >= updateData.end_date
+    ) {
+      return res
+        .status(400)
+        .json({ message: "End date must be after start date" });
+    }
 
-    const updated = await getSingleRecord(Course, { where: { id } });
-    return res.status(200).json({ message: "Course updated", course: updated });
+    const result = await updateRecords(Course, { id }, updateData, false);
+    if (!result || result.affected === 0) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    const updated = await getSingleRecord(Course, {
+      where: { id },
+      relations: ["batch"],
+    });
+
+    return res.status(200).json({
+      message: "Course updated successfully",
+      course: updated,
+    });
   } catch (err) {
     console.error("Update course error:", err);
     return res.status(500).json({ message: "Internal server error" });
@@ -217,9 +380,20 @@ export const deleteCourse = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const result = await deleteRecords(Course, { id });
-    if (!result || result.affected === 0)
+    if (!id) {
+      return res.status(400).json({ message: "Course ID is required" });
+    }
+
+    // Check if course exists first
+    const course = await getSingleRecord(Course, { where: { id } });
+    if (!course) {
       return res.status(404).json({ message: "Course not found" });
+    }
+
+    const result = await deleteRecords(Course, { id });
+    if (!result || result.affected === 0) {
+      return res.status(404).json({ message: "Course not found" });
+    }
 
     return res.status(200).json({ message: "Course deleted successfully" });
   } catch (err) {
@@ -228,44 +402,41 @@ export const deleteCourse = async (req: Request, res: Response) => {
   }
 };
 
-// ========== Assinging COURSE TO STUDENT =========
-// POST /instructor/assign-course
+// ========== ASSIGNING COURSE TO STUDENT =========
 export const assignCourseToStudent = async (req: Request, res: Response) => {
   try {
     const { userId, courseId } = req.body;
 
     // Validate input
     if (!userId || !courseId) {
-      return res
-        .status(400)
-        .json({ message: "userId and courseId are required" });
+      return res.status(400).json({
+        message: "userId and courseId are required",
+      });
     }
 
     // Fetch user and course
-    const user = await getSingleRecord(User, { where: { id: userId } });
-    const course = await getSingleRecord(Course, { where: { id: courseId } });
+    const [user, course] = await Promise.all([
+      getSingleRecord(User, { where: { id: userId } }),
+      getSingleRecord(Course, { where: { id: courseId } }),
+    ]);
 
-    if (!user || !course) {
-      return res.status(404).json({ message: "User or Course not found" });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    // Check for existing assignment with explicit query
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    // Check for existing assignment
     const existingAssignment = await UserCourse.findOne({
       where: { user: { id: userId }, course: { id: courseId } },
       relations: ["user", "course"],
     });
 
-    console.log(
-      `Checking assignment: userId=${userId}, courseId=${courseId}, Existing=${JSON.stringify(
-        existingAssignment,
-        null,
-        2,
-      )}`,
-    );
-
     if (existingAssignment) {
       return res.status(400).json({
-        message: "Course already assigned",
+        message: "Course already assigned to this student",
         assignment: existingAssignment,
       });
     }
@@ -279,15 +450,21 @@ export const assignCourseToStudent = async (req: Request, res: Response) => {
     });
 
     await userCourse.save();
-    console.log(`Saved userCourse: ${JSON.stringify(userCourse, null, 2)}`);
 
-    return res
-      .status(201)
-      .json({ message: "Course assigned to student", userCourse });
+    // Fetch the created assignment with relations
+    const createdAssignment = await UserCourse.findOne({
+      where: { id: userCourse.id },
+      relations: ["user", "course"],
+    });
+
+    return res.status(201).json({
+      message: "Course assigned to student successfully",
+      assignment: createdAssignment,
+    });
   } catch (err) {
     console.error("Assign course error:", err);
-    return res
-      .status(500)
-      .json({ message: "Internal server error", error: err.message });
+    return res.status(500).json({
+      message: "Internal server error",
+    });
   }
 };

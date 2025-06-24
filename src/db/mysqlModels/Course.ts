@@ -25,6 +25,9 @@ export class Course extends BaseEntity {
   @OneToMany(() => Module, (module) => module.course, { cascade: true })
   modules: Module[];
 
+  @Column({ nullable: false })
+  is_public: boolean;
+
   @Column()
   start_date: Date;
 
@@ -33,6 +36,9 @@ export class Course extends BaseEntity {
 
   @ManyToOne(() => Batch, (batch) => batch.courses, { onDelete: "CASCADE" })
   batch: Batch;
+
+  @Column()
+  instructor_name: string;
 
   @OneToMany(() => UserCourse, (uc) => uc.course)
   userCourses: UserCourse[];

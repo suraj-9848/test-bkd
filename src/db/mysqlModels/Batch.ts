@@ -24,9 +24,6 @@ export class Batch extends BaseEntity {
   @Column("uuid")
   org_id: string;
 
-  @Column({ type: "boolean", default: false })
-  is_public: boolean;
-
   @ManyToOne(() => Org, (org) => org.batches)
   @JoinColumn({ name: "org_id" })
   organization: Org;

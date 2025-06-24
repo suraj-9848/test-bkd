@@ -135,18 +135,14 @@ router.post("/login", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
-    saveRefreshToken(user.id, refreshToken);
+    const token = jwt.sign(
+      { id: user.id, username: user.username, userRole: user.userRole },
+      process.env.JWT_SECRET,
+      { expiresIn: "24h" }, // Set token expiry to 24 hours
+    );
 
-    res.cookie("token", accessToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      maxAge: 24 * 60 * 60 * 1000,
-      path: "/",
-    });
-    res.cookie("refreshToken", refreshToken, {
+    // Set cookie with improved options
+    res.cookie("token", token, {
       httpOnly: true,
       secure: true,
       sameSite: "none",
@@ -156,7 +152,7 @@ router.post("/login", async (req: Request, res: Response) => {
 
     return res.status(200).json({
       message: "Login successful",
-      token: accessToken,
+      token: token,
       user: {
         id: user.id,
         username: user.username,
@@ -241,10 +237,12 @@ router.post("/logout", (req: Request, res: Response) => {
 /**
  * Get the currently authenticated user (from cookie)
  */
+
 router.get("/me", async (req: Request, res: Response) => {
   try {
-    // Check Authorization header first
     let token: string | undefined;
+
+    // Try Authorization header first
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       token = authHeader.split(" ")[1];
@@ -257,8 +255,12 @@ router.get("/me", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Unauthorized - No token found" });
     }
 
-    // Verify the token
-    const decoded: any = jwt.verify(token, config.JWT_SECRET);
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, config.JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ error: "Invalid or malformed token" });
+    }
 
     // Fetch user from database
     const user = await getSingleRecord<User, any>(
@@ -272,49 +274,7 @@ router.get("/me", async (req: Request, res: Response) => {
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
-
-    // Remove sensitive data
     const { password, ...userData } = user;
-
-    // Return user data
-    return res.status(200).json({ user: userData });
-  } catch (error) {
-    logger.error("Error in Me Route:", error);
-
-    // If token is invalid or expired
-    if (error instanceof jwt.JsonWebTokenError) {
-      // Clear the cookie if the token is invalid
-      res.clearCookie("token");
-      return res.status(401).json({ error: "Invalid or expired token" });
-    }
-
-    return res.status(500).json({ error: "Server error" });
-  }
-});
-
-router.get("/profile", async (req: Request, res: Response) => {
-  try {
-    const token = req.headers.authorization?.split(" ")[1];
-    if (!token) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    const decoded: any = jwt.verify(token, config.JWT_SECRET);
-
-    const user = await getSingleRecord<User, any>(
-      User,
-      { where: { id: decoded.id } },
-      `user_id_${decoded.id}`,
-      true,
-      10 * 60,
-    );
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    const { password, ...userData } = user;
-
     return res.status(200).json({ user: userData });
   } catch (error) {
     logger.error("Error in Profile Route:", error);
@@ -323,7 +283,7 @@ router.get("/profile", async (req: Request, res: Response) => {
 });
 
 // Validate OAuth JWT from NextAuth
-async function verifyGoogleToken(idToken: string) {
+async function verifyGoogleToken(idToken) {
   try {
     const ticket = await client.verifyIdToken({
       idToken: idToken,
@@ -342,6 +302,7 @@ async function verifyGoogleToken(idToken: string) {
 router.post("/google-login", async (req: Request, res: Response) => {
   const authHeader = req.headers.authorization;
   const idToken = authHeader?.split(" ")[1];
+
 
   if (!idToken) {
     return res.status(400).json({ error: "ID token is required" });
@@ -373,31 +334,29 @@ router.post("/google-login", async (req: Request, res: Response) => {
       user.email = email;
       user.batch_id = [];
       user.password = email.split("@")[0] + `${day}-${month}-${year}`;
-      user.userRole = UserRole.STUDENT; // Default role
+      user.userRole = UserRole.ADMIN; // Default role
       await user.save();
-      // console.log("New user created:", email);
-      // console.log("Password set", user.password);
     }
 
     // Generate JWT token for the existing user
     const token = jwt.sign(
       { id: user.id, username: user.username, userRole: user.userRole },
       process.env.JWT_SECRET,
-      { expiresIn: config.JWT_EXPIRES_IN },
+      { expiresIn: "24h" },
     );
 
-    // Set the token as an HTTP-only cookie
+    // Set cookie for /me route support
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      secure: true,
+      sameSite: "none",
       maxAge: 24 * 60 * 60 * 1000,
       path: "/",
     });
 
     return res.status(200).json({
       message: "Login successful",
-      token, // <-- return the JWT for frontend use
+      token,
       user: {
         id: user.id,
         username: user.username,
@@ -422,7 +381,7 @@ router.post("/admin-login", async (req: Request, res: Response) => {
   try {
     const payload = await verifyGoogleToken(idToken);
 
-    const user = await getSingleRecord<User, any>(
+    let user = await getSingleRecord<User, any>(
       User,
       { where: { email: payload.email } },
       `user_email_${payload.email}`,
@@ -430,21 +389,35 @@ router.post("/admin-login", async (req: Request, res: Response) => {
       10 * 60,
     );
 
-    // Generate JWT token for the existing user
-    // const token = jwt.sign(
-    //   { id: user.id, username: user.username, userRole: user.userRole },
-    //   process.env.JWT_SECRET,
-    //   { expiresIn: "24h" },
-    // );
-    if (!user || !user?.userRole || user?.userRole === UserRole.STUDENT) {
-      return res
-        .status(403)
-        .json({ error: "Access denied. Admin role required." });
+    if (!user) {
+      // Optionally, you can create the user here if needed
+      return res.status(404).json({ error: "User not found" });
     }
+
+    if (!user) {
+      // Optionally, you can create the user here if needed
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Generate JWT token for the user
+    const token = jwt.sign(
+      { id: user.id, username: user.username, userRole: user.userRole },
+      process.env.JWT_SECRET,
+      { expiresIn: "24h" },
+    );
+
+    // Set cookie for /me route support
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 24 * 60 * 60 * 1000,
+      path: "/",
+    });
 
     return res.status(200).json({
       message: "Login successful",
-      // token,
+      token,
       user: {
         id: user.id,
         username: user.username,
@@ -453,8 +426,8 @@ router.post("/admin-login", async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error("Error in Google Login Route:", error);
-    return res.status(500).json({ error: "Failed to login with Google" });
+    logger.error("Error in Admin Login Route:", error);
+    return res.status(500).json({ error: "Failed to login as admin" });
   }
 });
 
