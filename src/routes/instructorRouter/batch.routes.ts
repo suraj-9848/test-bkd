@@ -69,6 +69,11 @@ import {
   updateModule,
 } from "../../controllers/moduleControllers/moduleControllers";
 
+import {
+  fetchCourseProgress,
+  fetchSessionProgress,
+} from "../../controllers/instructorControllers/progress.controller";
+
 const router = express.Router();
 router.use(authMiddleware, instructorMiddleware);
 
@@ -217,5 +222,9 @@ router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/evaluation-statistics",
   getEvaluationStatistics,
 );
+
+// Progress tracking routes
+router.get("/batches/:batchId/courses/:courseId/progress", fetchCourseProgress);
+router.get("/sessions/:sessionId/progress", fetchSessionProgress);
 
 export const instructorRouter = router;
