@@ -56,6 +56,9 @@ import {
   deleteOrg,
   updateOrg,
   getAllUsers,
+  bulkCreateUsers,
+  bulkDeleteUsers,
+  getUserStats,
 } from "../../controllers/adminControllers/adminController";
 
 import {
@@ -94,8 +97,8 @@ adminRouter.get("/fetch-all-courses", fetchAllCourses);
 
 //Organization CRUD
 adminRouter.get("/get-all-org", getAllOrg);
+adminRouter.get("/get-single-org/:org_id", getSingleOrg);
 adminRouter.post("/create-org", createOrg);
-adminRouter.delete("/delete-org", deleteOrg);
 adminRouter.put("/update-org/:org_id", updateOrg);
 adminRouter.delete("/delete-org/:org_id", deleteOrg);
 
@@ -119,3 +122,10 @@ adminRouter.delete("/delete-student/:user_id", deleteStudent);
 adminRouter.put("/update-student/:user_id", updateStudent);
 
 adminRouter.post("/get-all-users", getAllUsers);
+adminRouter.get("/get-all-users", getAllUsers);
+adminRouter.get("/get-users/:role", getAllUsers);
+
+// Bulk operations
+adminRouter.post("/bulk-create-users", bulkCreateUsers);
+adminRouter.delete("/bulk-delete-users", bulkDeleteUsers);
+adminRouter.get("/user-stats", getUserStats);

@@ -117,7 +117,7 @@ export const updateOrg = async (req: Request, res: Response) => {
         description: org.description,
         address: org.address,
       },
-      false,
+      false
     );
     return res.status(200).json({
       message: "Organization updated successfully",
@@ -146,7 +146,7 @@ export const deleteAllOrg = async (req: Request, res: Response) => {
 const createUserWithRole = async (
   req: Request,
   res: Response,
-  role: UserRole,
+  role: UserRole
 ) => {
   try {
     const { username, email, password, org_id, batch_id } = req.body;
@@ -182,7 +182,7 @@ const createUserWithRole = async (
 const deleteUserWithRole = async (
   req: Request,
   res: Response,
-  role: UserRole,
+  role: UserRole
 ) => {
   const { user_id } = req.params;
   if (!user_id) return res.status(400).json({ error: "User Id is required" });
@@ -208,7 +208,7 @@ const deleteUserWithRole = async (
 const updateUserWithRole = async (
   req: Request,
   res: Response,
-  role: UserRole,
+  role: UserRole
 ) => {
   const { user_id } = req.params;
   const { username, email, password, batch_id } = req.body;
@@ -242,7 +242,7 @@ const updateUserWithRole = async (
         password: user.password,
         batch_id: user.batch_id,
       },
-      false,
+      false
     );
     return res.status(200).json({
       message: `${role} updated successfully`,
@@ -283,16 +283,18 @@ export const updateStudent = (req: Request, res: Response) =>
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
-    const { role } = req.body;
+    const { role } = req.body || req.query;
+    const userRole = req.params.role || role;
+
     let users;
-    if (role) {
-      users = await getAllRecordsWithFilter<User, { where: { userRole: UserRole } }>(
-        User,
-        { where: { userRole: role } },
-      );
+    if (userRole && userRole !== "All") {
+      users = await getAllRecordsWithFilter(User, {
+        where: { userRole: userRole as UserRole },
+      });
     } else {
-      users = await getAllRecords<User>(User);
+      users = await getAllRecords(User);
     }
+
     return res.status(200).json({
       message: "Users fetched successfully",
       users,
@@ -300,5 +302,135 @@ export const getAllUsers = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error fetching users:", error);
     return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Bulk operations for users
+export const bulkCreateUsers = async (req: Request, res: Response) => {
+  try {
+    const { users } = req.body;
+
+    if (!users || !Array.isArray(users) || users.length === 0) {
+      return res.status(400).json({ error: "Users array is required" });
+    }
+
+    const createdUsers = [];
+    const errors = [];
+
+    for (let i = 0; i < users.length; i++) {
+      try {
+        const userData = users[i];
+        const { username, email, password, org_id, batch_id, userRole } =
+          userData;
+
+        if (!username || !org_id || !userRole) {
+          errors.push({
+            index: i,
+            error: "Username, org_id, and userRole are required",
+            userData,
+          });
+          continue;
+        }
+
+        const user = new User();
+        user.username = username;
+        user.email = email || null;
+        user.password = password || null;
+        user.org_id = org_id;
+        user.batch_id = batch_id || [];
+        user.userRole = userRole;
+
+        const validationErrors = await validate(user);
+        if (validationErrors.length > 0) {
+          errors.push({
+            index: i,
+            error: validationErrors.map((e) => e.toString()).join(", "),
+            userData,
+          });
+          continue;
+        }
+
+        const savedUser = await createRecord(User, user);
+        createdUsers.push(savedUser);
+      } catch (error) {
+        errors.push({
+          index: i,
+          error: error.message || "Unknown error",
+          userData: users[i],
+        });
+      }
+    }
+
+    return res.status(201).json({
+      message: `Bulk user creation completed`,
+      created: createdUsers.length,
+      errors: errors.length,
+      createdUsers,
+      errorDetails: errors,
+    });
+  } catch (error) {
+    console.error("Error in bulk user creation:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const bulkDeleteUsers = async (req: Request, res: Response) => {
+  try {
+    const { userIds } = req.body;
+
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ error: "User IDs array is required" });
+    }
+
+    const deletedCount = await deleteRecords(User, { id: userIds });
+
+    return res.status(200).json({
+      message: `${deletedCount.affected} users deleted successfully`,
+      deletedCount: deletedCount.affected,
+    });
+  } catch (error) {
+    console.error("Error in bulk user deletion:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getUserStats = async (req: Request, res: Response) => {
+  try {
+    const [students, instructors, collegeAdmins, totalUsers] =
+      await Promise.all([
+        getAllRecordsWithFilter(User, {
+          where: { userRole: UserRole.STUDENT },
+        }),
+        getAllRecordsWithFilter(User, {
+          where: { userRole: UserRole.INSTRUCTOR },
+        }),
+        getAllRecordsWithFilter(User, {
+          where: { userRole: UserRole.COLLEGE_ADMIN },
+        }),
+        getAllRecords(User),
+      ]);
+
+    return res.status(200).json({
+      message: "User statistics fetched successfully",
+      stats: {
+        totalUsers: totalUsers.length,
+        students: students.length,
+        instructors: instructors.length,
+        collegeAdmins: collegeAdmins.length,
+        breakdown: {
+          students: ((students.length / totalUsers.length) * 100).toFixed(1),
+          instructors: ((instructors.length / totalUsers.length) * 100).toFixed(
+            1
+          ),
+          collegeAdmins: (
+            (collegeAdmins.length / totalUsers.length) *
+            100
+          ).toFixed(1),
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching user stats:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
