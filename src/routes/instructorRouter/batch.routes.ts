@@ -9,6 +9,8 @@ import {
   updateBatch,
   fetchAllBatches,
   fetchBatch,
+  assignBatchToStudent, // add assignBatchToStudent import
+  assignMultipleStudentsToBatch, // import multi-assign controller
 } from "../../controllers/instructorControllers/batch.controller";
 
 import {
@@ -83,6 +85,8 @@ router.get("/batches", fetchAllBatches);
 router.get("/batches/:id", fetchBatch);
 router.put("/batches/:id", updateBatch);
 router.delete("/batches/:id", deleteBatch);
+router.post("/batches/:batchId/assign-student", assignBatchToStudent); // new route
+router.post("/batches/:batchId/assign-students", assignMultipleStudentsToBatch); // multi-assign route
 
 // Course routes (nested under batch)
 router.post("/batches/:batchId/courses", createCourse);

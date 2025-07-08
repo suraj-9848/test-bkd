@@ -122,7 +122,6 @@ adminRouter.delete("/delete-student/:user_id", deleteStudent);
 adminRouter.put("/update-student/:user_id", updateStudent);
 
 adminRouter.post("/get-all-users", getAllUsers);
-adminRouter.get("/get-all-users", getAllUsers);
 adminRouter.get("/get-users/:role", getAllUsers);
 
 // Bulk operations
