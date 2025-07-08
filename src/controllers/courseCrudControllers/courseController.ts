@@ -5,7 +5,7 @@ import { Module } from "../../db/mysqlModels/Module";
 import { User } from "../../db/mysqlModels/User";
 import { UserCourse } from "../../db/mysqlModels/UserCourse";
 import { DayContent } from "../../db/mysqlModels/DayContent";
-import { getManager } from "typeorm"; // Add this import for transaction
+import { AppDataSource } from "../../db/connect";
 
 import {
   createRecord,
@@ -89,7 +89,7 @@ export const createCourse = async (req: Request, res: Response) => {
     }
 
     // Use transaction to ensure data consistency
-    const result = await getManager().transaction(
+    const result = await AppDataSource.transaction(
       async (transactionalEntityManager) => {
         // Create course first
         const course = new Course();
