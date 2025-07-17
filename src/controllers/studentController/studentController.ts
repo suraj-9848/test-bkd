@@ -12,6 +12,7 @@ import { TestResponse } from "../../db/mysqlModels/TestResponse";
 import { ModuleMCQAnswer } from "../../db/mysqlModels/ModuleMCQAnswer";
 import { User } from "../../db/mysqlModels/User";
 import { UserDayCompletion } from "../../db/mysqlModels/UserDayCompletion";
+import { Batch } from "../../db/mysqlModels/Batch";
 import {
   getAllRecordsWithFilter,
   getSingleRecord,
@@ -1270,5 +1271,37 @@ export const getGlobalTestLeaderboard = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: "Error fetching leaderboard", error });
+  }
+};
+
+// GET /student/batches
+export const getStudentBatches = async (req: Request, res: Response) => {
+  try {
+    const studentId = req.user.id;
+
+    // Get the user with their batch assignments
+    const user = await User.findOne({
+      where: { id: studentId },
+      select: ["batch_id"]
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // If the user has no batch assignments, return empty array
+    if (!user.batch_id || user.batch_id.length === 0) {
+      return res.status(200).json([]);
+    }
+
+    // Get the batch details for all assigned batch IDs
+    const batches = await Batch.find({
+      where: { id: In(user.batch_id) }
+    });
+
+    res.status(200).json(batches);
+  } catch (error) {
+    console.error("Error fetching student batches:", error);
+    res.status(500).json({ message: "Error fetching batches" });
   }
 };

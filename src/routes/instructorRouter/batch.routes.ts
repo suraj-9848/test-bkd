@@ -227,4 +227,7 @@ router.get(
 router.get("/batches/:batchId/courses/:courseId/progress", fetchCourseProgress);
 router.get("/sessions/:sessionId/progress", fetchSessionProgress);
 
+// Direct course update route (for batch assignments)
+router.put("/courses/:id", updateCourse);
+
 export const instructorRouter = router;

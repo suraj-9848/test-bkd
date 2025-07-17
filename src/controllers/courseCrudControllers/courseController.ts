@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { In } from "typeorm";
 import { Course } from "../../db/mysqlModels/Course";
 import { Batch } from "../../db/mysqlModels/Batch";
 import { Module } from "../../db/mysqlModels/Module";
@@ -34,7 +35,7 @@ interface CourseData {
   logo?: string;
   start_date: string;
   end_date: string;
-  batch_id: string;
+  batch_ids: string[]; // Changed from batch_id to batch_ids
   is_public: boolean;
   instructor_name: string;
   modules?: ModuleData[];
@@ -50,7 +51,7 @@ export const createCourse = async (req: Request, res: Response) => {
       logo,
       start_date,
       end_date,
-      batch_id,
+      batch_ids,
       is_public,
       instructor_name,
       modules,
@@ -61,11 +62,13 @@ export const createCourse = async (req: Request, res: Response) => {
       !title ||
       !start_date ||
       !end_date ||
-      !batch_id ||
+      !batch_ids ||
+      !Array.isArray(batch_ids) ||
+      batch_ids.length === 0 ||
       is_public === undefined ||
       !instructor_name
     ) {
-      return res.status(400).json({ message: "Missing required fields" });
+      return res.status(400).json({ message: "Missing required fields. batch_ids must be a non-empty array." });
     }
 
     // Validate dates
@@ -82,10 +85,18 @@ export const createCourse = async (req: Request, res: Response) => {
         .json({ message: "End date must be after start date" });
     }
 
-    // Check if batch exists
-    const batch = await getSingleRecord(Batch, { where: { id: batch_id } });
-    if (!batch) {
-      return res.status(404).json({ message: "Batch not found" });
+    // Check if all batches exist
+    const batches = await getAllRecords(Batch, {
+      where: batch_ids.map(id => ({ id })),
+    });
+    
+    if (!batches || batches.length !== batch_ids.length) {
+      const foundBatchIds = batches?.map(b => b.id) || [];
+      const missingBatchIds = batch_ids.filter(id => !foundBatchIds.includes(id));
+      return res.status(404).json({ 
+        message: "Some batches not found", 
+        missingBatchIds 
+      });
     }
 
     // Use transaction to ensure data consistency
@@ -97,7 +108,7 @@ export const createCourse = async (req: Request, res: Response) => {
         course.logo = logo || null;
         course.start_date = startDate;
         course.end_date = endDate;
-        course.batch = batch;
+        course.batches = batches; // Assign multiple batches
         course.is_public = is_public;
         course.instructor_name = instructor_name;
 
@@ -177,7 +188,7 @@ export const createCourse = async (req: Request, res: Response) => {
       Course,
       {
         where: { id: result.id },
-        relations: ["modules", "modules.days", "batch"],
+        relations: ["modules", "modules.days", "batches"],
       },
       `course_${result.id}`,
       false,
@@ -220,7 +231,7 @@ export const fetchCourse = async (req: Request, res: Response) => {
       Course,
       {
         where: { id },
-        relations: ["modules", "modules.days", "batch"],
+        relations: ["modules", "modules.days", "batches"],
         order: {
           modules: {
             order: "ASC",
@@ -253,7 +264,7 @@ export const fetchCourse = async (req: Request, res: Response) => {
 export const fetchAllCourses = async (_: Request, res: Response) => {
   try {
     const courses = await getAllRecords(Course, {
-      relations: ["batch"],
+      relations: ["batches"],
       order: { createdAt: "DESC" },
     });
 
@@ -270,20 +281,20 @@ export const fetchAllCourses = async (_: Request, res: Response) => {
 // ========== FETCH COURSES BY BATCH ==========
 export const fetchAllCoursesinBatch = async (req: Request, res: Response) => {
   try {
-    const { batchId } = req.params; // Changed from batch_id to batchId
+    const { batchId } = req.params;
 
     if (!batchId) {
       return res.status(400).json({ message: "Batch ID is required" });
     }
 
-    const batch = await getSingleRecord(Batch, { where: { id: batchId } }); // Changed batch_id to batchId
+    const batch = await getSingleRecord(Batch, { where: { id: batchId } });
     if (!batch) {
       return res.status(404).json({ message: "Batch not found" });
     }
 
     const courses = await getAllRecords(Course, {
-      where: { batch: { id: batchId } }, // Changed batch_id to batchId
-      relations: ["modules", "batch"],
+      where: { batches: { id: batchId } },
+      relations: ["modules", "batches"],
       order: { createdAt: "DESC" },
     });
 
@@ -306,7 +317,7 @@ export const updateCourse = async (req: Request, res: Response) => {
       logo,
       start_date,
       end_date,
-      batch_id,
+      batch_ids,
       is_public,
       instructor_name,
     } = req.body;
@@ -336,12 +347,20 @@ export const updateCourse = async (req: Request, res: Response) => {
     if (is_public !== undefined) updateData.is_public = is_public;
     if (instructor_name) updateData.instructor_name = instructor_name;
 
-    if (batch_id) {
-      const batch = await getSingleRecord(Batch, { where: { id: batch_id } });
-      if (!batch) {
-        return res.status(404).json({ message: "Batch not found" });
+    if (batch_ids && Array.isArray(batch_ids) && batch_ids.length > 0) {
+      const batches = await Batch.find({
+        where: { id: In(batch_ids) }
+      });
+      
+      if (!batches || batches.length !== batch_ids.length) {
+        const foundBatchIds = batches?.map(b => b.id) || [];
+        const missingBatchIds = batch_ids.filter(id => !foundBatchIds.includes(id));
+        return res.status(404).json({ 
+          message: "Some batches not found", 
+          missingBatchIds 
+        });
       }
-      updateData.batch = batch;
+      updateData.batches = batches;
     }
 
     // Validate date combination if both are provided
@@ -355,14 +374,38 @@ export const updateCourse = async (req: Request, res: Response) => {
         .json({ message: "End date must be after start date" });
     }
 
-    const result = await updateRecords(Course, { id }, updateData, false);
-    if (!result || result.affected === 0) {
+    console.log("Updating course with data:", { id, updateData });
+
+    // Find the course first
+    const course = await Course.findOne({
+      where: { id },
+      relations: ["batches"]
+    });
+
+    if (!course) {
       return res.status(404).json({ message: "Course not found" });
     }
 
-    const updated = await getSingleRecord(Course, {
+    // Update basic fields
+    if (title) course.title = title;
+    if (logo !== undefined) course.logo = logo;
+    if (updateData.start_date) course.start_date = updateData.start_date;
+    if (updateData.end_date) course.end_date = updateData.end_date;
+    if (is_public !== undefined) course.is_public = is_public;
+    if (instructor_name) course.instructor_name = instructor_name;
+
+    // Update batches relationship if provided
+    if (updateData.batches) {
+      course.batches = updateData.batches;
+    }
+
+    // Save the updated course
+    const savedCourse = await course.save();
+
+    // Fetch the updated course with relations
+    const updated = await Course.findOne({
       where: { id },
-      relations: ["batch"],
+      relations: ["batches"],
     });
 
     return res.status(200).json({
