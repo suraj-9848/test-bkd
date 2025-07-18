@@ -16,7 +16,9 @@ export class TestResponse extends BaseEntity {
   @ManyToOne(() => TestSubmission, (submission) => submission.responses)
   submission: TestSubmission;
 
-  @ManyToOne(() => Question, (question) => question.responses)
+  @ManyToOne(() => Question, (question) => question.responses, {
+    onDelete: "CASCADE",
+  })
   question: Question;
 
   @Column({ nullable: true })

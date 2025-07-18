@@ -16,7 +16,7 @@ export class TestSubmission extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @ManyToOne(() => Test, (test) => test.submissions)
+  @ManyToOne(() => Test, (test) => test.submissions, { onDelete: "CASCADE" })
   test: Test;
 
   @ManyToOne(() => User, (user) => user.submissions)
