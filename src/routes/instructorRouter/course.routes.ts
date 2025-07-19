@@ -24,6 +24,12 @@ import {
   getMCQ,
 } from "../../controllers/moduleControllers/moduleMCQControllers";
 
+import {
+  getInstructorDashboardStats,
+  getInstructorStudents,
+  getSystemWideStudentAnalytics,
+} from "../../controllers/instructorControllers/dashboard.controller";
+
 import { authMiddleware } from "../../middleware/authMiddleware";
 import { instructorMiddleware } from "../../middleware/instructorMiddleware";
 
@@ -31,6 +37,15 @@ const courseRouter = express.Router();
 
 // Apply middleware
 courseRouter.use(authMiddleware, instructorMiddleware);
+
+// Dashboard stats route
+courseRouter.get("/dashboard/stats", getInstructorDashboardStats);
+
+// Get instructor's students (instructor-specific)
+courseRouter.get("/students", getInstructorStudents);
+
+// Get system-wide student analytics (for StudentAnalytics component)
+courseRouter.get("/analytics/students", getSystemWideStudentAnalytics);
 
 // Direct course routes (not nested under batch)
 courseRouter.get("/courses", fetchAllCoursesAcrossBatches);
