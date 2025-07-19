@@ -527,144 +527,112 @@ export const assignCourseToStudent = async (req: Request, res: Response) => {
 export const getCourseAnalytics = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    console.log("=== Getting analytics for course ID:", id);
     
-    // Get the course with its basic info
-    const course = await getSingleRecord<Course, any>(
-      Course,
-      { 
-        where: { id },
-        relations: ["modules"]
-      },
-      `course_${id}`,
-      true,
-      60
-    );
-
-    if (!course) {
-      return res.status(404).json({ message: "Course not found" });
+    if (!id) {
+      return res.status(400).json({ message: "Course ID is required" });
     }
 
-    // Use raw SQL to get students assigned to this course
+    // Get the course basic info first using a simple query
     const { AppDataSource } = await import("../../db/connect");
     const connection = AppDataSource;
 
-    // Get all students directly assigned to this course via user_course table
-    const courseStudentsQuery = `
-      SELECT uc.userId, u.username, u.email, uc.completed, uc.assignedAt
+    if (!connection || !connection.isInitialized) {
+      console.error("Database connection not available");
+      return res.status(500).json({ message: "Database connection error" });
+    }
+
+    console.log("=== Database connection established");
+
+    // Get course basic info
+    const courseQuery = `
+      SELECT id, title, instructor_name, start_date, end_date, is_public
+      FROM course
+      WHERE id = ?
+    `;
+    
+    console.log("=== Executing courseQuery with courseId:", id);
+    const courseResult = await connection.query(courseQuery, [id]);
+    
+    if (!courseResult || courseResult.length === 0) {
+      console.log("=== Course not found for ID:", id);
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    const course = courseResult[0];
+    console.log("=== Course found:", course.title);
+
+    // Get module count for this course
+    const moduleCountQuery = `
+      SELECT COUNT(*) as moduleCount
+      FROM module
+      WHERE courseId = ?
+    `;
+    
+    console.log("=== Executing moduleCountQuery");
+    const moduleCountResult = await connection.query(moduleCountQuery, [id]);
+    const moduleCount = moduleCountResult[0]?.moduleCount || 0;
+    console.log("=== Module count found:", moduleCount);
+
+    // Get student count for this course
+    const studentCountQuery = `
+      SELECT COUNT(*) as studentCount
       FROM user_course uc
       JOIN user u ON uc.userId = u.id
       WHERE uc.courseId = ? AND u.userRole = 'student'
     `;
-    const courseStudents = await connection.query(courseStudentsQuery, [id]);
-
-    // Get batches assigned to this course
-    const courseBatchesQuery = `
-      SELECT cba.batchId, b.name as batchName
-      FROM course_batch_assignments cba
-      JOIN batch b ON cba.batchId = b.id
-      WHERE cba.courseId = ?
-    `;
-    const courseBatches = await connection.query(courseBatchesQuery, [id]);
-
-    // Get course progress data for these students
-    const studentIds = courseStudents.map((s: any) => s.userId);
-    let progressData = [];
     
-    if (studentIds.length > 0) {
-      const progressQuery = `
-        SELECT student_id, current_page, status, updated_at
-        FROM student_course_progress
-        WHERE student_id IN (${studentIds.map(() => '?').join(',')}) AND session_id = ?
-      `;
-      progressData = await connection.query(progressQuery, [...studentIds, id]);
-    }
+    console.log("=== Executing studentCountQuery");
+    const studentCountResult = await connection.query(studentCountQuery, [id]);
+    const totalStudents = studentCountResult[0]?.studentCount || 0;
+    console.log("=== Student count found:", totalStudents);
 
-    // Calculate total pages/modules
-    const totalPages = course.modules?.reduce((sum, module) => {
-      return sum + (module.days?.length || 0);
-    }, 0) || 0;
+    // Get batch count for this course
+    const batchCountQuery = `
+      SELECT COUNT(*) as batchCount
+      FROM course_batch_assignments
+      WHERE courseId = ?
+    `;
+    
+    console.log("=== Executing batchCountQuery");
+    const batchCountResult = await connection.query(batchCountQuery, [id]);
+    const batchCount = batchCountResult[0]?.batchCount || 0;
+    console.log("=== Batch count found:", batchCount);
 
-    // Map students to their progress
-    const studentsWithProgress = courseStudents.map((student: any) => {
-      const progressRecord = progressData.find(
-        (p: any) => p.student_id === student.userId
-      );
-      
-      return {
-        studentId: student.userId,
-        username: student.username,
-        email: student.email,
-        currentPage: progressRecord?.current_page || 0,
-        totalPages,
-        progressPercentage: totalPages > 0 
-          ? Math.round(((progressRecord?.current_page || 0) / totalPages) * 100) 
-          : 0,
-        status: progressRecord?.status || "not-started"
-      };
-    });
-
-    // Create batch breakdown
-    const batchesProgress = courseBatches.map((batch: any) => {
-      // For now, distribute students evenly across batches
-      // In a real scenario, you'd have proper student-batch relationships
-      const batchStudentCount = Math.floor(courseStudents.length / courseBatches.length) || courseStudents.length;
-      
-      return {
-        batchId: batch.batchId,
-        batchName: batch.batchName,
-        studentCount: batchStudentCount,
-        averageProgress: studentsWithProgress.length > 0
-          ? Math.round(
-              studentsWithProgress.reduce((sum, s) => sum + s.progressPercentage, 0) / 
-              studentsWithProgress.length
-            )
-          : 0,
-        students: studentsWithProgress
-      };
-    });
-
-    // If no batches, create a default entry
-    if (batchesProgress.length === 0) {
-      batchesProgress.push({
-        batchId: "default",
-        batchName: "All Students",
-        studentCount: courseStudents.length,
-        averageProgress: studentsWithProgress.length > 0
-          ? Math.round(
-              studentsWithProgress.reduce((sum, s) => sum + s.progressPercentage, 0) / 
-              studentsWithProgress.length
-            )
-          : 0,
-        students: studentsWithProgress
-      });
-    }
-
-    // Calculate overall metrics
-    const totalStudents = courseStudents.length;
-    const moduleCount = course.modules?.length || 0;
-    const averageProgress = studentsWithProgress.length > 0
-      ? Math.round(
-          studentsWithProgress.reduce((sum, s) => sum + s.progressPercentage, 0) / 
-          studentsWithProgress.length
-        )
-      : 0;
-
-    // Construct analytics response
+    // Construct a simple analytics response
     const analytics = {
       courseId: course.id,
       courseTitle: course.title,
-      isPublic: course.is_public,
+      instructorName: course.instructor_name || "Not assigned",
+      isPublic: Boolean(course.is_public),
       startDate: course.start_date,
       endDate: course.end_date,
       totalStudents,
       moduleCount,
-      averageProgress,
-      batchesProgress
+      batchCount,
+      averageProgress: 0, // Default to 0 for now
+      batchesProgress: [
+        {
+          batchId: "default",
+          batchName: "All Students",
+          studentCount: totalStudents,
+          averageProgress: 0,
+          students: []
+        }
+      ]
     };
     
+    console.log("=== Analytics response:", JSON.stringify(analytics, null, 2));
     return res.json({ analytics });
-  } catch (err) {
-    console.error("Error getting course analytics:", err);
-    return res.status(500).json({ message: "Internal server error" });
+
+  } catch (err: any) {
+    console.error("=== Error getting course analytics - Full error:", err);
+    console.error("=== Error stack:", err?.stack);
+    console.error("=== Error message:", err?.message);
+    
+    return res.status(500).json({ 
+      message: "Internal server error",
+      error: process.env.NODE_ENV === "development" ? err?.message : "Analytics temporarily unavailable"
+    });
   }
 };
