@@ -350,17 +350,28 @@ export const deleteMCQ = async (req: Request, res: Response) => {
 
 // ✅ Get MCQ by Module ID with Quill support (Fixed relation)
 export const getMCQ = async (req: Request, res: Response) => {
-  const { moduleId } = req.params;
+  const { courseId, moduleId } = req.params;
+  
+  console.log("=== getMCQ Controller Called ===");
+  console.log("Course ID:", courseId);
+  console.log("Module ID:", moduleId);
+  console.log("Full URL:", req.originalUrl);
+  console.log("User:", req.user);
 
   try {
+    console.log(`Getting MCQ for Module ID: ${moduleId}`);
+    
     // Check if module exists
     const moduleData = await getSingleRecord(Module, {
       where: { id: moduleId },
     });
 
     if (!moduleData) {
+      console.log(`Module not found with ID: ${moduleId}`);
       return res.status(404).json({ message: "Module not found" });
     }
+
+    console.log(`Module found: ${moduleData.id} - ${moduleData.title}`);
 
     // Get MCQ for this module (fixed relation name)
     const mcq = await getSingleRecord(ModuleMCQ, {
@@ -369,8 +380,11 @@ export const getMCQ = async (req: Request, res: Response) => {
     });
 
     if (!mcq) {
+      console.log(`No MCQ found for module: ${moduleId}`);
       return res.status(404).json({ message: "No MCQ found for this module" });
     }
+
+    console.log(`MCQ found for module: ${moduleId}, MCQ ID: ${mcq.id}`);
 
     res.status(200).json({
       id: mcq.id,
@@ -382,7 +396,7 @@ export const getMCQ = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching MCQ:", error);
+    console.error(`Error fetching MCQ for module ${moduleId}:`, error);
     res.status(500).json({ message: "Error fetching MCQ" });
   }
 };

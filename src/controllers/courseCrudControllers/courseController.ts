@@ -6,6 +6,7 @@ import { Module } from "../../db/mysqlModels/Module";
 import { User } from "../../db/mysqlModels/User";
 import { UserCourse } from "../../db/mysqlModels/UserCourse";
 import { DayContent } from "../../db/mysqlModels/DayContent";
+import { StudentCourseProgress } from "../../db/mysqlModels/StudentCourseProgress";
 import { AppDataSource } from "../../db/connect";
 
 import {
@@ -14,6 +15,7 @@ import {
   getAllRecords,
   updateRecords,
   deleteRecords,
+  getAllRecordsWithFilter,
 } from "../../lib/dbLib/sqlUtils";
 
 interface DayData {
@@ -260,20 +262,29 @@ export const fetchCourse = async (req: Request, res: Response) => {
   }
 };
 
-// ========== FETCH ALL COURSES ==========
-export const fetchAllCourses = async (_: Request, res: Response) => {
+// ========== FETCH ALL COURSES (Not batch specific) ==========
+export const fetchAllCoursesAcrossBatches = async (req: Request, res: Response) => {
   try {
-    const courses = await getAllRecords(Course, {
-      relations: ["batches"],
-      order: { createdAt: "DESC" },
+    // Get all courses with their batches
+    const courses = await getAllRecords<Course>(Course, {
+      relations: ["batches", "userCourses"],
+      order: { createdAt: "DESC" }
     });
-
-    return res.status(200).json({
+    
+    // Process courses to include student count
+    const processedCourses = courses.map(course => {
+      return {
+        ...course,
+        studentCount: course.userCourses?.length || 0
+      };
+    });
+    
+    return res.json({ 
       message: "Courses fetched successfully",
-      courses,
+      courses: processedCourses 
     });
   } catch (err) {
-    console.error("Fetch all courses error:", err);
+    console.error("Error fetching all courses:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -509,5 +520,151 @@ export const assignCourseToStudent = async (req: Request, res: Response) => {
     return res.status(500).json({
       message: "Internal server error",
     });
+  }
+};
+
+// ========== GET COURSE ANALYTICS ==========
+export const getCourseAnalytics = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Get the course with its basic info
+    const course = await getSingleRecord<Course, any>(
+      Course,
+      { 
+        where: { id },
+        relations: ["modules"]
+      },
+      `course_${id}`,
+      true,
+      60
+    );
+
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    // Use raw SQL to get students assigned to this course
+    const { AppDataSource } = await import("../../db/connect");
+    const connection = AppDataSource;
+
+    // Get all students directly assigned to this course via user_course table
+    const courseStudentsQuery = `
+      SELECT uc.userId, u.username, u.email, uc.completed, uc.assignedAt
+      FROM user_course uc
+      JOIN user u ON uc.userId = u.id
+      WHERE uc.courseId = ? AND u.userRole = 'student'
+    `;
+    const courseStudents = await connection.query(courseStudentsQuery, [id]);
+
+    // Get batches assigned to this course
+    const courseBatchesQuery = `
+      SELECT cba.batchId, b.name as batchName
+      FROM course_batch_assignments cba
+      JOIN batch b ON cba.batchId = b.id
+      WHERE cba.courseId = ?
+    `;
+    const courseBatches = await connection.query(courseBatchesQuery, [id]);
+
+    // Get course progress data for these students
+    const studentIds = courseStudents.map((s: any) => s.userId);
+    let progressData = [];
+    
+    if (studentIds.length > 0) {
+      const progressQuery = `
+        SELECT student_id, current_page, status, updated_at
+        FROM student_course_progress
+        WHERE student_id IN (${studentIds.map(() => '?').join(',')}) AND session_id = ?
+      `;
+      progressData = await connection.query(progressQuery, [...studentIds, id]);
+    }
+
+    // Calculate total pages/modules
+    const totalPages = course.modules?.reduce((sum, module) => {
+      return sum + (module.days?.length || 0);
+    }, 0) || 0;
+
+    // Map students to their progress
+    const studentsWithProgress = courseStudents.map((student: any) => {
+      const progressRecord = progressData.find(
+        (p: any) => p.student_id === student.userId
+      );
+      
+      return {
+        studentId: student.userId,
+        username: student.username,
+        email: student.email,
+        currentPage: progressRecord?.current_page || 0,
+        totalPages,
+        progressPercentage: totalPages > 0 
+          ? Math.round(((progressRecord?.current_page || 0) / totalPages) * 100) 
+          : 0,
+        status: progressRecord?.status || "not-started"
+      };
+    });
+
+    // Create batch breakdown
+    const batchesProgress = courseBatches.map((batch: any) => {
+      // For now, distribute students evenly across batches
+      // In a real scenario, you'd have proper student-batch relationships
+      const batchStudentCount = Math.floor(courseStudents.length / courseBatches.length) || courseStudents.length;
+      
+      return {
+        batchId: batch.batchId,
+        batchName: batch.batchName,
+        studentCount: batchStudentCount,
+        averageProgress: studentsWithProgress.length > 0
+          ? Math.round(
+              studentsWithProgress.reduce((sum, s) => sum + s.progressPercentage, 0) / 
+              studentsWithProgress.length
+            )
+          : 0,
+        students: studentsWithProgress
+      };
+    });
+
+    // If no batches, create a default entry
+    if (batchesProgress.length === 0) {
+      batchesProgress.push({
+        batchId: "default",
+        batchName: "All Students",
+        studentCount: courseStudents.length,
+        averageProgress: studentsWithProgress.length > 0
+          ? Math.round(
+              studentsWithProgress.reduce((sum, s) => sum + s.progressPercentage, 0) / 
+              studentsWithProgress.length
+            )
+          : 0,
+        students: studentsWithProgress
+      });
+    }
+
+    // Calculate overall metrics
+    const totalStudents = courseStudents.length;
+    const moduleCount = course.modules?.length || 0;
+    const averageProgress = studentsWithProgress.length > 0
+      ? Math.round(
+          studentsWithProgress.reduce((sum, s) => sum + s.progressPercentage, 0) / 
+          studentsWithProgress.length
+        )
+      : 0;
+
+    // Construct analytics response
+    const analytics = {
+      courseId: course.id,
+      courseTitle: course.title,
+      isPublic: course.is_public,
+      startDate: course.start_date,
+      endDate: course.end_date,
+      totalStudents,
+      moduleCount,
+      averageProgress,
+      batchesProgress
+    };
+    
+    return res.json({ analytics });
+  } catch (err) {
+    console.error("Error getting course analytics:", err);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };

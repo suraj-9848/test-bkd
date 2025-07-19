@@ -67,7 +67,7 @@ import {
   getAllModules,
   getSingleModule,
   updateModule,
-} from "../../controllers/moduleControllers/moduleControllers";
+} from "../../controllers/moduleControllers/moduleController";
 
 import {
   fetchCourseProgress,
