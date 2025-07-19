@@ -32,6 +32,7 @@ import {
 
 import { authMiddleware } from "../../middleware/authMiddleware";
 import { instructorMiddleware } from "../../middleware/instructorMiddleware";
+import { validateCourseBody } from "../../middleware/courseCrudPipes/coursePipe";
 
 const courseRouter = express.Router();
 
@@ -48,6 +49,7 @@ courseRouter.get("/students", getInstructorStudents);
 courseRouter.get("/analytics/students", getSystemWideStudentAnalytics);
 
 // Direct course routes (not nested under batch)
+courseRouter.post("/courses", createCourse);
 courseRouter.get("/courses", fetchAllCoursesAcrossBatches);
 courseRouter.get("/courses/:id", fetchCourse);
 courseRouter.put("/courses/:id", updateCourse);

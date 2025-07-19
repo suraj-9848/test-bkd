@@ -1305,3 +1305,129 @@ export const getStudentBatches = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Error fetching batches" });
   }
 };
+
+// GET /student/dashboard/stats
+export const getStudentDashboardStats = async (req: Request, res: Response) => {
+  try {
+    console.log("=== Getting student dashboard stats ===");
+    
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    const studentId = user.id;
+    console.log("=== Fetching stats for student:", studentId);
+
+    // Get courses assigned to this student
+    const userCourses = await getAllRecordsWithFilter(UserCourse, {
+      where: { user: { id: studentId } },
+      relations: ["course"],
+    });
+
+    const totalCourses = userCourses.length;
+    const completedCourses = userCourses.filter(uc => uc.completed).length;
+
+    // Get student's test data
+    const courseIds = userCourses.map((uc) => uc.course.id);
+    let totalTests = 0;
+    let completedTests = 0;
+    let averageScore = 0;
+
+    if (courseIds.length > 0) {
+      // Get all published tests from assigned courses
+      const tests = await getAllRecordsWithFilter(Test, {
+        where: {
+          course: { id: In(courseIds) },
+          status: "PUBLISHED",
+        },
+        relations: ["course"],
+      });
+      
+      totalTests = tests.length;
+
+      // Get test submissions for this student
+      const testSubmissions = await getAllRecordsWithFilter(TestSubmission, {
+        where: {
+          user: { id: studentId },
+          test: { id: In(tests.map(t => t.id)) }
+        },
+        relations: ["test"],
+      });
+
+      completedTests = testSubmissions.length;
+      
+      // Calculate average score
+      if (testSubmissions.length > 0) {
+        const totalScore = testSubmissions.reduce((sum, submission) => sum + (submission.score || 0), 0);
+        averageScore = Math.round(totalScore / testSubmissions.length);
+      }
+    }
+
+    // Calculate overall progress
+    const overallProgress = totalCourses > 0 
+      ? Math.round(((completedCourses / totalCourses) * 100))
+      : 0;
+
+    // Get student's modules progress
+    let totalModules = 0;
+    let completedModules = 0;
+
+    for (const userCourse of userCourses) {
+      const modules = await getAllRecordsWithFilter(Module, {
+        where: { course: { id: userCourse.course.id } },
+      });
+      
+      totalModules += modules.length;
+      
+      // Count completed modules by checking if all days are completed
+      for (const module of modules) {
+        const allDaysCompleted = await areAllDaysCompleted(user, module);
+        if (allDaysCompleted) {
+          completedModules++;
+        }
+      }
+    }
+
+    // Calculate hours learned (this would need to be implemented based on your business logic)
+    // For now, we'll estimate based on completed modules and average time per module
+    let hoursLearned = 0;
+    for (const userCourse of userCourses) {
+      const modules = await getAllRecordsWithFilter(Module, {
+        where: { course: { id: userCourse.course.id } },
+      });
+      
+      // Estimate 2 hours per completed module
+      for (const module of modules) {
+        const allDaysCompleted = await areAllDaysCompleted(user, module);
+        if (allDaysCompleted) {
+          hoursLearned += 2; // Estimated hours per module
+        }
+      }
+    }
+
+    const stats = {
+      coursesEnrolled: totalCourses,
+      hoursLearned: hoursLearned,
+      testsCompleted: completedTests,
+      averageGrade: averageScore,
+      // Additional stats for potential future use
+      totalModules,
+      completedModules,
+      overallProgress,
+      currentStreak: 0, // TODO: Implement streak calculation
+      totalPoints: averageScore * completedTests, // Simple points calculation
+    };
+
+    console.log("=== Student dashboard stats:", JSON.stringify(stats, null, 2));
+    
+    return res.json({ stats });
+
+  } catch (err: any) {
+    console.error("=== Error getting student dashboard stats:", err);
+    return res.status(500).json({
+      error: "Failed to fetch dashboard statistics",
+      details: process.env.NODE_ENV === "development" ? err?.message : "Internal server error"
+    });
+  }
+};

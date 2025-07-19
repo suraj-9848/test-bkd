@@ -47,17 +47,25 @@ interface CourseData {
 export const createCourse = async (req: Request, res: Response) => {
   try {
     const courseData: CourseData = req.body;
+    
+    console.log("=== CREATE COURSE DEBUG ===");
+    console.log("Received courseData:", JSON.stringify(courseData, null, 2));
 
     const {
       title,
       logo,
       start_date,
       end_date,
-      batch_ids,
       is_public,
       instructor_name,
       modules,
     } = courseData;
+
+    let { batch_ids } = courseData; // Make batch_ids mutable
+
+    console.log("Extracted batch_ids:", batch_ids);
+    console.log("batch_ids type:", typeof batch_ids);
+    console.log("batch_ids length:", batch_ids?.length);
 
     // Validate required fields
     if (
@@ -70,7 +78,12 @@ export const createCourse = async (req: Request, res: Response) => {
       is_public === undefined ||
       !instructor_name
     ) {
-      return res.status(400).json({ message: "Missing required fields. batch_ids must be a non-empty array." });
+      // Get available batches for error message
+      const allBatches = await getAllRecords(Batch, {});
+      return res.status(400).json({ 
+        message: "Missing required fields. batch_ids must be a non-empty array.",
+        availableBatches: allBatches?.map(b => ({ id: b.id, name: b.name })) || []
+      });
     }
 
     // Validate dates
@@ -88,16 +101,93 @@ export const createCourse = async (req: Request, res: Response) => {
     }
 
     // Check if all batches exist
-    const batches = await getAllRecords(Batch, {
-      where: batch_ids.map(id => ({ id })),
+    console.log("=== BATCH VALIDATION ===");
+    console.log("batch_ids received:", batch_ids);
+    console.log("batch_ids type:", typeof batch_ids);
+    console.log("batch_ids length:", batch_ids.length);
+    
+    // First, let's check if there are any batches at all
+    const allBatches = await getAllRecords(Batch, {});
+    console.log("Total batches in database:", allBatches?.length);
+    console.log("All available batches:", allBatches?.map(b => ({ id: b.id, name: b.name })));
+    
+    // If no batches exist at all, create a default one
+    if (!allBatches || allBatches.length === 0) {
+      console.log("No batches found, creating default batch...");
+      const defaultBatch = new Batch();
+      defaultBatch.name = "Default Batch";
+      defaultBatch.description = "Auto-created default batch for course creation";
+      const savedBatch = await AppDataSource.manager.save(Batch, defaultBatch);
+      console.log("Created default batch:", { id: savedBatch.id, name: savedBatch.name });
+      
+      // Update batch_ids to use the default batch
+      batch_ids = [savedBatch.id];
+      console.log("Updated batch_ids to:", batch_ids);
+    }
+    
+    // Validate that batch_ids is not empty after potential default creation
+    if (!batch_ids || batch_ids.length === 0) {
+      return res.status(400).json({ 
+        message: "No valid batch IDs provided",
+        availableBatches: allBatches?.map(b => ({ id: b.id, name: b.name })) || []
+      });
+    }
+    
+    // Remove duplicates from batch_ids to avoid confusion
+    const uniqueBatchIds = [...new Set(batch_ids)];
+    console.log("Original batch_ids:", batch_ids);
+    console.log("Unique batch_ids:", uniqueBatchIds);
+    
+    const batches = await getAllRecordsWithFilter(Batch, {
+      where: { id: In(uniqueBatchIds) },
     });
     
-    if (!batches || batches.length !== batch_ids.length) {
-      const foundBatchIds = batches?.map(b => b.id) || [];
-      const missingBatchIds = batch_ids.filter(id => !foundBatchIds.includes(id));
-      return res.status(404).json({ 
-        message: "Some batches not found", 
-        missingBatchIds 
+    console.log("Found batches:", batches?.length);
+    console.log("Found batch IDs:", batches?.map(b => b.id));
+    console.log("Expected batch count:", uniqueBatchIds.length);
+    
+    // Fix validation logic - check if batches is null/undefined or if we found fewer batches than expected
+    const foundBatchIds = batches?.map(b => b.id) || [];
+    const actualFoundCount = foundBatchIds.length;
+    
+    console.log("Actual found count:", actualFoundCount);
+    console.log("Expected count:", uniqueBatchIds.length);
+    console.log("Batches is null/undefined:", !batches);
+    
+    if (!batches || actualFoundCount !== uniqueBatchIds.length) {
+      const missingBatchIds = uniqueBatchIds.filter(id => !foundBatchIds.includes(id));
+      console.log("Missing batch IDs:", missingBatchIds);
+      console.log("Found batch IDs:", foundBatchIds);
+      console.log("Detailed comparison:");
+      uniqueBatchIds.forEach(id => {
+        console.log(`  Requested: "${id}" (type: ${typeof id}) - Found: ${foundBatchIds.includes(id)}`);
+      });
+      foundBatchIds.forEach(id => {
+        console.log(`  Database: "${id}" (type: ${typeof id})`);
+      });
+      
+      // Only return error if there are actually missing batches
+      if (missingBatchIds.length > 0) {
+        return res.status(404).json({ 
+          message: "Some batches not found", 
+          missingBatchIds,
+          requestedBatchIds: uniqueBatchIds,
+          foundBatchIds: foundBatchIds,
+          availableBatches: allBatches?.map(b => ({ id: b.id, name: b.name }))
+        });
+      }
+      
+      // If we reach here, batches is null but no batches are actually missing
+      // This suggests an issue with the getAllRecords function
+      console.log("WARNING: batches is null but no missing batch IDs found. This suggests a database issue.");
+      return res.status(500).json({ 
+        message: "Database error: Unable to fetch batches", 
+        debug: {
+          batchesIsNull: !batches,
+          uniqueBatchIds,
+          foundBatchIds,
+          actualFoundCount
+        }
       });
     }
 
@@ -118,6 +208,26 @@ export const createCourse = async (req: Request, res: Response) => {
           Course,
           course,
         );
+
+        console.log("=== COURSE SAVE DEBUG ===");
+        console.log("Saved course ID:", savedCourse.id);
+        console.log("Assigned batches before save:", batches?.map(b => ({ id: b.id, name: b.name })));
+        console.log("Saved course batches after save:", savedCourse.batches?.map(b => ({ id: b.id, name: b.name })));
+
+        // Additional debugging: Try to reload the course with batches to see if they were saved
+        const reloadedCourse = await transactionalEntityManager.findOne(Course, {
+          where: { id: savedCourse.id },
+          relations: ["batches"]
+        });
+        console.log("Reloaded course batches:", reloadedCourse?.batches?.map(b => ({ id: b.id, name: b.name })));
+
+        // If batches weren't saved correctly, try manually setting the relation
+        if (!savedCourse.batches || savedCourse.batches.length === 0) {
+          console.log("Batches not properly saved, attempting manual assignment...");
+          savedCourse.batches = batches;
+          const resavedCourse = await transactionalEntityManager.save(Course, savedCourse);
+          console.log("Re-saved course batches:", resavedCourse.batches?.map(b => ({ id: b.id, name: b.name })));
+        }
 
         // Create modules if provided
         if (modules && modules.length > 0) {
@@ -197,6 +307,10 @@ export const createCourse = async (req: Request, res: Response) => {
       10 * 60,
     );
 
+    console.log("=== FINAL COURSE DEBUG ===");
+    console.log("Complete course ID:", completeCourse?.id);
+    console.log("Complete course batches:", completeCourse?.batches?.map(b => ({ id: b.id, name: b.name })));
+
     return res.status(201).json({
       message: "Course created successfully",
       course: completeCourse,
@@ -266,9 +380,8 @@ export const fetchCourse = async (req: Request, res: Response) => {
 export const fetchAllCoursesAcrossBatches = async (req: Request, res: Response) => {
   try {
     // Get all courses with their batches
-    const courses = await getAllRecords<Course>(Course, {
-      relations: ["batches", "userCourses"],
-      order: { createdAt: "DESC" }
+    const courses = await getAllRecordsWithFilter<Course, any>(Course, {
+      relations: ["batches", "userCourses"]
     });
     
     // Process courses to include student count
@@ -303,10 +416,9 @@ export const fetchAllCoursesinBatch = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Batch not found" });
     }
 
-    const courses = await getAllRecords(Course, {
+    const courses = await getAllRecordsWithFilter(Course, {
       where: { batches: { id: batchId } },
-      relations: ["modules", "batches"],
-      order: { createdAt: "DESC" },
+      relations: ["modules", "batches"]
     });
 
     return res.status(200).json({

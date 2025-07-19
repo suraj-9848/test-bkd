@@ -17,12 +17,16 @@ import {
   getStudentTests,
   getGlobalTestLeaderboard,
   getStudentBatches,
+  getStudentDashboardStats,
 } from "../../controllers/studentController/studentController";
 import { authMiddleware } from "../../middleware/authMiddleware";
 
 const router = express.Router();
 
 router.use(authMiddleware);
+
+// Dashboard stats route
+router.get("/dashboard/stats", getStudentDashboardStats);
 
 router.get("/batches", getStudentBatches);
 router.get("/courses", getStudentCourses);

@@ -31,9 +31,12 @@ export const createBatch = async (req: Request, res: Response) => {
 
 export const fetchAllBatches = async (req: Request, res: Response) => {
   try {
+    console.log("=== FETCH ALL BATCHES DEBUG ===");
     const batches = await getAllRecords(Batch, {
       relations: ["courses"],
     });
+    console.log("Found batches count:", batches?.length);
+    console.log("Batches:", JSON.stringify(batches, null, 2));
     return res.status(200).json({ message: "Fetched batches", batches });
   } catch (err) {
     console.error("Error fetching batches:", err);
