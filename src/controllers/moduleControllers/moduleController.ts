@@ -33,9 +33,14 @@ export const getAllModules = async (req: Request, res: Response) => {
 
     console.log(`Course found: ${course.id} - ${course.title}`);
 
-    // Get all modules for this course
+    // Get all modules for this course with day content
     const modules = await getAllRecordsWithFilter(Module, {
       where: { course: { id: courseId } },
+      relations: ["days"],
+      order: { 
+        order: "ASC",
+        days: { dayNumber: "ASC" }
+      },
     });
     
     console.log(`Found ${modules.length} modules for course: ${courseId}`);

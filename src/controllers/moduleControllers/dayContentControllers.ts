@@ -131,7 +131,7 @@ export const addDayContent = async (req: Request, res: Response) => {
     // Process and sanitize content
     const processedContent = sanitizeQuillContent(content);
 
-    // Calculate day number if not provided
+    // Calculate day number if not provided or if conflicts exist
     let newDayNumber = dayNumber;
     if (!newDayNumber) {
       const existingDays = await getAllRecordsWithFilter(DayContent, {
@@ -150,9 +150,14 @@ export const addDayContent = async (req: Request, res: Response) => {
       });
 
       if (existingDay) {
-        return res.status(400).json({
-          message: `Day ${newDayNumber} already exists in this module`,
+        // If day number conflicts, auto-assign next available number
+        const existingDays = await getAllRecordsWithFilter(DayContent, {
+          where: { module: { id: moduleId } },
+          order: { dayNumber: "DESC" },
         });
+        newDayNumber =
+          existingDays.length > 0 ? existingDays[0].dayNumber + 1 : 1;
+        console.log(`Day ${dayNumber} already exists. Auto-assigned day ${newDayNumber}`);
       }
     }
 

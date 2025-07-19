@@ -25,6 +25,14 @@ import {
 } from "../../controllers/moduleControllers/moduleMCQControllers";
 
 import {
+  addDayContent,
+  getDayContent,
+  updateDayContent,
+  deleteDayContent,
+  markDayAsCompleted,
+} from "../../controllers/moduleControllers/dayContentControllers";
+
+import {
   getInstructorDashboardStats,
   getInstructorStudents,
   getSystemWideStudentAnalytics,
@@ -69,5 +77,12 @@ courseRouter.get("/courses/:courseId/modules/:moduleId/mcq", getMCQ);
 courseRouter.post("/courses/:courseId/modules/:moduleId/mcq", createMCQ);
 courseRouter.put("/courses/:courseId/modules/:moduleId/mcq/:mcqId", updateMCQ);
 courseRouter.delete("/courses/:courseId/modules/:moduleId/mcq/:mcqId", deleteMCQ);
+
+// Day Content routes for direct course access
+courseRouter.get("/courses/:courseId/modules/:moduleId/day-content", getDayContent);
+courseRouter.post("/courses/:courseId/modules/:moduleId/day-content", addDayContent);
+courseRouter.put("/courses/:courseId/modules/:moduleId/day-content/:dayId", updateDayContent);
+courseRouter.delete("/courses/:courseId/modules/:moduleId/day-content/:dayId", deleteDayContent);
+courseRouter.patch("/courses/:courseId/modules/:moduleId/day-content/:dayId/complete", markDayAsCompleted);
 
 export default courseRouter;
