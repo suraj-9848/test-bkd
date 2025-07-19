@@ -556,9 +556,68 @@ export const deleteCourse = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Course not found" });
     }
 
-    const result = await deleteRecords(Course, { id });
+    console.log("=== DELETE COURSE DEBUG ===");
+    console.log("Deleting course:", id, course.title);
+
+    // Use transaction to ensure all related data is deleted properly
+    const result = await AppDataSource.transaction(async (transactionalEntityManager) => {
+      // Delete in the correct order to avoid foreign key constraint issues
+      
+      // 1. Delete course-batch assignments (junction table)
+      await transactionalEntityManager
+        .createQueryBuilder()
+        .delete()
+        .from("course_batch_assignments")
+        .where("courseId = :courseId", { courseId: id })
+        .execute();
+      
+      console.log("Deleted course-batch assignments");
+
+      // 2. Delete user course enrollments
+      await transactionalEntityManager
+        .createQueryBuilder()
+        .delete()
+        .from("user_course")
+        .where("courseId = :courseId", { courseId: id })
+        .execute();
+      
+      console.log("Deleted user course enrollments");
+
+      // 3. Delete modules and their related data (modules should cascade to day_content)
+      await transactionalEntityManager
+        .createQueryBuilder()
+        .delete()
+        .from("module")
+        .where("courseId = :courseId", { courseId: id })
+        .execute();
+      
+      console.log("Deleted modules");
+
+      // 4. Delete tests related to this course (if any)
+      await transactionalEntityManager
+        .createQueryBuilder()
+        .delete()
+        .from("test")
+        .where("courseId = :courseId", { courseId: id })
+        .execute();
+      
+      console.log("Deleted tests");
+
+      // 5. Finally delete the course itself
+      const deleteResult = await transactionalEntityManager
+        .createQueryBuilder()
+        .delete()
+        .from("course")
+        .where("id = :id", { id })
+        .execute();
+      
+      console.log("Deleted course, affected rows:", deleteResult.affected);
+
+      return deleteResult;
+    });
+
     if (!result || result.affected === 0) {
-      return res.status(404).json({ message: "Course not found" });
+      return res.status(404).json({ message: "Course not found or already deleted" });
     }
 
     return res.status(200).json({ message: "Course deleted successfully" });

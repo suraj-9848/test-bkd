@@ -52,9 +52,9 @@ export class Course extends BaseEntity {
   @Column()
   instructor_name: string;
 
-  @OneToMany(() => UserCourse, (uc) => uc.course)
+  @OneToMany(() => UserCourse, (uc) => uc.course, { cascade: true })
   userCourses: UserCourse[];
 
-  @OneToMany(() => Test, (test) => test.course)
+  @OneToMany(() => Test, (test) => test.course, { cascade: true })
   tests: Test[];
 }
