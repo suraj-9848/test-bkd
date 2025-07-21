@@ -12,7 +12,7 @@ import {
 // Get all modules for a course
 export const getAllModules = async (req: Request, res: Response) => {
   const { courseId } = req.params;
-  
+
   console.log("=== getAllModules Controller Called ===");
   console.log("Course ID:", courseId);
   console.log("Full URL:", req.originalUrl);
@@ -20,7 +20,7 @@ export const getAllModules = async (req: Request, res: Response) => {
 
   try {
     console.log(`Getting all modules for Course ID: ${courseId}`);
-    
+
     // Verify the course exists
     const course = await getSingleRecord(Course, {
       where: { id: courseId },
@@ -37,14 +37,14 @@ export const getAllModules = async (req: Request, res: Response) => {
     const modules = await getAllRecordsWithFilter(Module, {
       where: { course: { id: courseId } },
       relations: ["days"],
-      order: { 
+      order: {
         order: "ASC",
-        days: { dayNumber: "ASC" }
+        days: { dayNumber: "ASC" },
       },
     });
-    
+
     console.log(`Found ${modules.length} modules for course: ${courseId}`);
-    
+
     res.status(200).json(modules);
   } catch (error) {
     console.error(`Error fetching modules for course ${courseId}:`, error);

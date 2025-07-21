@@ -157,7 +157,9 @@ export const addDayContent = async (req: Request, res: Response) => {
         });
         newDayNumber =
           existingDays.length > 0 ? existingDays[0].dayNumber + 1 : 1;
-        console.log(`Day ${dayNumber} already exists. Auto-assigned day ${newDayNumber}`);
+        console.log(
+          `Day ${dayNumber} already exists. Auto-assigned day ${newDayNumber}`,
+        );
       }
     }
 

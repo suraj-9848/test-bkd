@@ -730,6 +730,7 @@ export const getStudentCourseById = async (req: Request, res: Response) => {
     const modules = await getAllRecordsWithFilter(Module, {
       where: { course: { id: courseId } },
       order: { order: "ASC" },
+      relations: ["days"],
     });
 
     const modulesWithDetails = await Promise.all(
@@ -776,6 +777,29 @@ export const getStudentCourseById = async (req: Request, res: Response) => {
 
         const moduleFullyCompleted = allDaysCompleted && mcqAttempted;
 
+        // Calculate status
+        let status: "completed" | "in-progress" | "not-started" = "not-started";
+        let days = [];
+        if (module.days) {
+          days = module.days;
+        } else {
+          // fallback: fetch days if not present
+          days = await getAllRecordsWithFilter(
+            require("../../db/mysqlModels/DayContent").DayContent,
+            {
+              where: { module: { id: module.id } },
+              order: { dayNumber: "ASC" },
+            },
+          );
+        }
+        const completedDays = days.filter((d: any) => d.completed).length;
+        if (moduleFullyCompleted) {
+          status = "completed";
+        } else if (completedDays > 0 || mcqAttempted) {
+          status = "in-progress";
+        }
+        const duration = days.length;
+
         return {
           ...module,
           isLocked: !isUnlocked,
@@ -784,11 +808,39 @@ export const getStudentCourseById = async (req: Request, res: Response) => {
           mcqPassed,
           mcqScore,
           moduleFullyCompleted,
+          status,
+          duration,
         };
       }),
     );
 
-    res.status(200).json({ ...course, modules: modulesWithDetails });
+    // Calculate stats
+    const totalModules = modulesWithDetails.length;
+    const completedModules = modulesWithDetails.filter(
+      (m) => m.moduleFullyCompleted,
+    ).length;
+    const progress =
+      totalModules > 0
+        ? Math.round((completedModules / totalModules) * 100)
+        : 0;
+
+    // Calculate duration in days (inclusive)
+    let duration = null;
+    if (course.start_date && course.end_date) {
+      const start = new Date(course.start_date);
+      const end = new Date(course.end_date);
+      const diffTime = end.getTime() - start.getTime();
+      duration = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    }
+
+    res.status(200).json({
+      ...course,
+      modules: modulesWithDetails,
+      totalModules,
+      completedModules,
+      progress,
+      duration,
+    });
   } catch (error) {
     console.error("Error fetching course:", error);
     res.status(500).json({ message: "Error fetching course" });
@@ -879,6 +931,7 @@ export const getStudentModuleById = async (req: Request, res: Response) => {
       mcqScore,
       minimumPassMarks,
       moduleFullyCompleted,
+      duration: daysWithCompletion.length,
     });
   } catch (error) {
     console.error("Error fetching module:", error);
@@ -1043,12 +1096,17 @@ export const submitMCQResponses = async (req: Request, res: Response) => {
       answer,
     }));
 
-    const newResponse = ModuleMCQResponses.create({
-      moduleMCQ: mcq,
-      user: student,
-      responses: storedResponses,
-    });
-    await createRecord(ModuleMCQResponses, newResponse);
+    if (existingResponse) {
+      existingResponse.responses = storedResponses;
+      await existingResponse.save();
+    } else {
+      const newResponse = ModuleMCQResponses.create({
+        moduleMCQ: mcq,
+        user: student,
+        responses: storedResponses,
+      });
+      await createRecord(ModuleMCQResponses, newResponse);
+    }
 
     res.status(200).json({ score: percentage, passed });
   } catch (error) {
@@ -1114,6 +1172,50 @@ export const getMCQResults = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error fetching MCQ results:", error);
     res.status(500).json({ message: "Error fetching MCQ results" });
+  }
+};
+
+// GET /student/modules/:moduleId/mcq/review
+export const getMCQReview = async (req: Request, res: Response) => {
+  const { moduleId } = req.params;
+  const student = req.user as User;
+
+  try {
+    const module = await getSingleRecord(Module, { where: { id: moduleId } });
+    if (!module) {
+      return res.status(404).json({ message: "Module not found" });
+    }
+
+    const mcq = await getSingleRecord(ModuleMCQ, {
+      where: { module: { id: moduleId } },
+    });
+    if (!mcq) {
+      return res.status(404).json({ message: "MCQ not found for this module" });
+    }
+
+    // Only allow if student has already attempted
+    const existingResponse = await getSingleRecord(ModuleMCQResponses, {
+      where: { moduleMCQ: { id: mcq.id }, user: { id: student.id } },
+    });
+    if (!existingResponse) {
+      return res
+        .status(403)
+        .json({ message: "You have not attempted this MCQ yet" });
+    }
+
+    // Return the MCQ structure including correctAnswer
+    res.status(200).json({
+      id: mcq.id,
+      passingScore: mcq.passingScore,
+      questions: mcq.questions,
+      module: {
+        id: module.id,
+        title: module.title,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching MCQ review:", error);
+    res.status(500).json({ message: "Error fetching MCQ review" });
   }
 };
 
@@ -1282,7 +1384,7 @@ export const getStudentBatches = async (req: Request, res: Response) => {
     // Get the user with their batch assignments
     const user = await User.findOne({
       where: { id: studentId },
-      select: ["batch_id"]
+      select: ["batch_id"],
     });
 
     if (!user) {
@@ -1296,7 +1398,7 @@ export const getStudentBatches = async (req: Request, res: Response) => {
 
     // Get the batch details for all assigned batch IDs
     const batches = await Batch.find({
-      where: { id: In(user.batch_id) }
+      where: { id: In(user.batch_id) },
     });
 
     res.status(200).json(batches);
@@ -1310,7 +1412,7 @@ export const getStudentBatches = async (req: Request, res: Response) => {
 export const getStudentDashboardStats = async (req: Request, res: Response) => {
   try {
     console.log("=== Getting student dashboard stats ===");
-    
+
     const user = req.user;
     if (!user) {
       return res.status(401).json({ error: "User not authenticated" });
@@ -1326,7 +1428,7 @@ export const getStudentDashboardStats = async (req: Request, res: Response) => {
     });
 
     const totalCourses = userCourses.length;
-    const completedCourses = userCourses.filter(uc => uc.completed).length;
+    const completedCourses = userCourses.filter((uc) => uc.completed).length;
 
     // Get student's test data
     const courseIds = userCourses.map((uc) => uc.course.id);
@@ -1343,31 +1445,35 @@ export const getStudentDashboardStats = async (req: Request, res: Response) => {
         },
         relations: ["course"],
       });
-      
+
       totalTests = tests.length;
 
       // Get test submissions for this student
       const testSubmissions = await getAllRecordsWithFilter(TestSubmission, {
         where: {
           user: { id: studentId },
-          test: { id: In(tests.map(t => t.id)) }
+          test: { id: In(tests.map((t) => t.id)) },
         },
         relations: ["test"],
       });
 
       completedTests = testSubmissions.length;
-      
+
       // Calculate average score
       if (testSubmissions.length > 0) {
-        const totalScore = testSubmissions.reduce((sum, submission) => sum + (submission.score || 0), 0);
+        const totalScore = testSubmissions.reduce(
+          (sum, submission) => sum + (submission.score || 0),
+          0,
+        );
         averageScore = Math.round(totalScore / testSubmissions.length);
       }
     }
 
     // Calculate overall progress
-    const overallProgress = totalCourses > 0 
-      ? Math.round(((completedCourses / totalCourses) * 100))
-      : 0;
+    const overallProgress =
+      totalCourses > 0
+        ? Math.round((completedCourses / totalCourses) * 100)
+        : 0;
 
     // Get student's modules progress
     let totalModules = 0;
@@ -1377,9 +1483,9 @@ export const getStudentDashboardStats = async (req: Request, res: Response) => {
       const modules = await getAllRecordsWithFilter(Module, {
         where: { course: { id: userCourse.course.id } },
       });
-      
+
       totalModules += modules.length;
-      
+
       // Count completed modules by checking if all days are completed
       for (const module of modules) {
         const allDaysCompleted = await areAllDaysCompleted(user, module);
@@ -1396,7 +1502,7 @@ export const getStudentDashboardStats = async (req: Request, res: Response) => {
       const modules = await getAllRecordsWithFilter(Module, {
         where: { course: { id: userCourse.course.id } },
       });
-      
+
       // Estimate 2 hours per completed module
       for (const module of modules) {
         const allDaysCompleted = await areAllDaysCompleted(user, module);
@@ -1420,14 +1526,16 @@ export const getStudentDashboardStats = async (req: Request, res: Response) => {
     };
 
     console.log("=== Student dashboard stats:", JSON.stringify(stats, null, 2));
-    
-    return res.json({ stats });
 
+    return res.json({ stats });
   } catch (err: any) {
     console.error("=== Error getting student dashboard stats:", err);
     return res.status(500).json({
       error: "Failed to fetch dashboard statistics",
-      details: process.env.NODE_ENV === "development" ? err?.message : "Internal server error"
+      details:
+        process.env.NODE_ENV === "development"
+          ? err?.message
+          : "Internal server error",
     });
   }
 };

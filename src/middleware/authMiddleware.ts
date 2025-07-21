@@ -18,7 +18,7 @@ declare global {
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const userRepository = AppDataSource.getRepository(User);
 
-async function verifyGoogleToken(idToken:string) {
+async function verifyGoogleToken(idToken: string) {
   try {
     const ticket = await client.verifyIdToken({
       idToken: idToken,
@@ -34,7 +34,11 @@ async function verifyGoogleToken(idToken:string) {
   }
 }
 
-export const adminAuthMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+export const adminAuthMiddleware = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   const authHeader = req.headers.authorization;
   const idToken = authHeader?.split(" ")[1];
 
@@ -50,15 +54,17 @@ export const adminAuthMiddleware = async (req: Request, res: Response, next: Nex
       { where: { email: payload.email } },
       `user_email_${payload.email}`,
       true,
-      10 * 60
+      10 * 60,
     );
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    if (user.userRole.toLowerCase() !== 'admin') {
-      return res.status(403).json({ error: "Access denied. Admin role required." });
+    if (user.userRole.toLowerCase() !== "admin") {
+      return res
+        .status(403)
+        .json({ error: "Access denied. Admin role required." });
     }
 
     // Set user info in request object for downstream middleware/routes
@@ -74,7 +80,7 @@ export const adminAuthMiddleware = async (req: Request, res: Response, next: Nex
     console.error("Admin auth error:", error);
     return res.status(401).json({ error: "Authentication failed" });
   }
-}
+};
 
 export const authMiddleware = (
   req: Request,
@@ -121,4 +127,4 @@ export const authMiddleware = (
   } catch (error) {
     return res.status(401).json({ error: "Invalid or expired token." });
   }
-}
+};

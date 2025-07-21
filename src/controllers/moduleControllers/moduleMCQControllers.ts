@@ -351,7 +351,7 @@ export const deleteMCQ = async (req: Request, res: Response) => {
 // ✅ Get MCQ by Module ID with Quill support (Fixed relation)
 export const getMCQ = async (req: Request, res: Response) => {
   const { courseId, moduleId } = req.params;
-  
+
   console.log("=== getMCQ Controller Called ===");
   console.log("Course ID:", courseId);
   console.log("Module ID:", moduleId);
@@ -360,7 +360,7 @@ export const getMCQ = async (req: Request, res: Response) => {
 
   try {
     console.log(`Getting MCQ for Module ID: ${moduleId}`);
-    
+
     // Check if module exists
     const moduleData = await getSingleRecord(Module, {
       where: { id: moduleId },

@@ -286,10 +286,10 @@ export const getAllUsers = async (req: Request, res: Response) => {
     const { role } = req.body;
     let users;
     if (role) {
-      users = await getAllRecordsWithFilter<User, { where: { userRole: UserRole } }>(
+      users = await getAllRecordsWithFilter<
         User,
-        { where: { userRole: role } },
-      );
+        { where: { userRole: UserRole } }
+      >(User, { where: { userRole: role } });
     } else {
       users = await getAllRecords<User>(User);
     }
