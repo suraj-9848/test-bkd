@@ -229,17 +229,14 @@ export const submitTest = async (req: Request, res: Response) => {
 
             // Evaluate MCQs immediately
             if (question.type === "MCQ") {
-              if (
-                !response.answer ||
-                !Array.isArray(response.answer) ||
-                response.answer.length === 0
-              ) {
+              // Accept any array (including empty) from frontend
+              if (!Array.isArray(response.answer)) {
                 throw new Error(
-                  `Invalid MCQ answer for question ${question.id}: Expected a non-empty array`
+                  `Invalid MCQ answer for question ${question.id}: Expected an array`
                 );
               }
 
-              // Validate each submitted option ID
+              // Validate each submitted option ID (if any)
               const validOptions = response.answer.every((answerId: string) =>
                 question.options?.some((o) => o.id === answerId)
               );
@@ -256,23 +253,25 @@ export const submitTest = async (req: Request, res: Response) => {
               const isMultipleCorrect = correctOptions.length > 1;
 
               // Evaluate the answer
-              const submittedAnswers = response.answer;
               let isCorrect = false;
-              if (isMultipleCorrect) {
+              if (response.answer.length === 0) {
+                // Student skipped the question, isCorrect remains false, score = 0
+                isCorrect = false;
+              } else if (isMultipleCorrect) {
                 // All correct options must be selected, and no incorrect options selected
                 const allCorrectSelected = correctAnswerIds.every((id) =>
-                  submittedAnswers.includes(id)
+                  response.answer.includes(id)
                 );
-                const noIncorrectSelected = submittedAnswers.every((id) =>
+                const noIncorrectSelected = response.answer.every((id) =>
                   correctAnswerIds.includes(id)
                 );
                 isCorrect = allCorrectSelected && noIncorrectSelected;
               } else {
                 // Single correct: Only one answer, and it matches the correct answer
                 isCorrect =
-                  submittedAnswers.length === 1 &&
+                  response.answer.length === 1 &&
                   correctAnswerIds.length === 1 &&
-                  submittedAnswers[0] === correctAnswerIds[0];
+                  response.answer[0] === correctAnswerIds[0];
               }
 
               evaluationStatus = "EVALUATED";
@@ -283,7 +282,7 @@ export const submitTest = async (req: Request, res: Response) => {
               return {
                 submission,
                 question,
-                answer: JSON.stringify(submittedAnswers),
+                answer: JSON.stringify(response.answer),
                 evaluationStatus,
                 score,
                 evaluatorComments: null,
