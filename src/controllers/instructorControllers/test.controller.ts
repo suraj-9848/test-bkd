@@ -294,15 +294,13 @@ export const updateTest = async (req: Request, res: Response) => {
         .json({ error: "Test not found in the specified course" });
     }
 
-    // Check if test has started
-    const currentDate = new Date();
-    if (currentDate >= test.startDate) {
+    // If the test is published, do not allow any edits
+    if (test.status === TestStatus.PUBLISHED) {
       return res.status(400).json({
-        error: "Cannot update test after it has started",
+        error: "Cannot edit a published test",
       });
     }
 
-    // Update allowed fields only
     const allowedUpdates = [
       "title",
       "description",
