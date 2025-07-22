@@ -9,6 +9,7 @@ import {
   submitMCQResponses,
   getMCQResults,
   getMCQReview,
+  getMCQRetakeStatus,
   getStudentCourseModules,
   getModuleCompletionStatus,
   getStudentTestById,
@@ -41,6 +42,7 @@ router.get("/modules/:moduleId/mcq", getStudentModuleMCQ);
 router.post("/modules/:moduleId/mcq/responses", submitMCQResponses);
 router.get("/modules/:moduleId/mcq/results", getMCQResults);
 router.get("/modules/:moduleId/mcq/review", getMCQReview);
+router.get("/modules/:moduleId/mcq/retake-status", getMCQRetakeStatus);
 router.get("/modules/:moduleId/completion", getModuleCompletionStatus);
 
 router.get("/tests/:testId", getStudentTestById);

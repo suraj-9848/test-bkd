@@ -429,7 +429,7 @@ export const getMCQForStudent = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "No MCQ found for this module" });
     }
 
-    // Check if student has already attempted
+    // Check if student has already attempted and passed
     const existingResponse = await getSingleRecord(ModuleMCQResponses, {
       where: {
         moduleMCQ: { id: mcq.id },
@@ -438,10 +438,36 @@ export const getMCQForStudent = async (req: Request, res: Response) => {
     });
 
     if (existingResponse) {
-      return res.status(400).json({
-        message: "You have already attempted this MCQ",
-        attempted: true,
+      // Calculate if they passed
+      const correctAnswers = await getAllRecordsWithFilter(ModuleMCQAnswer, {
+        where: { moduleMCQ: { id: mcq.id } },
+        order: { createdAt: "ASC" },
       });
+      
+      let score = 0;
+      existingResponse.responses.forEach((response: any) => {
+        const correct = correctAnswers.find(
+          (ans: ModuleMCQAnswer) => ans.questionId === response.questionId,
+        );
+        if (correct && correct.correctAnswer === response.answer) {
+          score++;
+        }
+      });
+      
+      const percentage = (score / correctAnswers.length) * 100;
+      const passed = percentage >= mcq.passingScore;
+      
+      if (passed) {
+        return res.status(400).json({
+          message: "You have already passed this MCQ",
+          attempted: true,
+          passed: true,
+        });
+      }
+      
+      // If failed, allow retake but inform them
+      // Note: We'll delete the old response to allow fresh attempt
+      await deleteRecords(ModuleMCQResponses, { id: existingResponse.id });
     }
 
     // Remove correct answers from questions for student view
@@ -464,5 +490,89 @@ export const getMCQForStudent = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error fetching MCQ for student:", error);
     res.status(500).json({ message: "Error fetching MCQ" });
+  }
+};
+
+// GET /instructor/courses/:courseId/modules/:moduleId/mcq/retake-status
+export const getMCQRetakeStatus = async (req: Request, res: Response) => {
+  const { moduleId } = req.params;
+  const userId = req.user?.id;
+
+  try {
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    // Check if module exists
+    const moduleData = await getSingleRecord(Module, {
+      where: { id: moduleId },
+    });
+
+    if (!moduleData) {
+      return res.status(404).json({ message: "Module not found" });
+    }
+
+    // Get MCQ for this module
+    const mcq = await getSingleRecord(ModuleMCQ, {
+      where: { module: { id: moduleId } },
+    });
+
+    if (!mcq) {
+      return res.status(404).json({ message: "No MCQ found for this module" });
+    }
+
+    // Check if student has already attempted
+    const existingResponse = await getSingleRecord(ModuleMCQResponses, {
+      where: {
+        moduleMCQ: { id: mcq.id },
+        user: { id: userId },
+      },
+    });
+
+    if (!existingResponse) {
+      return res.status(200).json({
+        canTake: true,
+        canRetake: false,
+        hasAttempted: false,
+        hasPassed: false,
+        score: null,
+        message: "You can take this MCQ"
+      });
+    }
+
+    // Calculate if they passed
+    const correctAnswers = await getAllRecordsWithFilter(ModuleMCQAnswer, {
+      where: { moduleMCQ: { id: mcq.id } },
+      order: { createdAt: "ASC" },
+    });
+    
+    let score = 0;
+    existingResponse.responses.forEach((response: any) => {
+      const correct = correctAnswers.find(
+        (ans: ModuleMCQAnswer) => ans.questionId === response.questionId,
+      );
+      if (correct && correct.correctAnswer === response.answer) {
+        score++;
+      }
+    });
+    
+    const percentage = (score / correctAnswers.length) * 100;
+    const passed = percentage >= mcq.passingScore;
+
+    return res.status(200).json({
+      canTake: false,
+      canRetake: !passed,
+      hasAttempted: true,
+      hasPassed: passed,
+      score: percentage,
+      passingScore: mcq.passingScore,
+      message: passed 
+        ? "You have already passed this MCQ" 
+        : "You can retake this MCQ to improve your score"
+    });
+
+  } catch (error) {
+    console.error("Error checking MCQ retake status:", error);
+    res.status(500).json({ message: "Error checking MCQ retake status" });
   }
 };

@@ -608,15 +608,29 @@ async function isModuleUnlocked(
   student: User,
   module: Module,
 ): Promise<boolean> {
+  // First module is always unlocked
   if (module.order === 1) {
     return true;
   }
 
-  const courseId = module.course || module.course?.id;
-  if (!courseId) {
+  // Get course ID properly
+  let courseId: string;
+  if (typeof module.course === 'string') {
+    courseId = module.course;
+  } else if (module.course && typeof module.course === 'object' && module.course.id) {
+    courseId = module.course.id;
+  } else {
+    console.error('Could not determine course ID for module:', module.id);
     return false;
   }
 
+  // Check if student has already accessed this module (any progress means it should stay accessible)
+  const hasAnyProgress = await hasModuleProgress(student, module);
+  if (hasAnyProgress) {
+    return true; // Once accessible, always accessible
+  }
+
+  // For new modules, check if previous module is completed
   const previousModule = await getSingleRecord(Module, {
     where: {
       course: { id: courseId },
@@ -627,38 +641,57 @@ async function isModuleUnlocked(
     return false;
   }
 
-  const previousMCQ = await getSingleRecord(ModuleMCQ, {
-    where: { module: { id: previousModule.id } },
-  });
-  if (!previousMCQ) {
-    return false;
-  }
+  // Check if previous module is completed (all days done + MCQ passed if exists)
+  const previousModuleStatus = await isMCQPassed(student, previousModule);
+  const previousDaysCompleted = await areAllDaysCompleted(student, previousModule);
+  
+  return previousDaysCompleted && previousModuleStatus.passed;
+}
 
-  const response = await getSingleRecord(ModuleMCQResponses, {
-    where: {
-      moduleMCQ: { id: previousMCQ.id },
-      user: { id: student.id },
-    },
+// Helper function to check if student has any progress in a module
+async function hasModuleProgress(
+  student: User,
+  module: Module,
+): Promise<boolean> {
+  console.log(`Checking progress for module ${module.id}, student ${student.id}`);
+  
+  // Check if any days are completed
+  const days = await getAllRecordsWithFilter(DayContent, {
+    where: { module: { id: module.id } },
   });
-  if (!response) {
-    return false;
-  }
-
-  const correctAnswers = await getAllRecordsWithFilter(ModuleMCQAnswer, {
-    where: { moduleMCQ: { id: previousMCQ.id } },
-    order: { createdAt: "ASC" },
-  });
-  let score = 0;
-  response.responses.forEach((res: any) => {
-    const correct = correctAnswers.find(
-      (ans: ModuleMCQAnswer) => ans.questionId === res.questionId,
-    );
-    if (correct && correct.correctAnswer === res.answer) {
-      score++;
+  
+  console.log(`Found ${days.length} days for module ${module.id}`);
+  
+  for (const day of days) {
+    const completion = await getSingleRecord(UserDayCompletion, {
+      where: { user: { id: student.id }, day: { id: day.id } },
+    });
+    if (completion && completion.completed) {
+      console.log(`Found completed day ${day.id} for module ${module.id}`);
+      return true;
     }
+  }
+
+  // Check if MCQ has been attempted
+  const mcq = await getSingleRecord(ModuleMCQ, {
+    where: { module: { id: module.id } },
   });
-  const percentage = (score / correctAnswers.length) * 100;
-  return percentage >= previousMCQ.passingScore;
+  
+  if (mcq) {
+    const mcqResponse = await getSingleRecord(ModuleMCQResponses, {
+      where: {
+        moduleMCQ: { id: mcq.id },
+        user: { id: student.id },
+      },
+    });
+    if (mcqResponse) {
+      console.log(`Found MCQ response for module ${module.id}`);
+      return true;
+    }
+  }
+
+  console.log(`No progress found for module ${module.id}`);
+  return false;
 }
 
 // Helper function to check if all day contents of a module are completed
@@ -680,6 +713,48 @@ async function areAllDaysCompleted(
   return true;
 }
 
+// Helper function to check if MCQ is passed for a module
+async function isMCQPassed(
+  student: User,
+  module: Module,
+): Promise<{ attempted: boolean; passed: boolean; score: number | null }> {
+  const mcq = await getSingleRecord(ModuleMCQ, {
+    where: { module: { id: module.id } },
+  });
+  
+  if (!mcq) {
+    return { attempted: false, passed: true, score: null }; // No MCQ means "passed"
+  }
+
+  const mcqResponse = await getSingleRecord(ModuleMCQResponses, {
+    where: { moduleMCQ: { id: mcq.id }, user: { id: student.id } },
+  });
+
+  if (!mcqResponse) {
+    return { attempted: false, passed: false, score: null };
+  }
+
+  const correctAnswers = await getAllRecordsWithFilter(ModuleMCQAnswer, {
+    where: { moduleMCQ: { id: mcq.id } },
+    order: { createdAt: "ASC" },
+  });
+
+  let score = 0;
+  mcqResponse.responses.forEach((res: any) => {
+    const correct = correctAnswers.find(
+      (ans: ModuleMCQAnswer) => ans.questionId === res.questionId,
+    );
+    if (correct && correct.correctAnswer === res.answer) {
+      score++;
+    }
+  });
+
+  const percentage = (score / correctAnswers.length) * 100;
+  const passed = percentage >= mcq.passingScore;
+
+  return { attempted: true, passed, score: percentage };
+}
+
 // GET /student/courses
 export const getStudentCourses = async (req: Request, res: Response) => {
   try {
@@ -692,7 +767,115 @@ export const getStudentCourses = async (req: Request, res: Response) => {
 
     const assignedCourses = userCourses.map((uc) => uc.course);
 
-    res.status(200).json(assignedCourses);
+    // Enhance each course with module statistics and progress
+    const coursesWithStats = await Promise.all(
+      assignedCourses.map(async (course) => {
+        try {
+          // Get modules for this course
+          const modules = await getAllRecordsWithFilter(Module, {
+            where: { course: { id: course.id } },
+            order: { order: "ASC" },
+            relations: ["days"],
+          });
+
+          const student = req.user as User;
+          
+          // Calculate module completion status
+          const modulesWithDetails = await Promise.all(
+            modules.map(async (module: Module) => {
+              const allDaysCompleted = await areAllDaysCompleted(student, module);
+
+              // Fetch MCQ status
+              const mcq = await getSingleRecord(ModuleMCQ, {
+                where: { module: { id: module.id } },
+              });
+              let mcqAttempted = false;
+              let mcqPassed = false;
+
+              if (mcq) {
+                const mcqResponse = await getSingleRecord(ModuleMCQResponses, {
+                  where: { moduleMCQ: { id: mcq.id }, user: { id: student.id } },
+                });
+                if (mcqResponse) {
+                  mcqAttempted = true;
+                  const correctAnswers = await getAllRecordsWithFilter(
+                    ModuleMCQAnswer,
+                    {
+                      where: { moduleMCQ: { id: mcq.id } },
+                      order: { createdAt: "ASC" },
+                    },
+                  );
+                  let score = 0;
+                  mcqResponse.responses.forEach((response: any) => {
+                    const correct = correctAnswers.find(
+                      (ans: ModuleMCQAnswer) =>
+                        ans.questionId === response.questionId,
+                    );
+                    if (correct && correct.correctAnswer === response.answer) {
+                      score++;
+                    }
+                  });
+                  const percentage = (score / correctAnswers.length) * 100;
+                  mcqPassed = percentage >= mcq.passingScore;
+                }
+              }
+
+              const moduleFullyCompleted = allDaysCompleted && mcqPassed;
+              return { ...module, moduleFullyCompleted };
+            }),
+          );
+
+          // Calculate stats
+          const totalModules = modulesWithDetails.length;
+          const completedModules = modulesWithDetails.filter(
+            (m) => m.moduleFullyCompleted,
+          ).length;
+          const progress =
+            totalModules > 0
+              ? Math.round((completedModules / totalModules) * 100)
+              : 0;
+
+          // Calculate duration in days (inclusive)
+          let duration = null;
+          if (course.start_date && course.end_date) {
+            const start = new Date(course.start_date);
+            const end = new Date(course.end_date);
+            const diffTime = end.getTime() - start.getTime();
+            duration = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+          }
+
+          // Determine course status
+          let status: "active" | "completed" | "not-started" = "not-started";
+          if (completedModules === totalModules && totalModules > 0) {
+            status = "completed";
+          } else if (progress > 0) {
+            status = "active";
+          }
+
+          return {
+            ...course,
+            totalModules,
+            completedModules,
+            progress,
+            duration,
+            status,
+          };
+        } catch (error) {
+          console.error(`Error calculating stats for course ${course.id}:`, error);
+          // Return course with default stats if calculation fails
+          return {
+            ...course,
+            totalModules: 0,
+            completedModules: 0,
+            progress: 0,
+            duration: null,
+            status: "not-started" as const,
+          };
+        }
+      }),
+    );
+
+    res.status(200).json(coursesWithStats);
   } catch (error) {
     console.error("Error fetching student courses:", error);
     res.status(500).json({ message: "Error fetching courses" });
@@ -859,7 +1042,10 @@ export const getStudentModuleById = async (req: Request, res: Response) => {
     }
 
     const isUnlocked = await isModuleUnlocked(student, module);
+    console.log(`Module ${moduleId} unlock status for student ${student.id}:`, isUnlocked);
+    
     if (!isUnlocked) {
+      console.log(`Module ${moduleId} is locked for student ${student.id}. Module order: ${module.order}`);
       return res.status(403).json({ message: "Module is locked" });
     }
 
@@ -882,43 +1068,21 @@ export const getStudentModuleById = async (req: Request, res: Response) => {
     );
 
     const allDaysCompleted = await areAllDaysCompleted(student, module);
+    const mcqStatus = await isMCQPassed(student, module);
 
-    // Fetch MCQ status
+    // For backward compatibility, still provide individual values
+    const mcqAttempted = mcqStatus.attempted;
+    const mcqPassed = mcqStatus.passed;
+    const mcqScore = mcqStatus.score;
+    
+    // Get minimum pass marks
     const mcq = await getSingleRecord(ModuleMCQ, {
       where: { module: { id: moduleId } },
     });
-    let mcqAttempted = false;
-    let mcqPassed = false;
-    let mcqScore = null;
-    let minimumPassMarks = null;
+    const minimumPassMarks = mcq ? mcq.passingScore : null;
 
-    if (mcq) {
-      const mcqResponse = await getSingleRecord(ModuleMCQResponses, {
-        where: { moduleMCQ: { id: mcq.id }, user: { id: student.id } },
-      });
-      if (mcqResponse) {
-        mcqAttempted = true;
-        const correctAnswers = await getAllRecordsWithFilter(ModuleMCQAnswer, {
-          where: { moduleMCQ: { id: mcq.id } },
-          order: { createdAt: "ASC" },
-        });
-        let score = 0;
-        mcqResponse.responses.forEach((response: any) => {
-          const correct = correctAnswers.find(
-            (ans: ModuleMCQAnswer) => ans.questionId === response.questionId,
-          );
-          if (correct && correct.correctAnswer === response.answer) {
-            score++;
-          }
-        });
-        const percentage = (score / correctAnswers.length) * 100;
-        mcqPassed = percentage >= mcq.passingScore;
-        mcqScore = percentage;
-        minimumPassMarks = mcq.passingScore;
-      }
-    }
-
-    const moduleFullyCompleted = allDaysCompleted && mcqAttempted;
+    // Module is fully completed only if all days are done AND MCQ is passed (or no MCQ exists)
+    const moduleFullyCompleted = allDaysCompleted && mcqStatus.passed;
     const mcqAccessible = allDaysCompleted;
 
     res.status(200).json({
@@ -1537,5 +1701,76 @@ export const getStudentDashboardStats = async (req: Request, res: Response) => {
           ? err?.message
           : "Internal server error",
     });
+  }
+};
+
+// GET /student/modules/:moduleId/mcq/retake-status
+export const getMCQRetakeStatus = async (req: Request, res: Response) => {
+  const { moduleId } = req.params;
+  const student = req.user as User;
+
+  try {
+    const module = await getSingleRecord(Module, { where: { id: moduleId } });
+    if (!module) {
+      return res.status(404).json({ message: "Module not found" });
+    }
+
+    const mcq = await getSingleRecord(ModuleMCQ, {
+      where: { module: { id: moduleId } },
+    });
+
+    if (!mcq) {
+      return res.status(404).json({ message: "No MCQ found for this module" });
+    }
+
+    const existingResponse = await getSingleRecord(ModuleMCQResponses, {
+      where: { moduleMCQ: { id: mcq.id }, user: { id: student.id } },
+    });
+
+    if (!existingResponse) {
+      return res.status(200).json({
+        canTake: true,
+        canRetake: false,
+        hasAttempted: false,
+        hasPassed: false,
+        score: null,
+        message: "You can take this MCQ"
+      });
+    }
+
+    // Calculate if they passed
+    const correctAnswers = await getAllRecordsWithFilter(ModuleMCQAnswer, {
+      where: { moduleMCQ: { id: mcq.id } },
+      order: { createdAt: "ASC" },
+    });
+    
+    let score = 0;
+    existingResponse.responses.forEach((response: any) => {
+      const correct = correctAnswers.find(
+        (ans: ModuleMCQAnswer) => ans.questionId === response.questionId,
+      );
+      if (correct && correct.correctAnswer === response.answer) {
+        score++;
+      }
+    });
+    
+    const percentage = (score / correctAnswers.length) * 100;
+    const passed = percentage >= mcq.passingScore;
+
+    return res.status(200).json({
+      canTake: false,
+      canRetake: !passed,
+      hasAttempted: true,
+      hasPassed: passed,
+      score: percentage,
+      passingScore: mcq.passingScore,
+      message: passed 
+        ? "You have already passed this MCQ" 
+        : "You can retake this MCQ to improve your score"
+    });
+
+  } catch (error) {
+    console.error("Error checking MCQ retake status:", error);
+    res.status(500).json({ message: "Error checking MCQ retake status" });
   }
 };

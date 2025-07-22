@@ -22,6 +22,7 @@ import {
   updateMCQ,
   deleteMCQ,
   getMCQ,
+  getMCQRetakeStatus,
 } from "../../controllers/moduleControllers/moduleMCQControllers";
 
 import {
@@ -80,6 +81,7 @@ courseRouter.delete(
   "/courses/:courseId/modules/:moduleId/mcq/:mcqId",
   deleteMCQ,
 );
+courseRouter.get("/courses/:courseId/modules/:moduleId/mcq/retake-status", getMCQRetakeStatus);
 
 // Day Content routes for direct course access
 courseRouter.get(
