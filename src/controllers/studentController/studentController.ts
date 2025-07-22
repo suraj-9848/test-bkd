@@ -64,24 +64,40 @@ export const getStudentTests = async (req: Request, res: Response) => {
       order: { startDate: "ASC" },
     });
 
-    // Process tests to include status and sanitize data
+    // Process tests to include status, sanitize data, and add batch info
     const currentTime = new Date();
-    const processedTests = tests.map((test) => ({
-      id: test.id,
-      title: test.title,
-      description: test.description,
-      maxMarks: test.maxMarks,
-      passingMarks: test.passingMarks,
-      durationInMinutes: test.durationInMinutes,
-      startDate: test.startDate,
-      endDate: test.endDate,
-      maxAttempts: test.maxAttempts,
-      testStatus: getTestStatus(test, currentTime),
-      course: {
-        id: test.course.id,
-        title: test.course.title,
-      },
-    }));
+    const processedTests = tests.map((test) => {
+      // Try to get batch info if present (test.batch or test.batchId)
+      let batch = null;
+      if (test.batch) {
+        batch = {
+          id: test.batch.id,
+          name: test.batch.name,
+        };
+      } else if (test.batchId && test.batchName) {
+        batch = {
+          id: test.batchId,
+          name: test.batchName,
+        };
+      }
+      return {
+        id: test.id,
+        title: test.title,
+        description: test.description,
+        maxMarks: test.maxMarks,
+        passingMarks: test.passingMarks,
+        durationInMinutes: test.durationInMinutes,
+        startDate: test.startDate,
+        endDate: test.endDate,
+        maxAttempts: test.maxAttempts,
+        testStatus: getTestStatus(test, currentTime),
+        course: {
+          id: test.course.id,
+          title: test.course.title,
+        },
+        batch, // May be null if not present
+      };
+    });
 
     res.status(200).json({
       message: "Tests fetched successfully",
