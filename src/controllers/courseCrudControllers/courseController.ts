@@ -6,6 +6,7 @@ import { User } from "../../db/mysqlModels/User";
 import { UserCourse } from "../../db/mysqlModels/UserCourse";
 import { DayContent } from "../../db/mysqlModels/DayContent";
 import { AppDataSource } from "../../db/connect";
+import s3Service from "../../utils/s3Service"
 
 import {
   createRecord,
@@ -466,5 +467,24 @@ export const assignCourseToStudent = async (req: Request, res: Response) => {
     return res.status(500).json({
       message: "Internal server error",
     });
+  }
+};
+
+
+export const uploadCourseLogo = async (req: Request, res: Response) => {
+  try {
+     console.log("Received file:", req.file);
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+    const fileBuffer = req.file.buffer;
+    const originalName = req.file.originalname;
+    const contentType = req.file.mimetype;
+    const fileName = s3Service.generateUniqueFileName(originalName, "course-logo");
+    const logoUrl = await s3Service.uploadFile(fileBuffer, fileName, contentType, "course-logos");
+    return res.status(201).json({ logoUrl });
+  } catch (error) {
+    console.error("Logo upload failed:", error);
+    return res.status(500).json({ error: "Logo upload failed" });
   }
 };
