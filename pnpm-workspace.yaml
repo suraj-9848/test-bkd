@@ -1,6 +1,0 @@
-ignoredBuiltDependencies:
-  - '@scarf/scarf'
-
-onlyBuiltDependencies:
-  - aws-sdk
-  - esbuild
