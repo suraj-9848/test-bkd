@@ -70,16 +70,14 @@ import {
   getAllModules,
   getSingleModule,
   updateModule,
-} from "../../controllers/moduleControllers/moduleControllers";
+} from "../../controllers/moduleControllers/moduleController";
 
 import {
   fetchCourseProgress,
   fetchSessionProgress,
 } from "../../controllers/instructorControllers/progress.controller";
 
-
-const router = Router();
-
+const router = express.Router();
 router.use(authMiddleware, instructorMiddleware);
 
 // Batch routes
@@ -236,5 +234,8 @@ router.get(
 // Progress tracking routes
 router.get("/batches/:batchId/courses/:courseId/progress", fetchCourseProgress);
 router.get("/sessions/:sessionId/progress", fetchSessionProgress);
+
+// Direct course update route (for batch assignments)
+router.put("/courses/:id", updateCourse);
 
 export const instructorRouter = router;

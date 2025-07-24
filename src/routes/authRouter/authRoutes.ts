@@ -452,15 +452,30 @@ router.post("/exchange", async (req: Request, res: Response) => {
       10 * 60,
     );
     if (!user) {
+      // Always assign default org for new students
+      let defaultOrg = await getSingleRecord<Org, any>(
+        Org,
+        { where: { name: "Default Org" } },
+        `org_default`,
+        true,
+        10 * 60,
+      );
+      if (!defaultOrg) {
+        defaultOrg = orgRepository.create({ name: "Default Org" });
+        await orgRepository.save(defaultOrg);
+      }
       user = userRepository.create({
         username: payload.email.split("@")[0],
         email: payload.email,
         password: "", // Not used for Google users
         batch_id: [],
-        org_id: null,
+        org_id: defaultOrg.id,
         userRole: UserRole.STUDENT,
       });
       await userRepository.save(user);
+      logger.info("Created new student user with default org", user);
+    } else {
+      logger.info("Found existing user for exchange", user);
     }
     // Issue backend JWT and refresh token
     const backendJwt = generateAccessToken(user);

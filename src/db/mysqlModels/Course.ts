@@ -2,7 +2,8 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
-  ManyToOne,
+  ManyToMany,
+  JoinTable,
   BaseEntity,
   OneToMany,
 } from "typeorm";
@@ -34,15 +35,26 @@ export class Course extends BaseEntity {
   @Column()
   end_date: Date;
 
-  @ManyToOne(() => Batch, (batch) => batch.courses, { onDelete: "CASCADE" })
-  batch: Batch;
+  @ManyToMany(() => Batch, (batch) => batch.courses, { onDelete: "CASCADE" })
+  @JoinTable({
+    name: "course_batch_assignments",
+    joinColumn: {
+      name: "courseId",
+      referencedColumnName: "id",
+    },
+    inverseJoinColumn: {
+      name: "batchId",
+      referencedColumnName: "id",
+    },
+  })
+  batches: Batch[];
 
   @Column()
   instructor_name: string;
 
-  @OneToMany(() => UserCourse, (uc) => uc.course)
+  @OneToMany(() => UserCourse, (uc) => uc.course, { cascade: true })
   userCourses: UserCourse[];
 
-  @OneToMany(() => Test, (test) => test.course)
+  @OneToMany(() => Test, (test) => test.course, { cascade: true })
   tests: Test[];
 }
