@@ -1,19 +1,20 @@
-// Import and register Test Analytics route after router is declared
-import { getTestAnalytics } from "../../controllers/instructorControllers/test.controller";
 import { Router } from "express";
 import { authMiddleware } from "../../middleware/authMiddleware";
 import { instructorMiddleware } from "../../middleware/instructorMiddleware";
-
+import {
+  createTest,
+  createTestsBulk,
+} from "../../controllers/instructorControllers/testManagement.controller";
+import { getTestAnalytics } from "../../controllers/instructorControllers/test.controller";
 import {
   createBatch,
   deleteBatch,
   updateBatch,
   fetchAllBatches,
   fetchBatch,
-  assignBatchToStudent, // add assignBatchToStudent import
-  assignMultipleStudentsToBatch, // import multi-assign controller
+  assignBatchToStudent,
+  assignMultipleStudentsToBatch,
 } from "../../controllers/instructorControllers/batch.controller";
-
 import {
   getSubmissionsForEvaluation,
   getSubmissionForEvaluation,
@@ -21,7 +22,6 @@ import {
   bulkEvaluateResponses,
   getEvaluationStatistics,
 } from "../../controllers/instructorControllers/evaluation.controller";
-
 import {
   createCourse,
   fetchCourse,
@@ -30,9 +30,7 @@ import {
   fetchAllCoursesinBatch,
   assignCourseToStudent,
 } from "../../controllers/courseCrudControllers/courseController";
-
 import {
-  createTest,
   fetchTestById,
   updateTest,
   deleteTest,
@@ -47,7 +45,6 @@ import {
   evaluateTestResponseById,
   getTestResponses,
 } from "../../controllers/instructorControllers/test.controller";
-
 import {
   createMCQ,
   deleteMCQ,
@@ -55,7 +52,6 @@ import {
   getMCQ,
   updateMCQ,
 } from "../../controllers/moduleControllers/moduleMCQControllers";
-
 import {
   addDayContent,
   deleteDayContent,
@@ -63,7 +59,6 @@ import {
   markDayAsCompleted,
   updateDayContent,
 } from "../../controllers/moduleControllers/dayContentControllers";
-
 import {
   createModule,
   deleteModule,
@@ -71,13 +66,13 @@ import {
   getSingleModule,
   updateModule,
 } from "../../controllers/moduleControllers/moduleController";
-
 import {
   fetchCourseProgress,
   fetchSessionProgress,
 } from "../../controllers/instructorControllers/progress.controller";
 
-const router = express.Router();
+const router = Router();
+
 router.use(authMiddleware, instructorMiddleware);
 
 // Batch routes
@@ -86,8 +81,8 @@ router.get("/batches", fetchAllBatches);
 router.get("/batches/:id", fetchBatch);
 router.put("/batches/:id", updateBatch);
 router.delete("/batches/:id", deleteBatch);
-router.post("/batches/:batchId/assign-student", assignBatchToStudent); // new route
-router.post("/batches/:batchId/assign-students", assignMultipleStudentsToBatch); // multi-assign route
+router.post("/batches/:batchId/assign-student", assignBatchToStudent);
+router.post("/batches/:batchId/assign-students", assignMultipleStudentsToBatch);
 
 // Course routes (nested under batch)
 router.post("/batches/:batchId/courses", createCourse);
@@ -103,6 +98,7 @@ router.post(
 
 // Test routes (nested under batch and course)
 router.post("/batches/:batchId/courses/:courseId/tests", createTest);
+router.post("/batches/:batchId/courses/bulk/tests", createTestsBulk);
 router.get("/batches/:batchId/courses/:courseId/tests", fetchTestsInCourse);
 router.get("/batches/:batchId/courses/:courseId/tests/:testId", fetchTestById);
 router.put("/batches/:batchId/courses/:courseId/tests/:testId", updateTest);
@@ -153,6 +149,7 @@ router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/analytics",
   getTestAnalytics
 );
+
 // Module routes (nested under batch and course)
 router.post("/batches/:batchId/courses/:courseId/modules", createModule);
 router.get("/batches/:batchId/courses/:courseId/modules", getAllModules);
@@ -210,6 +207,7 @@ router.delete(
   deleteMCQ
 );
 
+// Evaluation routes
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/submissions",
   getSubmissionsForEvaluation

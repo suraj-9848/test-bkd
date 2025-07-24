@@ -16,10 +16,17 @@ import { redisClient } from "../../db/connect";
 
 const logger = require("../../utils/logger").getLoggerByName("Test Management");
 
-// Create a new test
+// Create a new test (single or multiple courses)
 export const createTest = async (req: Request, res: Response) => {
   try {
-    const { courseId } = req.params;
+    // Accept either courseId from params or courseIds from body (array)
+    let courseIds: string[] = [];
+    if (req.body.courseIds && Array.isArray(req.body.courseIds)) {
+      courseIds = req.body.courseIds;
+    } else if (req.params.courseId) {
+      courseIds = [req.params.courseId];
+    }
+
     const {
       title,
       description,
@@ -36,7 +43,7 @@ export const createTest = async (req: Request, res: Response) => {
     // Validate required fields
     if (
       !title ||
-      !courseId ||
+      !courseIds.length ||
       !maxMarks ||
       !durationInMinutes ||
       !startDate ||
@@ -56,43 +63,60 @@ export const createTest = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid start or end time" });
     }
 
-    // Get the course
-    const course = await getSingleRecord<Course, any>(
-      Course,
-      { where: { id: courseId } },
-      `course:${courseId}`,
-      true,
-    );
-
-    if (!course) {
-      return res.status(404).json({ error: "Course not found" });
+    // Create a test for each courseId
+    const createdTests = [];
+    for (const courseId of courseIds) {
+      const course = await getSingleRecord<Course, any>(
+        Course,
+        { where: { id: courseId } },
+        `course:${courseId}`,
+        true
+      );
+      if (!course) {
+        // Optionally skip or return error for missing course
+        continue;
+      }
+      const test = new Test();
+      test.title = title;
+      test.description = description || "";
+      test.maxMarks = maxMarks;
+      test.passingMarks = passingMarks || 0;
+      test.durationInMinutes = durationInMinutes;
+      test.startDate = startDateObj;
+      test.endDate = endDateObj;
+      test.shuffleQuestions = shuffleQuestions || false;
+      test.showResults = showResults || false;
+      test.showCorrectAnswers = showCorrectAnswers || false;
+      test.status = TestStatus.DRAFT;
+      test.course = course;
+      const savedTest = await createRecord(Test.getRepository(), test);
+      createdTests.push(savedTest);
     }
 
-    // Create test
-    const test = new Test();
-    test.title = title;
-    test.description = description || "";
-    test.maxMarks = maxMarks;
-    test.passingMarks = passingMarks || 0;
-    test.durationInMinutes = durationInMinutes;
-    test.startDate = startDateObj;
-    test.endDate = endDateObj;
-    test.shuffleQuestions = shuffleQuestions || false;
-    test.showResults = showResults || false;
-    test.showCorrectAnswers = showCorrectAnswers || false;
-    test.status = TestStatus.DRAFT;
-    test.course = course;
-
-    const savedTest = await createRecord(Test.getRepository(), test);
+    if (!createdTests.length) {
+      return res
+        .status(404)
+        .json({ error: "No valid courses found for test creation" });
+    }
 
     return res.status(201).json({
-      message: "Test created successfully",
-      test: savedTest,
+      message: `Test(s) created successfully in ${createdTests.length} course(s)`,
+      tests: createdTests,
     });
   } catch (error) {
     logger.error("Error creating test:", error);
     return res.status(500).json({ error: "Failed to create test" });
   }
+};
+
+// Bulk create tests in multiple courses (for new route)
+export const createTestsBulk = (req: Request, res: Response) => {
+  // Call createTest with the same req/res
+  // This works because createTest checks for courseIds array
+  // and handles multi-course creation
+  // (must be after createTest is defined)
+  // @ts-ignore
+  return (createTest as any)(req, res);
 };
 
 // Get all tests for a course
@@ -109,7 +133,7 @@ export const getTestsByCourse = async (req: Request, res: Response) => {
       },
       `tests_by_course_${courseId}`,
       true,
-      60,
+      60
     );
 
     return res.status(200).json({
@@ -133,7 +157,7 @@ export const getTestById = async (req: Request, res: Response) => {
         relations: ["questions", "questions.options", "course"],
       },
       `test_${testId}_detailed`,
-      true,
+      true
     );
 
     if (!test) {
@@ -168,43 +192,53 @@ export const updateTest = async (req: Request, res: Response) => {
       Test,
       { where: { id: testId } },
       `test_${testId}`,
-      true,
+      true
     );
 
     if (!test) {
       return res.status(404).json({ error: "Test not found" });
     }
 
-    // Prevent updates for tests that have started
+    // Allow only startDate and endDate to be changed after publishing, unless test has ended
     const now = new Date();
-    if (test.status !== TestStatus.DRAFT && now >= new Date(test.startDate)) {
+    const testEnded = now > new Date(test.endDate);
+    if (test.status !== TestStatus.DRAFT && testEnded) {
       return res.status(400).json({
-        error: "Cannot update a test that has already started",
+        error: "Cannot update a test that has ended",
       });
     }
 
-    // Update test fields
-    if (title) test.title = title;
-    if (description !== undefined) test.description = description;
-    if (maxMarks) test.maxMarks = maxMarks;
-    if (passingMarks !== undefined) test.passingMarks = passingMarks;
-    if (durationInMinutes) test.durationInMinutes = durationInMinutes;
-
-    if (startDate) {
-      const startDateObj = new Date(startDate);
-      if (!isNaN(startDateObj.getTime())) test.startDate = startDateObj;
+    if (test.status !== TestStatus.DRAFT) {
+      // Only allow startDate and endDate to be updated
+      if (startDate) {
+        const startDateObj = new Date(startDate);
+        if (!isNaN(startDateObj.getTime())) test.startDate = startDateObj;
+      }
+      if (endDate) {
+        const endDateObj = new Date(endDate);
+        if (!isNaN(endDateObj.getTime())) test.endDate = endDateObj;
+      }
+    } else {
+      // Allow all fields to be updated in DRAFT
+      if (title) test.title = title;
+      if (description !== undefined) test.description = description;
+      if (maxMarks) test.maxMarks = maxMarks;
+      if (passingMarks !== undefined) test.passingMarks = passingMarks;
+      if (durationInMinutes) test.durationInMinutes = durationInMinutes;
+      if (startDate) {
+        const startDateObj = new Date(startDate);
+        if (!isNaN(startDateObj.getTime())) test.startDate = startDateObj;
+      }
+      if (endDate) {
+        const endDateObj = new Date(endDate);
+        if (!isNaN(endDateObj.getTime())) test.endDate = endDateObj;
+      }
+      if (shuffleQuestions !== undefined)
+        test.shuffleQuestions = shuffleQuestions;
+      if (showResults !== undefined) test.showResults = showResults;
+      if (showCorrectAnswers !== undefined)
+        test.showCorrectAnswers = showCorrectAnswers;
     }
-
-    if (endDate) {
-      const endDateObj = new Date(endDate);
-      if (!isNaN(endDateObj.getTime())) test.endDate = endDateObj;
-    }
-
-    if (shuffleQuestions !== undefined)
-      test.shuffleQuestions = shuffleQuestions;
-    if (showResults !== undefined) test.showResults = showResults;
-    if (showCorrectAnswers !== undefined)
-      test.showCorrectAnswers = showCorrectAnswers;
 
     test.lastUpdated = new Date();
     await test.save();
@@ -232,7 +266,7 @@ export const deleteTest = async (req: Request, res: Response) => {
       Test,
       { where: { id: testId } },
       `test_${testId}`,
-      true,
+      true
     );
 
     if (!test) {
@@ -277,7 +311,7 @@ export const addQuestions = async (req: Request, res: Response) => {
       Test,
       { where: { id: testId } },
       `test_${testId}`,
-      true,
+      true
     );
 
     if (!test) {
@@ -313,7 +347,7 @@ export const addQuestions = async (req: Request, res: Response) => {
 
       const savedQuestion = (await createRecord(
         Question.getRepository(),
-        question,
+        question
       )) as Question;
 
       // Add options for MCQ questions
@@ -363,7 +397,7 @@ export const updateQuestion = async (req: Request, res: Response) => {
         relations: ["test", "options"],
       },
       `question_${questionId}`,
-      true,
+      true
     );
 
     if (!question) {
@@ -403,8 +437,8 @@ export const updateQuestion = async (req: Request, res: Response) => {
       if (question.options && question.options.length > 0) {
         await Promise.all(
           question.options.map((option) =>
-            deleteRecords(QuizOptions, { id: option.id }),
-          ),
+            deleteRecords(QuizOptions, { id: option.id })
+          )
         );
       }
 
@@ -496,7 +530,7 @@ export const publishTest = async (req: Request, res: Response) => {
         relations: ["questions", "questions.options"],
       },
       `test_${testId}_detailed`,
-      true,
+      true
     );
 
     if (!test) {
@@ -560,7 +594,7 @@ export const publishTest = async (req: Request, res: Response) => {
         showResults: test.showResults,
         showCorrectAnswers: test.showCorrectAnswers,
       }),
-      { EX: 86400 },
+      { EX: 86400 }
     ); // Cache for 24 hours
 
     // Cache questions without correct answers for students
@@ -583,7 +617,7 @@ export const publishTest = async (req: Request, res: Response) => {
     await redisClient.set(
       `test:${testId}:questions`,
       JSON.stringify(questionsForStudents),
-      { EX: 86400 },
+      { EX: 86400 }
     );
 
     return res.status(200).json({
@@ -617,7 +651,7 @@ export const getTestResults = async (req: Request, res: Response) => {
       {
         where: { test: { id: testId } },
         relations: ["student", "test"],
-      },
+      }
     );
 
     if (!attempts || attempts.length === 0) {
@@ -648,7 +682,7 @@ export const getTestResults = async (req: Request, res: Response) => {
         message: "Test results retrieved successfully",
         results,
       }),
-      { EX: 300 },
+      { EX: 300 }
     ); // Cache for 5 minutes
 
     return res.status(200).json({
@@ -680,7 +714,7 @@ export const getTestStatistics = async (req: Request, res: Response) => {
         relations: ["questions"],
       },
       `test_${testId}_with_questions`,
-      true,
+      true
     );
 
     if (!test) {
@@ -692,7 +726,7 @@ export const getTestStatistics = async (req: Request, res: Response) => {
       TestAttempt,
       {
         where: { test: { id: testId } },
-      },
+      }
     );
 
     // Calculate statistics
@@ -700,10 +734,10 @@ export const getTestStatistics = async (req: Request, res: Response) => {
     const submittedAttempts = attempts.filter(
       (a) =>
         a.status === AttemptStatus.SUBMITTED ||
-        a.status === AttemptStatus.EVALUATED,
+        a.status === AttemptStatus.EVALUATED
     ).length;
     const evaluatedAttempts = attempts.filter(
-      (a) => a.status === AttemptStatus.EVALUATED,
+      (a) => a.status === AttemptStatus.EVALUATED
     ).length;
 
     // Calculate average score
@@ -718,7 +752,7 @@ export const getTestStatistics = async (req: Request, res: Response) => {
 
     // Calculate pass rate
     const passCount = scores.filter(
-      (score) => score >= test.passingMarks,
+      (score) => score >= test.passingMarks
     ).length;
     const passRate = scores.length > 0 ? (passCount / scores.length) * 100 : 0;
 
@@ -744,7 +778,7 @@ export const getTestStatistics = async (req: Request, res: Response) => {
         message: "Test statistics retrieved successfully",
         statistics: stats,
       }),
-      { EX: 300 },
+      { EX: 300 }
     ); // Cache for 5 minutes
 
     return res.status(200).json({

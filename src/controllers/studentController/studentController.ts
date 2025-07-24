@@ -114,6 +114,7 @@ export const getStudentTests = async (req: Request, res: Response) => {
 export const getStudentTestById = async (req: Request, res: Response) => {
   try {
     const { testId } = req.params;
+    const student = req.user as User;
 
     // Fetch the test details with relations using TypeORM
     const test = await Test.findOne({
@@ -123,6 +124,26 @@ export const getStudentTestById = async (req: Request, res: Response) => {
 
     if (!test) {
       return res.status(404).json({ message: "Test not found" });
+    }
+
+    // Check course enrollment
+    const userCourse = await getSingleRecord(UserCourse, {
+      where: {
+        user: { id: student.id },
+        course: { id: test.course.id },
+      },
+    });
+    if (!userCourse) {
+      return res.status(403).json({ message: "Not enrolled in this course" });
+    }
+
+    // Check if test is ongoing
+    const currentTime = new Date();
+    const testStatus = getTestStatus(test, currentTime);
+    if (testStatus !== "ONGOING") {
+      return res.status(403).json({
+        message: `Test is ${testStatus.toLowerCase()}, cannot view questions`,
+      });
     }
 
     // Sort MCQ options for each question
