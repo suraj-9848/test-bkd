@@ -8,6 +8,7 @@ import { UserCourse } from "../../db/mysqlModels/UserCourse";
 import { DayContent } from "../../db/mysqlModels/DayContent";
 import { StudentCourseProgress } from "../../db/mysqlModels/StudentCourseProgress";
 import { AppDataSource } from "../../db/connect";
+import s3Service from "../../utils/s3Service"
 
 import {
   createRecord,
@@ -685,118 +686,21 @@ export const assignCourseToStudent = async (req: Request, res: Response) => {
   }
 };
 
-// ========== GET COURSE ANALYTICS ==========
-export const getCourseAnalytics = async (req: Request, res: Response) => {
+
+export const uploadCourseLogo = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    console.log("=== Getting analytics for course ID:", id);
-
-    if (!id) {
-      return res.status(400).json({ message: "Course ID is required" });
+     console.log("Received file:", req.file);
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
     }
-
-    // Get the course basic info first using a simple query
-    const { AppDataSource } = await import("../../db/connect");
-    const connection = AppDataSource;
-
-    if (!connection || !connection.isInitialized) {
-      console.error("Database connection not available");
-      return res.status(500).json({ message: "Database connection error" });
-    }
-
-    console.log("=== Database connection established");
-
-    // Get course basic info
-    const courseQuery = `
-      SELECT id, title, instructor_name, start_date, end_date, is_public
-      FROM course
-      WHERE id = ?
-    `;
-
-    console.log("=== Executing courseQuery with courseId:", id);
-    const courseResult = await connection.query(courseQuery, [id]);
-
-    if (!courseResult || courseResult.length === 0) {
-      console.log("=== Course not found for ID:", id);
-      return res.status(404).json({ message: "Course not found" });
-    }
-
-    const course = courseResult[0];
-    console.log("=== Course found:", course.title);
-
-    // Get module count for this course
-    const moduleCountQuery = `
-      SELECT COUNT(*) as moduleCount
-      FROM module
-      WHERE courseId = ?
-    `;
-
-    console.log("=== Executing moduleCountQuery");
-    const moduleCountResult = await connection.query(moduleCountQuery, [id]);
-    const moduleCount = moduleCountResult[0]?.moduleCount || 0;
-    console.log("=== Module count found:", moduleCount);
-
-    // Get student count for this course
-    const studentCountQuery = `
-      SELECT COUNT(*) as studentCount
-      FROM user_course uc
-      JOIN user u ON uc.userId = u.id
-      WHERE uc.courseId = ? AND u.userRole = 'student'
-    `;
-
-    console.log("=== Executing studentCountQuery");
-    const studentCountResult = await connection.query(studentCountQuery, [id]);
-    const totalStudents = studentCountResult[0]?.studentCount || 0;
-    console.log("=== Student count found:", totalStudents);
-
-    // Get batch count for this course
-    const batchCountQuery = `
-      SELECT COUNT(*) as batchCount
-      FROM course_batch_assignments
-      WHERE courseId = ?
-    `;
-
-    console.log("=== Executing batchCountQuery");
-    const batchCountResult = await connection.query(batchCountQuery, [id]);
-    const batchCount = batchCountResult[0]?.batchCount || 0;
-    console.log("=== Batch count found:", batchCount);
-
-    // Construct a simple analytics response
-    const analytics = {
-      courseId: course.id,
-      courseTitle: course.title,
-      instructorName: course.instructor_name || "Not assigned",
-      isPublic: Boolean(course.is_public),
-      startDate: course.start_date,
-      endDate: course.end_date,
-      totalStudents,
-      moduleCount,
-      batchCount,
-      averageProgress: 0, // Default to 0 for now
-      batchesProgress: [
-        {
-          batchId: "default",
-          batchName: "All Students",
-          studentCount: totalStudents,
-          averageProgress: 0,
-          students: [],
-        },
-      ],
-    };
-
-    console.log("=== Analytics response:", JSON.stringify(analytics, null, 2));
-    return res.json({ analytics });
-  } catch (err: any) {
-    console.error("=== Error getting course analytics - Full error:", err);
-    console.error("=== Error stack:", err?.stack);
-    console.error("=== Error message:", err?.message);
-
-    return res.status(500).json({
-      message: "Internal server error",
-      error:
-        process.env.NODE_ENV === "development"
-          ? err?.message
-          : "Analytics temporarily unavailable",
-    });
+    const fileBuffer = req.file.buffer;
+    const originalName = req.file.originalname;
+    const contentType = req.file.mimetype;
+    const fileName = s3Service.generateUniqueFileName(originalName, "course-logo");
+    const logoUrl = await s3Service.uploadFile(fileBuffer, fileName, contentType, "course-logos");
+    return res.status(201).json({ logoUrl });
+  } catch (error) {
+    console.error("Logo upload failed:", error);
+    return res.status(500).json({ error: "Logo upload failed" });
   }
 };
