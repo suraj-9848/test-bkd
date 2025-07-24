@@ -6,6 +6,7 @@ import {
   createRecord,
 } from "../../lib/dbLib/sqlUtils";
 import { getLogger } from "../../utils/logger";
+import { Course } from "../../db/mysqlModels/Course";
 
 const logger = getLogger();
 
@@ -56,6 +57,47 @@ export const updateCourseProgress = async (req: Request, res: Response) => {
     });
   } catch (err) {
     logger.error("Error updating/creating student course progress:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const updateCourseLogo = async (req: Request, res: Response) => {
+  try {
+    console.log("req.file:", req.file);
+
+    console.log("Received file:", req.file);
+    const { courseId } = req.params;
+    const { logoUrl } = req.body;
+
+    if (!courseId || !logoUrl) {
+      logger.warn("Missing required fields in request body");
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const course = await getSingleRecord(Course, {
+      where: { id: courseId },
+    });
+
+    if (!course) {
+      logger.warn(`Course with ID ${courseId} not found`);
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    course.logoUrl = logoUrl;
+    const updatedCourse = await updateRecords(
+      Course,
+      { id: courseId },
+      { logoUrl },
+      false,
+    );
+
+    logger.info(`Updated course logo for course_id: ${courseId}`);
+    return res.status(200).json({
+      message: "Course logo updated successfully",
+      course: updatedCourse,
+    });
+  } catch (err) {
+    logger.error("Error updating course logo:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

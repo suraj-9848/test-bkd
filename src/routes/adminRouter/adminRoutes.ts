@@ -36,7 +36,7 @@ import {
   createCourse,
   deleteCourse,
   updateCourse,
-  fetchAllCourses,
+  fetchAllCoursesAcrossBatches,
   fetchCourse,
 } from "../../controllers/courseCrudControllers/courseController";
 
@@ -93,7 +93,7 @@ adminRouter.post("/create-course", validateCourseBody, createCourse);
 adminRouter.delete("/delete-course/:id", deleteCourse);
 adminRouter.put("/update-course/:id", updateCourse);
 adminRouter.get("/fetch-course/:id", fetchCourse);
-adminRouter.get("/fetch-all-courses", fetchAllCourses);
+adminRouter.get("/fetch-all-courses", fetchAllCoursesAcrossBatches);
 
 //Organization CRUD
 adminRouter.get("/get-all-org", getAllOrg);
@@ -122,9 +122,3 @@ adminRouter.delete("/delete-student/:user_id", deleteStudent);
 adminRouter.put("/update-student/:user_id", updateStudent);
 
 adminRouter.post("/get-all-users", getAllUsers);
-adminRouter.get("/get-users/:role", getAllUsers);
-
-// Bulk operations
-adminRouter.post("/bulk-create-users", bulkCreateUsers);
-adminRouter.delete("/bulk-delete-users", bulkDeleteUsers);
-adminRouter.get("/user-stats", getUserStats);

@@ -3,7 +3,7 @@ import {
   PrimaryGeneratedColumn,
   Column,
   ManyToOne,
-  OneToMany,
+  ManyToMany,
   JoinColumn,
   BaseEntity,
 } from "typeorm";
@@ -28,6 +28,6 @@ export class Batch extends BaseEntity {
   @JoinColumn({ name: "org_id" })
   organization: Org;
 
-  @OneToMany(() => Course, (course) => course.batch)
+  @ManyToMany(() => Course, (course) => course.batches)
   courses: Course[];
 }
