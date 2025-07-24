@@ -30,14 +30,14 @@ AppDataSource.initialize()
     console.error("MYSQL connection failed:", err);
   });
 
-redisClient
-  .connect()
-  .then(() => {
-    console.log("REDIS CACHE ACTIVE");
-  })
-  .catch((e) => {
-    console.error("REDIS CACHE FAILED", e);
-  });
+// redisClient
+//   .connect()
+//   .then(() => {
+//     console.log("REDIS CACHE ACTIVE");
+//   })
+//   .catch((e) => {
+//     console.error("REDIS CACHE FAILED", e);
+//   });
 
 // app.use(cors({ origin: config.CORS_ORIGIN }));
 app.use(
