@@ -1,8 +1,18 @@
-// Import and register Test Analytics route after router is declared
-import { getTestAnalytics } from "../../controllers/instructorControllers/test.controller";
 import { Router } from "express";
 import { authMiddleware } from "../../middleware/authMiddleware";
 import { instructorMiddleware } from "../../middleware/instructorMiddleware";
+import {
+  createTest,
+  createTestsBulk,
+} from "../../controllers/instructorControllers/testManagement.controller";
+import { getTestAnalytics } from "../../controllers/instructorControllers/test.controller";
+// ...existing code...
+const router = Router();
+
+router.use(authMiddleware, instructorMiddleware);
+
+// Bulk test creation route (multi-course)
+router.post("/batches/:batchId/courses/bulk/tests", createTestsBulk);
 
 import {
   createBatch,
@@ -32,7 +42,6 @@ import {
 } from "../../controllers/courseCrudControllers/courseController";
 
 import {
-  createTest,
   fetchTestById,
   updateTest,
   deleteTest,
@@ -76,11 +85,6 @@ import {
   fetchCourseProgress,
   fetchSessionProgress,
 } from "../../controllers/instructorControllers/progress.controller";
-
-
-const router = Router();
-
-router.use(authMiddleware, instructorMiddleware);
 
 // Batch routes
 router.post("/batches", createBatch);
