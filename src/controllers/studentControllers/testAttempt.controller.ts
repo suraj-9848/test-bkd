@@ -70,7 +70,7 @@ export const getAvailableTests = async (req: Request, res: Response) => {
           student: { id: userId },
           test: { id: { $in: testIds } },
         },
-      }
+      },
     );
 
     // Filter tests that student can attempt
@@ -81,7 +81,7 @@ export const getAvailableTests = async (req: Request, res: Response) => {
           (attempt) =>
             attempt.test.id === test.id &&
             (attempt.status === AttemptStatus.SUBMITTED ||
-              attempt.status === AttemptStatus.EVALUATED)
+              attempt.status === AttemptStatus.EVALUATED),
         );
 
         return !hasCompleted;
@@ -100,7 +100,7 @@ export const getAvailableTests = async (req: Request, res: Response) => {
           (attempt) =>
             attempt.test.id === test.id &&
             (attempt.status === AttemptStatus.STARTED ||
-              attempt.status === AttemptStatus.IN_PROGRESS)
+              attempt.status === AttemptStatus.IN_PROGRESS),
         ),
       }));
 
@@ -111,7 +111,7 @@ export const getAvailableTests = async (req: Request, res: Response) => {
         message: "Available tests retrieved successfully",
         availableTests,
       }),
-      { EX: 300 } // Cache for 5 minutes
+      { EX: 300 }, // Cache for 5 minutes
     );
 
     return res.status(200).json({
@@ -149,7 +149,7 @@ export const startTestAttempt = async (req: Request, res: Response) => {
           },
         },
         `test_${testId}_basic`,
-        true
+        true,
       );
 
       if (!test) {
@@ -175,7 +175,7 @@ export const startTestAttempt = async (req: Request, res: Response) => {
           showResults: test.showResults,
           showCorrectAnswers: test.showCorrectAnswers,
         }),
-        { EX: 86400 }
+        { EX: 86400 },
       ); // Cache for 24 hours
     }
 
@@ -200,13 +200,13 @@ export const startTestAttempt = async (req: Request, res: Response) => {
           student: { id: userId },
           test: { id: testId },
         },
-      }
+      },
     );
 
     const submittedAttempt = existingAttempts.find(
       (a) =>
         a.status === AttemptStatus.SUBMITTED ||
-        a.status === AttemptStatus.EVALUATED
+        a.status === AttemptStatus.EVALUATED,
     );
 
     if (submittedAttempt) {
@@ -219,14 +219,14 @@ export const startTestAttempt = async (req: Request, res: Response) => {
     const ongoingAttempt = existingAttempts.find(
       (a) =>
         a.status === AttemptStatus.STARTED ||
-        a.status === AttemptStatus.IN_PROGRESS
+        a.status === AttemptStatus.IN_PROGRESS,
     );
 
     if (ongoingAttempt) {
       // Calculate remaining time
       const startTime = new Date(ongoingAttempt.startedAt);
       const endTime = new Date(
-        startTime.getTime() + test.durationInMinutes * 60000
+        startTime.getTime() + test.durationInMinutes * 60000,
       );
       const remainingTime =
         Math.max(0, endTime.getTime() - now.getTime()) / 1000; // in seconds
@@ -259,7 +259,7 @@ export const startTestAttempt = async (req: Request, res: Response) => {
         Test,
         { id: testId },
         { status: TestStatus.ACTIVE, lastUpdated: new Date() },
-        false
+        false,
       );
 
       // Update cache
@@ -274,7 +274,7 @@ export const startTestAttempt = async (req: Request, res: Response) => {
     const currentActiveCount = await redisClient.get(activeCounterKey);
     await redisClient.set(
       activeCounterKey,
-      parseInt(currentActiveCount || "0") + 1
+      parseInt(currentActiveCount || "0") + 1,
     );
 
     // Cache the attempt
@@ -285,7 +285,7 @@ export const startTestAttempt = async (req: Request, res: Response) => {
         startedAt: (savedAttempt as TestAttempt).startedAt,
         status: (savedAttempt as TestAttempt).status,
       }),
-      { EX: test.durationInMinutes * 60 } // Cache for the duration of the test
+      { EX: test.durationInMinutes * 60 }, // Cache for the duration of the test
     );
 
     return res.status(201).json({
@@ -340,7 +340,7 @@ export const getTestQuestions = async (req: Request, res: Response) => {
           startedAt: attempt.startedAt,
           status: attempt.status,
         }),
-        { EX: attempt.test.durationInMinutes * 60 }
+        { EX: attempt.test.durationInMinutes * 60 },
       );
     }
 
@@ -352,7 +352,7 @@ export const getTestQuestions = async (req: Request, res: Response) => {
         TestAttempt,
         { id: attemptId },
         { status: AttemptStatus.IN_PROGRESS },
-        false
+        false,
       );
 
       // Update cache
@@ -376,7 +376,7 @@ export const getTestQuestions = async (req: Request, res: Response) => {
         {
           where: { test: { id: testId } },
           relations: ["options"],
-        }
+        },
       );
 
       if (!questionsFromDB || questionsFromDB.length === 0) {
@@ -436,7 +436,7 @@ export const getTestQuestions = async (req: Request, res: Response) => {
         {
           where: { attempt: { id: attemptId } },
           relations: ["question"],
-        }
+        },
       );
 
       if (answersFromDB && answersFromDB.length > 0) {
@@ -512,7 +512,7 @@ export const saveAnswer = async (req: Request, res: Response) => {
     const now = new Date();
     const startTime = new Date(attempt.startedAt);
     const endTime = new Date(
-      startTime.getTime() + attempt.test.durationInMinutes * 60000
+      startTime.getTime() + attempt.test.durationInMinutes * 60000,
     );
 
     if (now > endTime) {
@@ -720,7 +720,7 @@ const processTestSubmission = async (attemptId: string, userId: string) => {
   // Decrement active student counter
   const activeCountKey = `test:${testId}:active_students`;
   const currentActive = parseInt(
-    (await redisClient.get(activeCountKey)) || "0"
+    (await redisClient.get(activeCountKey)) || "0",
   );
 
   if (currentActive > 0) {
@@ -736,7 +736,7 @@ const processTestSubmission = async (attemptId: string, userId: string) => {
           Test,
           { id: testId },
           { status: TestStatus.COMPLETED, lastUpdated: new Date() },
-          false
+          false,
         );
       }
     }
@@ -852,7 +852,7 @@ export const getTestResults = async (req: Request, res: Response) => {
       if (cachedLeaderboard) {
         const leaderboard = JSON.parse(cachedLeaderboard);
         const position = leaderboard.findIndex(
-          (entry) => entry.attemptId === attemptId
+          (entry) => entry.attemptId === attemptId,
         );
 
         if (position !== -1) {
@@ -889,7 +889,7 @@ export const getTestAttemptHistory = async (req: Request, res: Response) => {
         },
         relations: ["test", "test.course"],
         order: { submittedAt: "DESC" },
-      }
+      },
     );
 
     const history = attempts.map((attempt) => ({
@@ -963,7 +963,7 @@ const generateLeaderboard = async (testId: string) => {
           status: AttemptStatus.EVALUATED,
         },
         relations: ["student"],
-      }
+      },
     );
 
     if (attempts.length === 0) {
@@ -993,7 +993,7 @@ const generateLeaderboard = async (testId: string) => {
     await redisClient.set(
       `test:${testId}:leaderboard`,
       JSON.stringify(leaderboard),
-      { EX: 600 }
+      { EX: 600 },
     );
 
     return leaderboard;

@@ -23,7 +23,7 @@ import {
 // Helper function to determine test status
 function getTestStatus(
   test: Test,
-  currentTime: Date
+  currentTime: Date,
 ): "UPCOMING" | "ONGOING" | "COMPLETED" {
   const startDate = new Date(test.startDate);
   const endDate = new Date(test.endDate);
@@ -227,7 +227,7 @@ export const submitTest = async (req: Request, res: Response) => {
     const questionIds = test.questions.map((q) => q.id);
     if (
       !responses.every(
-        (r) => r.questionId && questionIds.includes(r.questionId)
+        (r) => r.questionId && questionIds.includes(r.questionId),
       )
     ) {
       return res
@@ -256,7 +256,7 @@ export const submitTest = async (req: Request, res: Response) => {
         const testResponses = await Promise.all(
           responses.map(async (response) => {
             const question = test.questions.find(
-              (q) => q.id === response.questionId
+              (q) => q.id === response.questionId,
             );
             if (!question) {
               throw new Error(`Question ${response.questionId} not found`);
@@ -276,11 +276,11 @@ export const submitTest = async (req: Request, res: Response) => {
 
               // Validate each submitted option ID (if any)
               const validOptions = response.answer.every((answerId: string) =>
-                question.options?.some((o) => o.id === answerId)
+                question.options?.some((o) => o.id === answerId),
               );
               if (!validOptions) {
                 throw new Error(
-                  `Invalid MCQ answer for question ${question.id}: One or more option IDs are invalid`
+                  `Invalid MCQ answer for question ${question.id}: One or more option IDs are invalid`,
                 );
               }
 
@@ -336,7 +336,7 @@ export const submitTest = async (req: Request, res: Response) => {
               score,
               evaluatorComments: null,
             };
-          })
+          }),
         );
 
         // Save all responses
@@ -347,14 +347,14 @@ export const submitTest = async (req: Request, res: Response) => {
             answer: Array.isArray(resp.answer)
               ? JSON.stringify(resp.answer)
               : resp.answer,
-          }))
+          })),
         );
 
         // Update submission with MCQ scores
         const mcqPercentage =
           totalMcqMarks > 0 ? (mcqScore / totalMcqMarks) * 100 : 0;
         const status = test.questions.some(
-          (q: { type: string }) => q.type !== "MCQ"
+          (q: { type: string }) => q.type !== "MCQ",
         )
           ? "PARTIALLY_EVALUATED"
           : "FULLY_EVALUATED";
@@ -365,7 +365,7 @@ export const submitTest = async (req: Request, res: Response) => {
           {
             mcqScore,
             status,
-          }
+          },
         );
 
         return {
@@ -375,7 +375,7 @@ export const submitTest = async (req: Request, res: Response) => {
           mcqPercentage,
           status,
         };
-      }
+      },
     );
 
     res.status(200).json({
@@ -604,7 +604,7 @@ export const getStudentTestResults = async (req: Request, res: Response) => {
 // Helper function to determine if a module is unlocked for a student
 async function isModuleUnlocked(
   student: User,
-  module: Module
+  module: Module,
 ): Promise<boolean> {
   // First module is always unlocked
   if (module.order === 1) {
@@ -695,7 +695,7 @@ async function hasModuleProgress(
 // Helper function to check if all day contents of a module are completed
 async function areAllDaysCompleted(
   student: User,
-  module: Module
+  module: Module,
 ): Promise<boolean> {
   const days = await getAllRecordsWithFilter(DayContent, {
     where: { module: { id: module.id } },
@@ -938,12 +938,13 @@ export const getStudentCourseById = async (req: Request, res: Response) => {
               {
                 where: { moduleMCQ: { id: mcq.id } },
                 order: { createdAt: "ASC" },
-              }
+              },
             );
             let score = 0;
             mcqResponse.responses.forEach((response: any) => {
               const correct = correctAnswers.find(
-                (ans: ModuleMCQAnswer) => ans.questionId === response.questionId
+                (ans: ModuleMCQAnswer) =>
+                  ans.questionId === response.questionId,
               );
               if (correct && correct.correctAnswer === response.answer) {
                 score++;
@@ -1061,7 +1062,7 @@ export const getStudentModuleById = async (req: Request, res: Response) => {
           ...day,
           completed: completion ? completion.completed : false,
         };
-      })
+      }),
     );
 
     const allDaysCompleted = await areAllDaysCompleted(student, module);
@@ -1146,7 +1147,7 @@ export const markDayAsCompleted = async (req: Request, res: Response) => {
         UserDayCompletion,
         { id: completion.id },
         { completed: true },
-        false
+        false,
       );
     } else {
       const newCompletion = UserDayCompletion.create({
@@ -1299,7 +1300,7 @@ export const getMCQResults = async (req: Request, res: Response) => {
       {
         where: { moduleMCQ: { id: mcq.id }, user: { id: student.id } },
       },
-      { order: { createdAt: "DESC" } }
+      { order: { createdAt: "DESC" } },
     );
 
     if (!latestResponse) {
@@ -1313,7 +1314,7 @@ export const getMCQResults = async (req: Request, res: Response) => {
     let score = 0;
     latestResponse.responses.forEach((response: any) => {
       const correct = correctAnswers.find(
-        (ans: ModuleMCQAnswer) => ans.questionId === response.questionId
+        (ans: ModuleMCQAnswer) => ans.questionId === response.questionId,
       );
       if (correct && correct.correctAnswer === response.answer) {
         score++;
@@ -1383,7 +1384,7 @@ export const getMCQReview = async (req: Request, res: Response) => {
 // GET /student/modules/:moduleId/completion
 export const getModuleCompletionStatus = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   const { moduleId } = req.params;
   const student = req.user as User;
@@ -1419,7 +1420,7 @@ export const getModuleCompletionStatus = async (
         let score = 0;
         mcqResponse.responses.forEach((response: any) => {
           const correct = correctAnswers.find(
-            (ans: ModuleMCQAnswer) => ans.questionId === response.questionId
+            (ans: ModuleMCQAnswer) => ans.questionId === response.questionId,
           );
           if (correct && correct.correctAnswer === response.answer) {
             score++;

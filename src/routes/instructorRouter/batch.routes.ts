@@ -93,7 +93,7 @@ router.delete("/batches/:batchId/courses/:id", deleteCourse);
 router.put("/batches/:batchId/courses/:courseId/public", updateCourse);
 router.post(
   "/batches/:batchId/courses/:courseId/assign-student",
-  assignCourseToStudent
+  assignCourseToStudent,
 );
 
 // Test routes (nested under batch and course)
@@ -105,49 +105,49 @@ router.put("/batches/:batchId/courses/:courseId/tests/:testId", updateTest);
 router.delete("/batches/:batchId/courses/:courseId/tests/:testId", deleteTest);
 router.patch(
   "/batches/:batchId/courses/:courseId/tests/:testId/publish",
-  teststatustoPublish
+  teststatustoPublish,
 );
 router.post(
   "/batches/:batchId/courses/:courseId/tests/:testId/evaluate",
-  evaluateTestSubmission
+  evaluateTestSubmission,
 );
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/submission-count",
-  getSubmissionCount
+  getSubmissionCount,
 );
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/submissions",
-  getSubmissionsForEvaluation
+  getSubmissionsForEvaluation,
 );
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/responses",
-  getTestResponses
+  getTestResponses,
 );
 router.put(
   "/batches/:batchId/courses/:courseId/tests/:testId/responses/:responseId/evaluate",
-  evaluateTestResponseById
+  evaluateTestResponseById,
 );
 
 // Test Routes of Questions in test
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/questions",
-  getQuestions
+  getQuestions,
 );
 router.post(
   "/batches/:batchId/courses/:courseId/tests/:testId/questions",
-  createQuestion
+  createQuestion,
 );
 router.delete(
   "/batches/:batchId/courses/:courseId/tests/:testId/questions/:questionId",
-  deleteQuestion
+  deleteQuestion,
 );
 router.put(
   "/batches/:batchId/courses/:courseId/tests/:testId/questions/:questionId",
-  updateQuestion
+  updateQuestion,
 );
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/analytics",
-  getTestAnalytics
+  getTestAnalytics,
 );
 
 // Module routes (nested under batch and course)
@@ -155,78 +155,78 @@ router.post("/batches/:batchId/courses/:courseId/modules", createModule);
 router.get("/batches/:batchId/courses/:courseId/modules", getAllModules);
 router.get(
   "/batches/:batchId/courses/:courseId/modules/:moduleId",
-  getSingleModule
+  getSingleModule,
 );
 router.put(
   "/batches/:batchId/courses/:courseId/modules/:moduleId",
-  updateModule
+  updateModule,
 );
 router.delete(
   "/batches/:batchId/courses/:courseId/modules/:moduleId",
-  deleteModule
+  deleteModule,
 );
 
 // Day Content routes (nested under batch, course, and module)
 router.post(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content",
-  addDayContent
+  addDayContent,
 );
 router.get(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content",
-  getDayContent
+  getDayContent,
 );
 router.put(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId",
-  updateDayContent
+  updateDayContent,
 );
 router.delete(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId",
-  deleteDayContent
+  deleteDayContent,
 );
 router.patch(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId/complete",
-  markDayAsCompleted
+  markDayAsCompleted,
 );
 
 // MCQ routes (nested under batch, course, and module)
 router.post(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/mcq",
-  createMCQ
+  createMCQ,
 );
 router.get("/batches/:batchId/courses/:courseId/modules/:moduleId/mcq", getMCQ);
 router.get(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/mcq/:mcqId",
-  getMCQById
+  getMCQById,
 );
 router.put(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/mcq/:mcqId",
-  updateMCQ
+  updateMCQ,
 );
 router.delete(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/mcq/:mcqId",
-  deleteMCQ
+  deleteMCQ,
 );
 
 // Evaluation routes
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/submissions",
-  getSubmissionsForEvaluation
+  getSubmissionsForEvaluation,
 );
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/submissions/:submissionId",
-  getSubmissionForEvaluation
+  getSubmissionForEvaluation,
 );
 router.post(
   "/batches/:batchId/courses/:courseId/tests/:testId/submissions/:submissionId/evaluate",
-  evaluateResponse
+  evaluateResponse,
 );
 router.post(
   "/batches/:batchId/courses/:courseId/tests/:testId/submissions/bulk-evaluate",
-  bulkEvaluateResponses
+  bulkEvaluateResponses,
 );
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/evaluation-statistics",
-  getEvaluationStatistics
+  getEvaluationStatistics,
 );
 
 // Progress tracking routes

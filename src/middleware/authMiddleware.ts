@@ -61,10 +61,11 @@ export const adminAuthMiddleware = async (
       return res.status(404).json({ error: "User not found" });
     }
 
-    if (user.userRole.toLowerCase() !== "admin") {
+    const allowedRoles = ["admin", "recruiter"];
+    if (!allowedRoles.includes(user.userRole.toLowerCase())) {
       return res
         .status(403)
-        .json({ error: "Access denied. Admin role required." });
+        .json({ error: "Access denied. Admin or recruiter role required." });
     }
 
     // Set user info in request object for downstream middleware/routes

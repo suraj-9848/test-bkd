@@ -41,9 +41,6 @@ import {
 } from "../../controllers/courseCrudControllers/courseController";
 
 import {
-  createCollegeAdmin,
-  deleteCollegeAdmin,
-  updateCollegeAdmin,
   createInstructor,
   deleteInstructor,
   updateInstructor,
@@ -59,6 +56,9 @@ import {
   bulkCreateUsers,
   bulkDeleteUsers,
   getUserStats,
+  createUser,
+  updateUser,
+  deleteUser,
 } from "../../controllers/adminControllers/adminController";
 
 import {
@@ -102,13 +102,7 @@ adminRouter.post("/create-org", createOrg);
 adminRouter.put("/update-org/:org_id", updateOrg);
 adminRouter.delete("/delete-org/:org_id", deleteOrg);
 
-//College admin CRUD
-// adminRouter.get("/get-all-org", getAllOrg);
-adminRouter.post("/create-college-admin", createCollegeAdmin);
-adminRouter.delete("/delete-college-admin/:user_id", deleteCollegeAdmin);
-adminRouter.put("/update-college-admin/:user_id", updateCollegeAdmin);
 //Instructor CRUD
-// adminRouter.get("/get-all-org", getAllOrg);
 adminRouter.post("/create-instructor", createInstructor);
 adminRouter.delete("/delete-instructor/:user_id", deleteInstructor);
 adminRouter.put("/update-instructor/:user_id", updateInstructor);
@@ -122,3 +116,15 @@ adminRouter.delete("/delete-student/:user_id", deleteStudent);
 adminRouter.put("/update-student/:user_id", updateStudent);
 
 adminRouter.post("/get-all-users", getAllUsers);
+adminRouter.get("/get-users", getAllUsers); // New route to handle query param
+adminRouter.get("/get-users/:role", getAllUsers);
+
+// Unified user management endpoints
+adminRouter.post("/create-user", createUser);
+adminRouter.put("/update-user/:user_id", updateUser);
+adminRouter.delete("/delete-user/:user_id", deleteUser);
+
+// Bulk operations
+adminRouter.post("/bulk-create-users", bulkCreateUsers);
+adminRouter.delete("/bulk-delete-users", bulkDeleteUsers);
+adminRouter.get("/user-stats", getUserStats);

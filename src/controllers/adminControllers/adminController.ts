@@ -117,7 +117,7 @@ export const updateOrg = async (req: Request, res: Response) => {
         description: org.description,
         address: org.address,
       },
-      false
+      false,
     );
     return res.status(200).json({
       message: "Organization updated successfully",
@@ -146,7 +146,7 @@ export const deleteAllOrg = async (req: Request, res: Response) => {
 const createUserWithRole = async (
   req: Request,
   res: Response,
-  role: UserRole
+  role: UserRole,
 ) => {
   try {
     const { username, email, password, org_id, batch_id } = req.body;
@@ -182,7 +182,7 @@ const createUserWithRole = async (
 const deleteUserWithRole = async (
   req: Request,
   res: Response,
-  role: UserRole
+  role: UserRole,
 ) => {
   const { user_id } = req.params;
   if (!user_id) return res.status(400).json({ error: "User Id is required" });
@@ -208,7 +208,7 @@ const deleteUserWithRole = async (
 const updateUserWithRole = async (
   req: Request,
   res: Response,
-  role: UserRole
+  role: UserRole,
 ) => {
   const { user_id } = req.params;
   const { username, email, password, batch_id } = req.body;
@@ -242,7 +242,7 @@ const updateUserWithRole = async (
         password: user.password,
         batch_id: user.batch_id,
       },
-      false
+      false,
     );
     return res.status(200).json({
       message: `${role} updated successfully`,
@@ -253,15 +253,6 @@ const updateUserWithRole = async (
     return res.status(500).json({ message: "Internal server error" });
   }
 };
-
-export const createCollegeAdmin = (req: Request, res: Response) =>
-  createUserWithRole(req, res, UserRole.COLLEGE_ADMIN);
-
-export const deleteCollegeAdmin = (req: Request, res: Response) =>
-  deleteUserWithRole(req, res, UserRole.COLLEGE_ADMIN);
-
-export const updateCollegeAdmin = (req: Request, res: Response) =>
-  updateUserWithRole(req, res, UserRole.COLLEGE_ADMIN);
 
 export const createInstructor = (req: Request, res: Response) =>
   createUserWithRole(req, res, UserRole.INSTRUCTOR);
@@ -283,16 +274,32 @@ export const updateStudent = (req: Request, res: Response) =>
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
-    const { role } = req.body || req.query;
-    const userRole = req.params.role || role;
+    // Check for role in query parameters first, then in route params, then in request body
+    const queryRole = req.query.role as string;
+    const paramRole = req.params.role;
+    const bodyRole = req.body?.role;
+
+    // Determine which role to use, prioritizing query params
+    const userRole = queryRole || paramRole || bodyRole;
 
     let users;
-    if (role) {
-      users = await getAllRecordsWithFilter<
-        User,
-        { where: { userRole: UserRole } }
-      >(User, { where: { userRole: role } });
+    if (userRole) {
+      // Validate if the role is valid
+      const isValidRole = Object.values(UserRole).includes(
+        userRole as UserRole,
+      );
+      if (!isValidRole) {
+        // If invalid role is provided, return all users
+        users = await getAllRecords(User);
+      } else {
+        // Filter by the provided role
+        users = await getAllRecordsWithFilter<
+          User,
+          { where: { userRole: UserRole } }
+        >(User, { where: { userRole: userRole } });
+      }
     } else {
+      // No role provided, return all users
       users = await getAllRecords(User);
     }
 
@@ -397,19 +404,18 @@ export const bulkDeleteUsers = async (req: Request, res: Response) => {
 
 export const getUserStats = async (req: Request, res: Response) => {
   try {
-    const [students, instructors, collegeAdmins, totalUsers] =
-      await Promise.all([
-        getAllRecordsWithFilter(User, {
-          where: { userRole: UserRole.STUDENT },
-        }),
-        getAllRecordsWithFilter(User, {
-          where: { userRole: UserRole.INSTRUCTOR },
-        }),
-        getAllRecordsWithFilter(User, {
-          where: { userRole: UserRole.COLLEGE_ADMIN },
-        }),
-        getAllRecords(User),
-      ]);
+    const [students, instructors, admins, totalUsers] = await Promise.all([
+      getAllRecordsWithFilter(User, {
+        where: { userRole: UserRole.STUDENT },
+      }),
+      getAllRecordsWithFilter(User, {
+        where: { userRole: UserRole.INSTRUCTOR },
+      }),
+      getAllRecordsWithFilter(User, {
+        where: { userRole: UserRole.ADMIN },
+      }),
+      getAllRecords(User),
+    ]);
 
     return res.status(200).json({
       message: "User statistics fetched successfully",
@@ -417,21 +423,160 @@ export const getUserStats = async (req: Request, res: Response) => {
         totalUsers: totalUsers.length,
         students: students.length,
         instructors: instructors.length,
-        collegeAdmins: collegeAdmins.length,
+        collegeAdmins: admins.length,
         breakdown: {
           students: ((students.length / totalUsers.length) * 100).toFixed(1),
           instructors: ((instructors.length / totalUsers.length) * 100).toFixed(
-            1
+            1,
           ),
-          collegeAdmins: (
-            (collegeAdmins.length / totalUsers.length) *
-            100
-          ).toFixed(1),
+          collegeAdmins: ((admins.length / totalUsers.length) * 100).toFixed(1),
         },
       },
     });
   } catch (error) {
     console.error("Error fetching user stats:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Unified user creation endpoint that accepts role in body
+export const createUser = async (req: Request, res: Response) => {
+  try {
+    const { username, email, password, org_id, batch_id, role } = req.body;
+
+    if (!username || !org_id || !role) {
+      return res.status(400).json({
+        error: "Username, org_id, and role are required",
+      });
+    }
+
+    // Validate role
+    const validRoles = Object.values(UserRole);
+    if (!validRoles.includes(role as UserRole)) {
+      return res.status(400).json({
+        error: `Invalid role. Must be one of: ${validRoles.join(", ")}`,
+      });
+    }
+
+    const user = new User();
+    user.username = username;
+    user.email = email || null;
+    user.password = password || null;
+    user.org_id = org_id;
+    user.batch_id = batch_id || [];
+    user.userRole = role as UserRole;
+
+    const errors = await validate(user);
+    if (errors.length > 0) {
+      return res.status(400).json({
+        errors: errors.map((e) => e.toString()),
+      });
+    }
+
+    const savedUser = await createRecord(User, user);
+    return res.status(201).json({
+      message: `User created successfully`,
+      user: savedUser,
+    });
+  } catch (error) {
+    console.error("Error creating user:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Unified user update endpoint that accepts role in body
+export const updateUser = async (req: Request, res: Response) => {
+  try {
+    console.log("=== UPDATE USER ENDPOINT HIT ===");
+    console.log("Params:", req.params);
+    console.log("Body:", req.body);
+
+    const { user_id } = req.params;
+    const { username, email, password, batch_id, role } = req.body;
+
+    if (!user_id) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    // If role is provided, validate it
+    if (role) {
+      const validRoles = Object.values(UserRole);
+      if (!validRoles.includes(role as UserRole)) {
+        return res.status(400).json({
+          error: `Invalid role. Must be one of: ${validRoles.join(", ")}`,
+        });
+      }
+    }
+
+    const user = await getSingleRecord<User, { where: { id: string } }>(User, {
+      where: { id: user_id },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Update user fields
+    user.username = username || user.username;
+    user.email = email !== undefined ? email : user.email;
+    user.password = password !== undefined ? password : user.password;
+    user.batch_id = batch_id || user.batch_id;
+    if (role) {
+      user.userRole = role as UserRole;
+    }
+
+    const errors = await validate(user);
+    if (errors.length > 0) {
+      return res.status(400).json({
+        errors: errors.map((e) => e.toString()),
+      });
+    }
+
+    const updatedUser = await updateRecords<User, { id: string }, any, any>(
+      User,
+      { id: user_id },
+      {
+        username: user.username,
+        email: user.email,
+        password: user.password,
+        batch_id: user.batch_id,
+        userRole: user.userRole,
+      },
+      false,
+    );
+
+    return res.status(200).json({
+      message: "User updated successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Error updating user:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Unified user deletion endpoint
+export const deleteUser = async (req: Request, res: Response) => {
+  try {
+    const { user_id } = req.params;
+
+    if (!user_id) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    const deleteResult = await deleteRecords<User, { id: string }>(User, {
+      id: user_id,
+    });
+
+    if (deleteResult.affected === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json({
+      message: "User deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting user:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

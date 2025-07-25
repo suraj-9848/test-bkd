@@ -393,9 +393,13 @@ router.post("/admin-login", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    if (!user) {
-      // Optionally, you can create the user here if needed
-      return res.status(404).json({ error: "User not found" });
+    // Check if user has admin privileges
+    const allowedRoles = [UserRole.ADMIN, UserRole.RECRUITER];
+    if (!allowedRoles.includes(user.userRole)) {
+      return res.status(403).json({
+        error: "Access denied. Admin privileges required.",
+        userRole: user.userRole,
+      });
     }
 
     // Generate JWT token for the user

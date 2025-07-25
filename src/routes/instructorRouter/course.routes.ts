@@ -6,7 +6,6 @@ import {
   deleteCourse,
   fetchAllCoursesAcrossBatches,
   assignCourseToStudent,
-  getCourseAnalytics,
 } from "../../controllers/courseCrudControllers/courseController";
 
 import {
@@ -64,7 +63,6 @@ courseRouter.get("/courses/:id", fetchCourse);
 courseRouter.put("/courses/:id", updateCourse);
 courseRouter.delete("/courses/:id", deleteCourse);
 courseRouter.post("/courses/:courseId/assign-student", assignCourseToStudent);
-courseRouter.get("/courses/:id/analytics", getCourseAnalytics);
 
 // Module routes for direct course access
 courseRouter.get("/courses/:courseId/modules", getAllModules);

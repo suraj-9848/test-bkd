@@ -22,10 +22,10 @@ export const getTestAnalytics = async (req: Request, res: Response) => {
 
     // 3. Calculate who gave and who did not give the test
     const studentsWhoGave = allStudentIds.filter((id) =>
-      submittedStudentIds.includes(id)
+      submittedStudentIds.includes(id),
     );
     const studentsWhoDidNotGive = allStudentIds.filter(
-      (id) => !submittedStudentIds.includes(id)
+      (id) => !submittedStudentIds.includes(id),
     );
 
     // Optionally, fetch student details
@@ -145,7 +145,7 @@ export const createTest = async (req: Request, res: Response) => {
     const course = await getSingleRecord<Course, any>(
       Course,
       { where: { id: courseId } },
-      `course:${courseId}`
+      `course:${courseId}`,
     );
 
     if (!course) {
@@ -182,7 +182,7 @@ export const createTest = async (req: Request, res: Response) => {
       Test.getRepository(),
       test,
       `test:course:${courseId}:new`,
-      600
+      600,
     );
 
     return res.status(201).json({
@@ -210,7 +210,7 @@ export const fetchTestsInCourse = async (req: Request, res: Response) => {
       Course,
       { where: { id: courseId } },
       `course:${courseId}`,
-      false
+      false,
     );
 
     if (!course) {
@@ -247,7 +247,7 @@ export const fetchTestById = async (req: Request, res: Response) => {
     const test = await getSingleRecord<Test, any>(
       Test,
       { where: { id: testId }, relations: ["course", "questions"] },
-      `test:${testId}`
+      `test:${testId}`,
     );
 
     if (!test) {
@@ -418,7 +418,7 @@ export const teststatustoPublish = async (req: Request, res: Response) => {
     const test = await getSingleRecord<Test, any>(
       Test,
       { where: { id: testId }, relations: ["course"] },
-      `test:${testId}`
+      `test:${testId}`,
     );
 
     if (!test) {
@@ -470,7 +470,7 @@ export const createQuestion = async (req: Request, res: Response) => {
       Test,
       { where: { id: testId } },
       `test_${testId}`,
-      false // returnPlain: false to get entity
+      false, // returnPlain: false to get entity
     );
 
     if (!test) {
@@ -584,7 +584,7 @@ export const createQuestion = async (req: Request, res: Response) => {
 
     const savedQuestion = (await createRecord(
       Question.getRepository(),
-      question
+      question,
     )) as Question;
 
     // Handle MCQ options
@@ -618,7 +618,7 @@ export const createQuestion = async (req: Request, res: Response) => {
         option.question = savedQuestion;
         const savedOption = await createRecord(
           QuizOptions.getRepository(),
-          option
+          option,
         );
         savedOptions.push(savedOption);
       }
@@ -632,7 +632,7 @@ export const createQuestion = async (req: Request, res: Response) => {
         relations: ["options"],
       },
       `question_${savedQuestion.id}`,
-      false
+      false,
     );
 
     // Update Test
@@ -686,7 +686,7 @@ export const getQuestions = async (req: Request, res: Response) => {
       Test,
       { where: { id: testId } },
       `test_${testId}`,
-      false
+      false,
     );
 
     if (!test) {
@@ -701,7 +701,7 @@ export const getQuestions = async (req: Request, res: Response) => {
         relations: ["options"],
       },
       `test_${testId}_questions`,
-      false
+      false,
     );
 
     logger.info("Questions fetched successfully", {
@@ -755,7 +755,7 @@ export const updateQuestion = async (req: Request, res: Response) => {
         relations: ["test", "options"],
       },
       `question_${questionId}`,
-      false
+      false,
     );
 
     if (!question) {
@@ -886,11 +886,11 @@ export const updateQuestion = async (req: Request, res: Response) => {
         .map((opt: any) => opt.id);
       // Delete options not in the new list
       const optionsToDelete = existingOptionIds.filter(
-        (id) => !newOptionIds.includes(id)
+        (id) => !newOptionIds.includes(id),
       );
       if (optionsToDelete.length > 0) {
         await Promise.all(
-          optionsToDelete.map((id) => deleteRecords(QuizOptions, { id }))
+          optionsToDelete.map((id) => deleteRecords(QuizOptions, { id })),
         );
       }
 
@@ -926,8 +926,8 @@ export const updateQuestion = async (req: Request, res: Response) => {
       // Clear options for non-MCQ types
       await Promise.all(
         question.options.map((option) =>
-          deleteRecords(QuizOptions, { id: option.id })
-        )
+          deleteRecords(QuizOptions, { id: option.id }),
+        ),
       );
       question.options = [];
     }
@@ -945,7 +945,7 @@ export const updateQuestion = async (req: Request, res: Response) => {
         relations: ["options"],
       },
       `question_${questionId}`,
-      false
+      false,
     );
 
     logger.info("Question updated successfully", {
@@ -998,7 +998,7 @@ export const deleteQuestion = async (req: Request, res: Response) => {
         relations: ["test"],
       },
       `question_${questionId}`,
-      false
+      false,
     );
 
     if (!question) {
@@ -1104,7 +1104,7 @@ export const evaluateTestSubmission = async (req: Request, res: Response) => {
           await Promise.all(
             responses.map(async (evalResponse) => {
               const response = submission.responses.find(
-                (r) => r.id === evalResponse.responseId
+                (r) => r.id === evalResponse.responseId,
               );
               if (!response || response.question.type === "MCQ") {
                 return;
@@ -1115,7 +1115,7 @@ export const evaluateTestSubmission = async (req: Request, res: Response) => {
                 evalResponse.score < 0
               ) {
                 throw new Error(
-                  `Invalid score for response ${evalResponse.responseId}`
+                  `Invalid score for response ${evalResponse.responseId}`,
                 );
               }
 
@@ -1126,17 +1126,17 @@ export const evaluateTestSubmission = async (req: Request, res: Response) => {
                   score: evalResponse.score,
                   evaluationStatus: "EVALUATED",
                   evaluatorComments: evalResponse.comments || null,
-                }
+                },
               );
 
               totalScore += evalResponse.score;
-            })
+            }),
           );
 
           // Update submission status
           const allEvaluated = submission.responses.every(
             (r) =>
-              r.evaluationStatus === "EVALUATED" || r.question.type === "MCQ"
+              r.evaluationStatus === "EVALUATED" || r.question.type === "MCQ",
           );
           await manager.update(
             TestSubmission,
@@ -1144,7 +1144,7 @@ export const evaluateTestSubmission = async (req: Request, res: Response) => {
             {
               totalScore,
               status: allEvaluated ? "FULLY_EVALUATED" : "PARTIALLY_EVALUATED",
-            }
+            },
           );
 
           return {
@@ -1152,7 +1152,7 @@ export const evaluateTestSubmission = async (req: Request, res: Response) => {
             totalScore,
             status: allEvaluated ? "FULLY_EVALUATED" : "PARTIALLY_EVALUATED",
           };
-        }
+        },
       );
 
     res.status(200).json({
@@ -1278,7 +1278,7 @@ export const evaluateTestResponseById = async (req: Request, res: Response) => {
         score: score,
         evaluationStatus: "EVALUATED",
         evaluatorComments: evaluatorComments || null,
-      }
+      },
     );
 
     // Update the submission status
@@ -1296,12 +1296,12 @@ export const evaluateTestResponseById = async (req: Request, res: Response) => {
 
     const totalScore = evaluatedResponses.reduce(
       (sum, resp) => sum + (resp.score || 0),
-      0
+      0,
     );
 
     // Check if all non-MCQ questions are evaluated
     const allEvaluated = allResponses.every(
-      (r) => r.question.type === "MCQ" || r.evaluationStatus === "EVALUATED"
+      (r) => r.question.type === "MCQ" || r.evaluationStatus === "EVALUATED",
     );
 
     // Update submission status
@@ -1310,7 +1310,7 @@ export const evaluateTestResponseById = async (req: Request, res: Response) => {
       {
         totalScore,
         status: allEvaluated ? "FULLY_EVALUATED" : "PARTIALLY_EVALUATED",
-      }
+      },
     );
 
     res.status(200).json({
@@ -1334,7 +1334,7 @@ export const evaluateTestResponseById = async (req: Request, res: Response) => {
 
 export const getSubmissionsForEvaluation = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   try {
     const { testId } = req.params;
@@ -1346,7 +1346,7 @@ export const getSubmissionsForEvaluation = async (
     if (
       status &&
       ["SUBMITTED", "PARTIALLY_EVALUATED", "FULLY_EVALUATED"].includes(
-        status as string
+        status as string,
       )
     ) {
       statusFilter.status = status;

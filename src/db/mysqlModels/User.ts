@@ -16,8 +16,8 @@ import { TestSubmission } from "./TestSubmission";
 export enum UserRole {
   STUDENT = "student",
   ADMIN = "admin",
-  COLLEGE_ADMIN = "college_admin",
   INSTRUCTOR = "instructor",
+  RECRUITER = "recruiter",
 }
 
 @Entity()
