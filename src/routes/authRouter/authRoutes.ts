@@ -392,9 +392,9 @@ router.post("/admin-login", async (req: Request, res: Response) => {
       // Optionally, you can create the user here if needed
       return res.status(404).json({ error: "User not found" });
     }
-
+    console.log("User found in admin login route:", user);
     // Check if user has admin privileges
-    const allowedRoles = [UserRole.ADMIN, UserRole.RECRUITER];
+    const allowedRoles = [UserRole.ADMIN, UserRole.RECRUITER, UserRole.INSTRUCTOR];
     if (!allowedRoles.includes(user.userRole)) {
       return res.status(403).json({
         error: "Access denied. Admin privileges required.",
