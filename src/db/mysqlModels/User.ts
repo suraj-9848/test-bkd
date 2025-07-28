@@ -12,6 +12,7 @@ import { v4 as uuidv4 } from "uuid";
 import { Org } from "./Org";
 import { JobApplication } from "./JobApplication";
 import { TestSubmission } from "./TestSubmission";
+import { RefreshToken } from "./RefreshToken";
 
 export enum UserRole {
   STUDENT = "student",
@@ -49,6 +50,9 @@ export class User extends BaseEntity {
 
   @OneToMany(() => UserCourse, (uc) => uc.user)
   userCourses: UserCourse[];
+
+  @OneToMany(() => RefreshToken, (refreshToken) => refreshToken.user)
+  refreshTokens: RefreshToken[];
 
   @OneToMany(() => JobApplication, (application) => application.user)
   jobApplications: JobApplication[];
