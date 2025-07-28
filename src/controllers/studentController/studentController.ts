@@ -641,7 +641,7 @@ async function isModuleUnlocked(
 
   // Check if previous module is completed (all days done + MCQ passed if exists)
   const previousModuleStatus = await isMCQPassed(student, previousModule);
-  const previousDaysCompleted = await areAllDaysCompleted(student, previousModule);
+  const previousDaysCompleted = await areAllDaysCompleted(student.id, previousModule);
   
   return previousDaysCompleted && previousModuleStatus.passed;
 }
@@ -694,7 +694,7 @@ async function hasModuleProgress(
 
 // Helper function to check if all day contents of a module are completed
 async function areAllDaysCompleted(
-  student: User,
+  studentId: string,
   module: Module,
 ): Promise<boolean> {
   const days = await getAllRecordsWithFilter(DayContent, {
@@ -702,7 +702,7 @@ async function areAllDaysCompleted(
   });
   for (const day of days) {
     const completion = await getSingleRecord(UserDayCompletion, {
-      where: { user: { id: student.id }, day: { id: day.id } },
+      where: { user: { id: studentId }, day: { id: day.id } },
     });
     if (!completion || !completion.completed) {
       return false;
@@ -781,7 +781,7 @@ export const getStudentCourses = async (req: Request, res: Response) => {
           // Calculate module completion status
           const modulesWithDetails = await Promise.all(
             modules.map(async (module: Module) => {
-              const allDaysCompleted = await areAllDaysCompleted(student, module);
+              const allDaysCompleted = await areAllDaysCompleted(student.id, module);
 
               // Fetch MCQ status
               const mcq = await getSingleRecord(ModuleMCQ, {
@@ -917,7 +917,7 @@ export const getStudentCourseById = async (req: Request, res: Response) => {
     const modulesWithDetails = await Promise.all(
       modules.map(async (module: Module) => {
         const isUnlocked = await isModuleUnlocked(student, module);
-        const allDaysCompleted = await areAllDaysCompleted(student, module);
+        const allDaysCompleted = await areAllDaysCompleted(student.id, module);
 
         // Fetch MCQ status
         const mcq = await getSingleRecord(ModuleMCQ, {
@@ -1065,7 +1065,7 @@ export const getStudentModuleById = async (req: Request, res: Response) => {
       }),
     );
 
-    const allDaysCompleted = await areAllDaysCompleted(student, module);
+    const allDaysCompleted = await areAllDaysCompleted(student.id, module);
     const mcqStatus = await isMCQPassed(student, module);
 
     // For backward compatibility, still provide individual values
@@ -1181,7 +1181,7 @@ export const getStudentModuleMCQ = async (req: Request, res: Response) => {
       return res.status(403).json({ message: "Module is locked" });
     }
 
-    const allDaysCompleted = await areAllDaysCompleted(student, module);
+    const allDaysCompleted = await areAllDaysCompleted(student.id, module);
     if (!allDaysCompleted) {
       return res
         .status(403)
@@ -1400,7 +1400,7 @@ export const getModuleCompletionStatus = async (
       return res.status(403).json({ message: "Module is locked" });
     }
 
-    const allDaysCompleted = await areAllDaysCompleted(student, module);
+    const allDaysCompleted = await areAllDaysCompleted(student.id, module);
 
     const mcq = await getSingleRecord(ModuleMCQ, {
       where: { module: { id: moduleId } },
@@ -1650,7 +1650,7 @@ export const getStudentDashboardStats = async (req: Request, res: Response) => {
 
       // Count completed modules by checking if all days are completed
       for (const module of modules) {
-        const allDaysCompleted = await areAllDaysCompleted(user, module);
+        const allDaysCompleted = await areAllDaysCompleted(user.id, module);
         if (allDaysCompleted) {
           completedModules++;
         }
@@ -1667,7 +1667,7 @@ export const getStudentDashboardStats = async (req: Request, res: Response) => {
 
       // Estimate 2 hours per completed module
       for (const module of modules) {
-        const allDaysCompleted = await areAllDaysCompleted(user, module);
+        const allDaysCompleted = await areAllDaysCompleted(user.id, module);
         if (allDaysCompleted) {
           hoursLearned += 2; // Estimated hours per module
         }

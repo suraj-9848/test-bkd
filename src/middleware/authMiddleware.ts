@@ -1,20 +1,33 @@
+// src/middleware/authMiddleware.ts - Enhanced version with full User entity support
 import { Request, Response, NextFunction } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { config } from "../config";
-import { decode } from "punycode";
 import { OAuth2Client } from "google-auth-library";
 import { AppDataSource } from "../db/connect";
-import { User } from "../db/mysqlModels/User";
+import { User, UserRole } from "../db/mysqlModels/User";
 import { getSingleRecord } from "../lib/dbLib/sqlUtils";
 
-// Extend Express Request to include `user`
+const logger = require("../utils/logger").getLogger();
+
+// Basic auth user interface (from token)
+interface AuthUser {
+  id: string;
+  username: string;
+  userRole: string;
+  email: string;
+  token?: string;
+}
+
+// Extend Express Request to include both basic and full user
 declare global {
   namespace Express {
     interface Request {
-      user?: any;
+      user?: AuthUser;
+      fullUser?: User; // Full database user entity
     }
   }
 }
+
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const userRepository = AppDataSource.getRepository(User);
 
@@ -24,16 +37,188 @@ async function verifyGoogleToken(idToken: string) {
       idToken: idToken,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
-    console.log("Google token verified successfully", ticket);
 
     const payload = ticket.getPayload();
-    return payload; // Contains user info
+    logger.info("Google token verified successfully");
+    return payload;
   } catch (error) {
-    console.error("Google token verification failed:", error);
+    logger.error("Google token verification failed:", error);
     throw error;
   }
 }
 
+/**
+ * Enhanced Auth Middleware - Compatible with both old and new token systems
+ * Sets req.user with basic info and optionally req.fullUser with complete entity
+ */
+export const authMiddleware = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  let token: string | undefined;
+
+  // Check Authorization header first
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.split(" ")[1];
+  }
+  // Check cookies - support both new and legacy cookie names
+  else if (req.cookies) {
+    token = req.cookies.accessToken || req.cookies.token;
+  }
+
+  if (!token) {
+    return res.status(401).json({ error: "Unauthorized - Token Missing" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, config.JWT_SECRET) as JwtPayload;
+
+    if (
+      !decoded ||
+      typeof decoded !== "object" ||
+      !decoded.id ||
+      !decoded.userRole ||
+      !decoded.username
+    ) {
+      return res.status(401).json({ error: "Invalid token payload" });
+    }
+
+    // Set basic user info
+    req.user = {
+      id: decoded.id,
+      username: decoded.username,
+      userRole: decoded.userRole,
+      email: decoded.email || "",
+      token,
+    };
+
+    // Fetch full user entity from database
+    try {
+      const fullUser = await getSingleRecord<User, any>(
+        User,
+        { where: { id: decoded.id } },
+        `user_id_${decoded.id}`,
+        true,
+        5 * 60, // 5 minute cache
+      );
+
+      if (fullUser) {
+        req.fullUser = fullUser;
+        // Also update req.user with fresh data from DB
+        req.user = {
+          id: fullUser.id,
+          username: fullUser.username,
+          userRole: fullUser.userRole,
+          email: fullUser.email,
+          token,
+        };
+      }
+    } catch (dbError) {
+      logger.error("Error fetching full user:", dbError);
+      // Continue with basic user info if DB fetch fails
+    }
+
+    next();
+  } catch (error) {
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({ 
+        error: "Token expired",
+        code: "TOKEN_EXPIRED"
+      });
+    }
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+};
+
+/**
+ * Auth middleware that requires full user entity
+ * Use this when you need the complete User object with all relations
+ */
+export const authMiddlewareWithFullUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  // First run standard auth
+  await new Promise<void>((resolve, reject) => {
+    authMiddleware(req, res, (error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+
+  // Check if we have the full user
+  if (!req.fullUser) {
+    // Try to fetch it if not already available
+    if (req.user) {
+      try {
+        const fullUser = await getSingleRecord<User, any>(
+          User,
+          { where: { id: req.user.id } },
+          `user_id_${req.user.id}`,
+          false, // Don't cache for this critical fetch
+          5 * 60,
+        );
+
+        if (!fullUser) {
+          return res.status(404).json({ error: "User not found in database" });
+        }
+
+        req.fullUser = fullUser;
+      } catch (error) {
+        logger.error("Error fetching full user entity:", error);
+        return res.status(500).json({ error: "Failed to fetch user data" });
+      }
+    } else {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+  }
+
+  next();
+};
+
+/**
+ * Utility middleware to ensure req.user is a full User entity
+ * This modifies req.user to be the full database entity
+ */
+export const ensureFullUserEntity = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  if (!req.user) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+
+  try {
+    const fullUser = await getSingleRecord<User, any>(
+      User,
+      { where: { id: req.user.id } },
+      `user_id_${req.user.id}`,
+      true,
+      5 * 60,
+    );
+
+    if (!fullUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Replace req.user with the full entity
+    req.user = fullUser as any;
+    req.fullUser = fullUser;
+
+    next();
+  } catch (error) {
+    logger.error("Error ensuring full user entity:", error);
+    return res.status(500).json({ error: "Failed to fetch user data" });
+  }
+};
+
+/**
+ * Admin Auth Middleware - For Google OAuth
+ */
 export const adminAuthMiddleware = async (
   req: Request,
   res: Response,
@@ -54,78 +239,149 @@ export const adminAuthMiddleware = async (
       { where: { email: payload.email } },
       `user_email_${payload.email}`,
       true,
-      10 * 60,
+      5 * 60,
     );
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const allowedRoles = ["admin", "recruiter"];
-    if (!allowedRoles.includes(user.userRole.toLowerCase())) {
-      return res
-        .status(403)
-        .json({ error: "Access denied. Admin or recruiter role required." });
+    const allowedRoles = [UserRole.ADMIN, UserRole.RECRUITER, UserRole.INSTRUCTOR];
+    if (!allowedRoles.includes(user.userRole)) {
+      return res.status(403).json({
+        error: "Access denied. Admin or recruiter role required.",
+        userRole: user.userRole,
+      });
     }
 
-    // Set user info in request object for downstream middleware/routes
+    // Set both basic and full user
     req.user = {
       id: user.id,
       username: user.username,
       userRole: user.userRole,
       email: user.email,
     };
+    req.fullUser = user;
 
+    logger.info(`Admin authenticated: ${user.email} (${user.userRole})`);
     next();
   } catch (error) {
-    console.error("Admin auth error:", error);
+    logger.error("Admin auth error:", error);
     return res.status(401).json({ error: "Authentication failed" });
   }
 };
 
-export const authMiddleware = (
+/**
+ * Role-based Authorization Middleware Factory
+ */
+export const requireRole = (allowedRoles: UserRole[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ 
+        error: "Authentication required" 
+      });
+    }
+
+    if (!allowedRoles.includes(req.user.userRole as UserRole)) {
+      return res.status(403).json({
+        error: `Access denied. Required roles: ${allowedRoles.join(", ")}`,
+        userRole: req.user.userRole,
+      });
+    }
+
+    next();
+  };
+};
+
+/**
+ * Student-specific middleware that ensures full User entity
+ */
+export const studentAuthMiddleware = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  // Look for token in multiple places
-  let token: string | undefined;
+  // First authenticate
+  await new Promise<void>((resolve, reject) => {
+    authMiddleware(req, res, (error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
 
-  // First check Authorization header
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    token = authHeader.split(" ")[1];
-  }
-  // If not in header, check cookies
-  else if (req.cookies && req.cookies.token) {
-    token = req.cookies.token;
-  }
-
-  // If no token found in either location
-  if (!token) {
-    return res.status(401).json({ error: "Unauthorized, Token Missing" });
+  // Check if user is student
+  if (req.user?.userRole !== UserRole.STUDENT) {
+    return res.status(403).json({
+      error: "Access denied. Student role required.",
+      userRole: req.user?.userRole,
+    });
   }
 
+  // Ensure we have full user entity
+  await new Promise<void>((resolve, reject) => {
+    ensureFullUserEntity(req, res, (error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+
+  next();
+};
+
+/**
+ * Optional Authentication Middleware
+ */
+export const optionalAuth = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
-    const decoded = jwt.verify(token, config.JWT_SECRET) as JwtPayload;
+    let token: string | undefined;
 
-    if (
-      !decoded ||
-      typeof decoded !== "object" ||
-      !decoded.id ||
-      !decoded.userRole ||
-      !decoded.username
-    ) {
-      return res.status(401).json({ error: "Invalid token payload." });
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    } else if (req.cookies) {
+      token = req.cookies.accessToken || req.cookies.token;
     }
 
-    req.user = {
-      ...(decoded as any),
-      token,
-    };
+    if (!token) {
+      return next();
+    }
+
+    try {
+      const decoded = jwt.verify(token, config.JWT_SECRET) as any;
+      
+      if (decoded && decoded.id) {
+        const user = await getSingleRecord<User, any>(
+          User,
+          { where: { id: decoded.id } },
+          `user_id_${decoded.id}`,
+          true,
+          5 * 60,
+        );
+
+        if (user) {
+          req.user = {
+            id: user.id,
+            username: user.username,
+            userRole: user.userRole,
+            email: user.email,
+            token,
+          };
+          req.fullUser = user;
+        }
+      }
+    } catch (error) {
+      logger.debug("Optional auth token invalid:", error.message);
+    }
 
     next();
   } catch (error) {
-    return res.status(401).json({ error: "Invalid or expired token." });
+    logger.error("Optional auth error:", error);
+    next();
   }
 };
+
+export const userProtect = authMiddleware;
