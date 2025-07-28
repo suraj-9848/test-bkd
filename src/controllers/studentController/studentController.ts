@@ -1039,13 +1039,8 @@ export const getStudentModuleById = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Module not found" });
     }
 
-    const isUnlocked = await isModuleUnlocked(student, module);
-    console.log(`Module ${moduleId} unlock status for student ${student.id}:`, isUnlocked);
     
-    if (!isUnlocked) {
-      console.log(`Module ${moduleId} is locked for student ${student.id}. Module order: ${module.order}`);
-      return res.status(403).json({ message: "Module is locked" });
-    }
+   
 
     const days = await getAllRecordsWithFilter(DayContent, {
       where: { module: { id: moduleId } },
