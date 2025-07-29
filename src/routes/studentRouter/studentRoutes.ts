@@ -37,11 +37,12 @@ router.use(studentAuthMiddleware);
 
 // Test routes
 router.get("/tests", getStudentTests);
+router.get("/tests/leaderboard", getGlobalTestLeaderboard);
 router.get("/tests/:testId", getStudentTestById);
 router.post("/tests/:testId/submit", submitTest);
 router.get("/tests/:testId/submissions", getTestSubmissions);
 router.get("/tests/:testId/results", getStudentTestResults);
-router.get("/tests/leaderboard", getGlobalTestLeaderboard);
+
 
 // Course routes
 router.get("/courses", getStudentCourses);
