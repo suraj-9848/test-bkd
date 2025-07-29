@@ -11,6 +11,7 @@ import {
 import { Course } from "../../db/mysqlModels/Course";
 import { User } from "../../db/mysqlModels/User";
 import { UserCourse } from "../../db/mysqlModels/UserCourse";
+import { AppDataSource } from "../../db/connect";
 
 export const createBatch = async (req: Request, res: Response) => {
   try {
@@ -24,7 +25,7 @@ export const createBatch = async (req: Request, res: Response) => {
       Batch.getRepository(),
       batch,
       "all_batches",
-      10 * 60,
+      10 * 60
     );
     return res.status(201).json({ message: "Batch created", batch: saved });
   } catch (err) {
@@ -56,7 +57,7 @@ export const fetchBatch = async (req: Request, res: Response) => {
       { where: { id } },
       `batch_${id}`,
       true,
-      10 * 60,
+      10 * 60
     );
     if (!batch) {
       return res.status(404).json({ message: "Batch not found" });
@@ -109,13 +110,12 @@ export const assignBatchToStudent = async (req: Request, res: Response) => {
       where: { id: userId },
     });
     if (!user) return res.status(404).json({ message: "User not found" });
-    // enforce or initialize org_id
     if (!user.org_id) {
       await updateRecords(
         User,
         { id: userId },
         { org_id: batch.org_id },
-        false,
+        false
       );
       user.org_id = batch.org_id;
     } else if (user.org_id !== batch.org_id) {
@@ -123,17 +123,15 @@ export const assignBatchToStudent = async (req: Request, res: Response) => {
         .status(400)
         .json({ message: "User belongs to a different organization" });
     }
-    // update user's batch list
     if (!user.batch_id.includes(batchId)) {
       user.batch_id = [...user.batch_id, batchId];
       await updateRecords(
         User,
         { id: userId },
         { batch_id: user.batch_id },
-        false,
+        false
       );
     }
-    // fetch and assign courses
     const courses = await getAllRecordsWithFilter<Course, any>(Course, {
       where: { batch: { id: batchId } },
     });
@@ -145,7 +143,7 @@ export const assignBatchToStudent = async (req: Request, res: Response) => {
       if (!exists)
         await createRecord(
           UserCourse.getRepository(),
-          Object.assign(new UserCourse(), { user, course }),
+          Object.assign(new UserCourse(), { user, course })
         );
       assigned.push(course);
     }
@@ -159,70 +157,249 @@ export const assignBatchToStudent = async (req: Request, res: Response) => {
   }
 };
 
-// Assign multiple students to a batch (with org_id enforcement)
+// Fixed assignMultipleStudentsToBatch function with correct relationship handling
 export const assignMultipleStudentsToBatch = async (
   req: Request,
-  res: Response,
+  res: Response
 ) => {
   try {
+    console.log("=== ASSIGN MULTIPLE STUDENTS DEBUG ===");
     const { batchId } = req.params;
     const { userIds } = req.body;
-    if (!Array.isArray(userIds) || userIds.length === 0) {
-      return res.status(400).json({ message: "userIds array is required" });
+
+    console.log("Request params:", { batchId });
+    console.log("Request body:", { userIds });
+
+    if (!batchId) {
+      console.error("Missing batchId in params");
+      return res.status(400).json({ message: "Batch ID is required" });
     }
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      console.error("Invalid userIds:", userIds);
+      return res
+        .status(400)
+        .json({ message: "userIds array is required and cannot be empty" });
+    }
+
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    for (const uid of userIds) {
+      if (!uid || typeof uid !== "string" || !uuidRegex.test(uid)) {
+        console.error("Invalid user ID format:", uid);
+        return res
+          .status(400)
+          .json({ message: `Invalid user ID format: ${uid}` });
+      }
+    }
+
+    console.log("Fetching batch...");
     const batch = await getSingleRecord<Batch, any>(Batch, {
       where: { id: batchId },
     });
-    if (!batch) return res.status(404).json({ message: "Batch not found" });
-    const courses = await getAllRecordsWithFilter<Course, any>(Course, {
-      where: { batch: { id: batchId } },
-    });
-    const results: any[] = [];
-    for (const uid of userIds) {
-      let user = await getSingleRecord<User, any>(User, {
-        where: { id: uid },
-      });
-      if (!user) {
-        results.push({ userId: uid, status: "User not found" });
-        continue;
-      }
-      if (!user.org_id) {
-        await updateRecords(User, { id: uid }, { org_id: batch.org_id }, false);
-        user.org_id = batch.org_id;
-      } else if (user.org_id !== batch.org_id) {
-        results.push({ userId: uid, status: "Org mismatch" });
-        continue;
-      }
-      if (!user.batch_id.includes(batchId)) {
-        user.batch_id = [...user.batch_id, batchId];
-        await updateRecords(
-          User,
-          { id: uid },
-          { batch_id: user.batch_id },
-          false,
-        );
-      }
-      for (const course of courses) {
-        const exists = await getSingleRecord<UserCourse, any>(UserCourse, {
-          where: { user: { id: uid }, course: { id: course.id } },
-        });
-        if (!exists)
-          await createRecord(
-            UserCourse.getRepository(),
-            Object.assign(new UserCourse(), { user, course }),
-          );
-      }
-      results.push({
-        userId: uid,
-        status: "Assigned",
-        coursesAssigned: courses.length,
-      });
+
+    if (!batch) {
+      console.error("Batch not found:", batchId);
+      return res.status(404).json({ message: "Batch not found" });
     }
-    return res
-      .status(200)
-      .json({ message: "Batch assignment completed", results });
+
+    console.log("Found batch:", {
+      id: batch.id,
+      name: batch.name,
+      org_id: batch.org_id,
+    });
+
+    console.log("Fetching courses for batch...");
+
+    const courseRepository = AppDataSource.getRepository(Course);
+    const courses = await courseRepository
+      .createQueryBuilder("course")
+      .innerJoin("course.batches", "batch")
+      .where("batch.id = :batchId", { batchId })
+      .getMany();
+
+    console.log("Found courses:", courses.length);
+    courses.forEach((course) => {
+      console.log(`Course: ${course.id} - ${course.title}`);
+    });
+
+    const results: any[] = [];
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (let i = 0; i < userIds.length; i++) {
+      const uid = userIds[i];
+      console.log(`Processing user ${i + 1}/${userIds.length}: ${uid}`);
+
+      try {
+        let user = await getSingleRecord<User, any>(User, {
+          where: { id: uid },
+        });
+
+        if (!user) {
+          console.error(`User not found: ${uid}`);
+          results.push({ userId: uid, status: "User not found" });
+          errorCount++;
+          continue;
+        }
+
+        console.log(`Found user: ${user.username} (${user.email})`);
+        console.log(
+          `User org_id: ${user.org_id}, Batch org_id: ${batch.org_id}`
+        );
+
+        if (!user.org_id) {
+          console.log(`Setting org_id for user ${uid} to ${batch.org_id}`);
+          await updateRecords(
+            User,
+            { id: uid },
+            { org_id: batch.org_id },
+            false
+          );
+          user.org_id = batch.org_id;
+        } else if (user.org_id !== batch.org_id) {
+          console.error(
+            `Org mismatch: User ${uid} org_id=${user.org_id}, Batch org_id=${batch.org_id}`
+          );
+          results.push({ userId: uid, status: "Organization mismatch" });
+          errorCount++;
+          continue;
+        }
+
+        const currentBatchIds = user.batch_id || [];
+        console.log(`Current batch_ids for user ${uid}:`, currentBatchIds);
+
+        if (!currentBatchIds.includes(batchId)) {
+          const newBatchIds = [...currentBatchIds, batchId];
+          console.log(`Updating batch_ids for user ${uid} to:`, newBatchIds);
+
+          await updateRecords(
+            User,
+            { id: uid },
+            { batch_id: newBatchIds },
+            false
+          );
+        } else {
+          console.log(`User ${uid} already assigned to batch ${batchId}`);
+        }
+
+        let coursesAssigned = 0;
+        for (const course of courses) {
+          try {
+            const exists = await getSingleRecord<UserCourse, any>(UserCourse, {
+              where: { user: { id: uid }, course: { id: course.id } },
+            });
+
+            if (!exists) {
+              console.log(`Assigning course ${course.id} to user ${uid}`);
+
+              const userEntity = await getSingleRecord<User, any>(User, {
+                where: { id: uid },
+              });
+
+              const courseEntity = await getSingleRecord<Course, any>(Course, {
+                where: { id: course.id },
+              });
+
+              if (userEntity && courseEntity) {
+                const userCourse = new UserCourse();
+                userCourse.user = userEntity;
+                userCourse.course = courseEntity;
+                userCourse.completed = false;
+
+                await createRecord(UserCourse.getRepository(), userCourse);
+                coursesAssigned++;
+              } else {
+                console.error(
+                  `Failed to load entities for course assignment: user=${!!userEntity}, course=${!!courseEntity}`
+                );
+              }
+            } else {
+              console.log(
+                `User ${uid} already assigned to course ${course.id}`
+              );
+            }
+          } catch (courseError) {
+            console.error(
+              `Error assigning course ${course.id} to user ${uid}:`,
+              courseError
+            );
+          }
+        }
+
+        results.push({
+          userId: uid,
+          status: "Assigned",
+          coursesAssigned,
+          totalCourses: courses.length,
+        });
+
+        successCount++;
+        console.log(`Successfully processed user ${uid}`);
+      } catch (userError) {
+        console.error(`Error processing user ${uid}:`, userError);
+        results.push({
+          userId: uid,
+          status: "Processing error",
+          error:
+            userError instanceof Error ? userError.message : String(userError),
+        });
+        errorCount++;
+      }
+    }
+
+    console.log("=== ASSIGNMENT SUMMARY ===");
+    console.log(`Total users processed: ${userIds.length}`);
+    console.log(`Successful assignments: ${successCount}`);
+    console.log(`Failed assignments: ${errorCount}`);
+    console.log("Results:", results);
+
+    return res.status(200).json({
+      message: `Batch assignment completed: ${successCount} successful, ${errorCount} failed`,
+      summary: {
+        total: userIds.length,
+        successful: successCount,
+        failed: errorCount,
+        batchName: batch.name,
+        coursesInBatch: courses.length,
+      },
+      results,
+    });
   } catch (err) {
-    console.error("Error assigning multiple students to batch:", err);
-    return res.status(500).json({ message: "Internal server error" });
+    console.error("=== CRITICAL ERROR IN ASSIGN MULTIPLE STUDENTS ===");
+    console.error("Error details:", err);
+    console.error(
+      "Stack trace:",
+      err instanceof Error ? err.stack : "No stack trace"
+    );
+
+    let errorMessage = "Internal server error";
+    if (err instanceof Error) {
+      if (err.message.includes("connection")) {
+        errorMessage = "Database connection error";
+      } else if (err.message.includes("timeout")) {
+        errorMessage = "Database timeout error";
+      } else if (err.message.includes("constraint")) {
+        errorMessage = "Database constraint violation";
+      } else if (
+        err.message.includes("Property") &&
+        err.message.includes("was not found")
+      ) {
+        errorMessage =
+          "Database relationship error - please check entity relationships";
+      } else {
+        errorMessage = `Server error: ${err.message}`;
+      }
+    }
+
+    return res.status(500).json({
+      message: errorMessage,
+      details:
+        process.env.NODE_ENV === "development"
+          ? err instanceof Error
+            ? err.message
+            : String(err)
+          : undefined,
+    });
   }
 };
