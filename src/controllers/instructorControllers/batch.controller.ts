@@ -9,10 +9,192 @@ import {
   getAllRecordsWithFilter,
 } from "../../lib/dbLib/sqlUtils";
 import { Course } from "../../db/mysqlModels/Course";
-import { User } from "../../db/mysqlModels/User";
+import { User, UserRole } from "../../db/mysqlModels/User";
 import { UserCourse } from "../../db/mysqlModels/UserCourse";
 import { AppDataSource } from "../../db/connect";
 import { TestSubmission } from "../../db/mysqlModels/TestSubmission";
+
+// Get students assigned to a specific batch
+export const getBatchStudents = async (req: Request, res: Response) => {
+  try {
+    const { batchId } = req.params;
+
+    // Check if batch exists
+    const batch = await getSingleRecord<Batch, any>(Batch, {
+      where: { id: batchId },
+    });
+    if (!batch) {
+      return res.status(404).json({ message: "Batch not found" });
+    }
+
+    // Get all users assigned to this batch
+    const students = await getAllRecordsWithFilter<User, any>(User, {
+      where: {
+        batch_id: {
+          like: `%${batchId}%`, // Using LIKE to search in JSON array
+        },
+      },
+    });
+
+    // Filter and format the response
+    const formattedStudents = students.map((student) => ({
+      id: student.id,
+      name: student.name,
+      email: student.email,
+      username: student.username,
+      batch_id: student.batch_id,
+      org_id: student.org_id,
+    }));
+
+    return res.status(200).json({
+      message: "Batch students fetched successfully",
+      batchId,
+      batchName: batch.name,
+      students: formattedStudents,
+      totalStudents: formattedStudents.length,
+    });
+  } catch (err) {
+    console.error("Error fetching batch students:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Check if a specific student is assigned to a specific batch
+export const checkStudentBatchAssignment = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const { batchId, studentId } = req.params;
+
+    // Get user record
+    const user = await getSingleRecord<User, any>(User, {
+      where: { id: studentId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // Check if user is assigned to the batch
+    const isAssigned = user.batch_id && user.batch_id.includes(batchId);
+
+    return res.status(200).json({
+      studentId,
+      batchId,
+      isAssigned: !!isAssigned,
+      batchIds: user.batch_id || [],
+    });
+  } catch (err) {
+    console.error("Error checking student batch assignment:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Transfer student from one batch to another
+export const transferStudentBetweenBatches = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const { studentId, fromBatchId, toBatchId } = req.body;
+
+    if (!studentId || !fromBatchId || !toBatchId) {
+      return res.status(400).json({
+        message: "studentId, fromBatchId, and toBatchId are required",
+      });
+    }
+
+    // Get user and batches
+    const [user, fromBatch, toBatch] = await Promise.all([
+      getSingleRecord<User, any>(User, { where: { id: studentId } }),
+      getSingleRecord<Batch, any>(Batch, { where: { id: fromBatchId } }),
+      getSingleRecord<Batch, any>(Batch, { where: { id: toBatchId } }),
+    ]);
+
+    if (!user) return res.status(404).json({ message: "Student not found" });
+    if (!fromBatch)
+      return res.status(404).json({ message: "Source batch not found" });
+    if (!toBatch)
+      return res.status(404).json({ message: "Target batch not found" });
+
+    // Check organization consistency
+    if (user.org_id !== fromBatch.org_id || user.org_id !== toBatch.org_id) {
+      return res.status(400).json({
+        message: "Organization mismatch between student and batches",
+      });
+    }
+
+    // Check if student is in source batch
+    if (!user.batch_id || !user.batch_id.includes(fromBatchId)) {
+      return res.status(400).json({
+        message: "Student is not assigned to the source batch",
+      });
+    }
+
+    // Update batch assignment
+    let updatedBatchIds = user.batch_id.filter(
+      (id: string) => id !== fromBatchId
+    );
+    if (!updatedBatchIds.includes(toBatchId)) {
+      updatedBatchIds.push(toBatchId);
+    }
+
+    await updateRecords(
+      User,
+      { id: studentId },
+      { batch_id: updatedBatchIds },
+      false
+    );
+
+    // Handle course assignments
+    const [fromBatchCourses, toBatchCourses] = await Promise.all([
+      getAllRecordsWithFilter<Course, any>(Course, {
+        where: { batch: { id: fromBatchId } },
+      }),
+      getAllRecordsWithFilter<Course, any>(Course, {
+        where: { batch: { id: toBatchId } },
+      }),
+    ]);
+
+    // Remove from old batch courses
+    for (const course of fromBatchCourses) {
+      await deleteRecords(UserCourse, {
+        user: { id: studentId },
+        course: { id: course.id },
+      });
+    }
+
+    // Add to new batch courses
+    for (const course of toBatchCourses) {
+      const existingEnrollment = await getSingleRecord<UserCourse, any>(
+        UserCourse,
+        {
+          where: { user: { id: studentId }, course: { id: course.id } },
+        }
+      );
+
+      if (!existingEnrollment) {
+        await createRecord(
+          UserCourse.getRepository(),
+          Object.assign(new UserCourse(), { user, course })
+        );
+      }
+    }
+
+    return res.status(200).json({
+      message: "Student transferred successfully",
+      studentId,
+      fromBatch: fromBatch.name,
+      toBatch: toBatch.name,
+      removedFromCourses: fromBatchCourses.length,
+      addedToCourses: toBatchCourses.length,
+    });
+  } catch (err) {
+    console.error("Error transferring student:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
 
 export const createBatch = async (req: Request, res: Response) => {
   try {
@@ -405,6 +587,195 @@ export const assignMultipleStudentsToBatch = async (
   }
 };
 
+export const assignMultipleStudentsToBatchEnhanced = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    console.log("=== ENHANCED ASSIGN MULTIPLE STUDENTS ===");
+    const { batchId } = req.params;
+    const { userIds } = req.body;
+
+    console.log("Request params:", { batchId });
+    console.log("Request body:", { userIds });
+
+    if (!batchId) {
+      return res.status(400).json({ message: "Batch ID is required" });
+    }
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({
+        message: "userIds array is required and cannot be empty",
+      });
+    }
+
+    // Validate UUID format
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    for (const uid of userIds) {
+      if (!uid || typeof uid !== "string" || !uuidRegex.test(uid)) {
+        return res.status(400).json({
+          message: `Invalid user ID format: ${uid}`,
+        });
+      }
+    }
+
+    // Check if batch exists
+    const batch = await getSingleRecord<Batch, any>(Batch, {
+      where: { id: batchId },
+    });
+
+    if (!batch) {
+      return res.status(404).json({ message: "Batch not found" });
+    }
+
+    console.log("Found batch:", { id: batch.id, name: batch.name });
+
+    const results: any[] = [];
+    let successCount = 0;
+    let skippedCount = 0;
+    let errorCount = 0;
+
+    for (const userId of userIds) {
+      try {
+        console.log(`Processing user: ${userId}`);
+
+        const user = await getSingleRecord<User, any>(User, {
+          where: { id: userId },
+        });
+
+        if (!user) {
+          console.error(`User not found: ${userId}`);
+          results.push({
+            userId,
+            status: "error",
+            message: "User not found",
+          });
+          errorCount++;
+          continue;
+        }
+
+        console.log(`Found user: ${user.username} (${user.email})`);
+
+        // Check organization match
+        if (!user.org_id) {
+          await updateRecords(
+            User,
+            { id: userId },
+            { org_id: batch.org_id },
+            false
+          );
+          user.org_id = batch.org_id;
+        } else if (user.org_id !== batch.org_id) {
+          console.error(`Organization mismatch for user ${userId}`);
+          results.push({
+            userId,
+            status: "error",
+            message: "User belongs to a different organization",
+          });
+          errorCount++;
+          continue;
+        }
+
+        // **CRITICAL FIX: Check if already assigned to prevent duplicates**
+        const currentBatchIds = user.batch_id || [];
+        if (currentBatchIds.includes(batchId)) {
+          console.log(`User ${userId} already assigned to batch ${batchId}`);
+          results.push({
+            userId,
+            status: "skipped",
+            message: "Already assigned to this batch",
+            userName: user.username,
+          });
+          skippedCount++;
+          continue;
+        }
+
+        // Add batch to user's batch_id array (no duplicates)
+        const updatedBatchIds = [...currentBatchIds, batchId];
+        await updateRecords(
+          User,
+          { id: userId },
+          { batch_id: updatedBatchIds },
+          false
+        );
+
+        console.log(`Updated user ${userId} batch_id: ${updatedBatchIds}`);
+
+        // Assign to courses in this batch
+        const courses = await getAllRecordsWithFilter<Course, any>(Course, {
+          where: { batch: { id: batchId } },
+        });
+
+        let assignedCourses = 0;
+        for (const course of courses) {
+          const existingEnrollment = await getSingleRecord<UserCourse, any>(
+            UserCourse,
+            {
+              where: { user: { id: userId }, course: { id: course.id } },
+            }
+          );
+
+          if (!existingEnrollment) {
+            await createRecord(
+              UserCourse.getRepository(),
+              Object.assign(new UserCourse(), { user, course })
+            );
+            assignedCourses++;
+          }
+        }
+
+        results.push({
+          userId,
+          userName: user.username,
+          status: "success",
+          message: `Assigned to batch and ${assignedCourses} courses`,
+          assignedCourses,
+        });
+        successCount++;
+
+        console.log(`Successfully assigned user ${userId} to batch ${batchId}`);
+      } catch (userError) {
+        console.error(`Error processing user ${userId}:`, userError);
+        results.push({
+          userId,
+          status: "error",
+          message: `Assignment failed: ${userError instanceof Error ? userError.message : "Unknown error"}`,
+        });
+        errorCount++;
+      }
+    }
+
+    console.log("=== ASSIGNMENT SUMMARY ===");
+    console.log(`Total processed: ${userIds.length}`);
+    console.log(`Successful: ${successCount}`);
+    console.log(`Skipped (already assigned): ${skippedCount}`);
+    console.log(`Errors: ${errorCount}`);
+
+    const response = {
+      message: `Assignment completed: ${successCount} successful, ${skippedCount} already assigned, ${errorCount} errors`,
+      batchId,
+      batchName: batch.name,
+      summary: {
+        total: userIds.length,
+        successful: successCount,
+        skipped: skippedCount,
+        failed: errorCount,
+      },
+      results,
+    };
+
+    // Return success even if some assignments were skipped
+    return res.status(200).json(response);
+  } catch (err) {
+    console.error("Error in enhanced assign multiple students:", err);
+    return res.status(500).json({
+      message: "Internal server error",
+      error: err instanceof Error ? err.message : "Unknown error",
+    });
+  }
+};
+
 // Get all students in a batch with their details
 export const fetchBatchStudents = async (req: Request, res: Response) => {
   try {
@@ -513,6 +884,366 @@ export const getStudentCourseScores = async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error("Error fetching student scores:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+  
+};
+
+export const getStudentsWithBatches = async (req: Request, res: Response) => {
+  try {
+    console.log("=== GET STUDENTS WITH BATCHES ===");
+    
+    // Get the instructor's organization from the request
+    // You may need to adjust this based on how you get the org_id in your system
+    const instructorId = (req as any).user?.id;
+    
+    if (!instructorId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // Get instructor's organization
+    const instructor = await getSingleRecord<User, any>(User, {
+      where: { id: instructorId },
+    });
+
+    if (!instructor) {
+      return res.status(404).json({ message: "Instructor not found" });
+    }
+
+    const orgId = instructor.org_id;
+    
+    if (!orgId) {
+      return res.status(400).json({ message: "Instructor organization not found" });
+    }
+
+    console.log(`Fetching students for organization: ${orgId}`);
+
+    // Get all students in the same organization
+    const students = await getAllRecordsWithFilter<User, any>(User, {
+      where: {
+        org_id: orgId,
+        userRole: UserRole.STUDENT,
+      },
+    });
+
+    console.log(`Found ${students.length} students`);
+
+    // Format the response with proper batch information
+    const formattedStudents = students.map((student) => ({
+      id: student.id,
+      name: student.username,
+      email: student.email,
+      username: student.username,
+      batch_id: student.batch_id || [],
+      org_id: student.org_id,
+      profile_picture: student.profile_picture,
+    }));
+
+    console.log("Formatted students sample:", formattedStudents.slice(0, 2));
+
+    return res.status(200).json({
+      message: "Students fetched successfully",
+      users: formattedStudents,
+      students: formattedStudents,
+      totalStudents: formattedStudents.length,
+      organizationId: orgId,
+    });
+  } catch (err) {
+    console.error("Error fetching students with batches:", err);
+    return res.status(500).json({ 
+      message: "Internal server error",
+      error: err instanceof Error ? err.message : "Unknown error"
+    });
+  }
+};
+
+// ===== REMOVE MULTIPLE STUDENTS FROM BATCH =====
+export const removeMultipleStudentsFromBatch = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    console.log("=== REMOVE MULTIPLE STUDENTS FROM BATCH ===");
+    const { batchId } = req.params;
+    const { userIds } = req.body;
+
+    console.log("Request params:", { batchId });
+    console.log("Request body:", { userIds });
+
+    if (!batchId) {
+      console.error("Missing batchId in params");
+      return res.status(400).json({ message: "Batch ID is required" });
+    }
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      console.error("Invalid userIds:", userIds);
+      return res.status(400).json({ 
+        message: "userIds array is required and cannot be empty" 
+      });
+    }
+
+    // Check if batch exists
+    const batch = await getSingleRecord<Batch, any>(Batch, {
+      where: { id: batchId },
+    });
+    if (!batch) {
+      console.error("Batch not found:", batchId);
+      return res.status(404).json({ message: "Batch not found" });
+    }
+
+    console.log("Batch found:", batch.name);
+
+    const results = [];
+    const errors = [];
+
+    // Process each user removal
+    for (const userId of userIds) {
+      try {
+        console.log(`Processing removal for user: ${userId}`);
+
+        // Get user record
+        const user = await getSingleRecord<User, any>(User, {
+          where: { id: userId },
+        });
+
+        if (!user) {
+          console.error(`User not found: ${userId}`);
+          errors.push(`User not found: ${userId}`);
+          continue;
+        }
+
+        console.log(`User found: ${user.username || user.email}`);
+
+        // Check organization match
+        if (user.org_id !== batch.org_id) {
+          console.error(`Organization mismatch for user ${userId}`);
+          errors.push(`User ${user.username || user.email} belongs to a different organization`);
+          continue;
+        }
+
+        // Check if user is actually assigned to this batch
+        const currentBatchIds = user.batch_id || [];
+        if (!currentBatchIds.includes(batchId)) {
+          console.warn(`User ${userId} is not assigned to batch ${batchId}`);
+          errors.push(`User ${user.username || user.email} is not assigned to this batch`);
+          continue;
+        }
+
+        // Remove batch from user's batch_id array
+        const updatedBatchIds = currentBatchIds.filter((id: string) => id !== batchId);
+        await updateRecords(
+          User,
+          { id: userId },
+          { batch_id: updatedBatchIds },
+          false
+        );
+
+        console.log(`Updated user ${userId} batch_id from [${currentBatchIds}] to [${updatedBatchIds}]`);
+
+        // Remove user from all courses in this batch
+        // FIX: Use proper many-to-many relationship query
+        const courseRepository = AppDataSource.getRepository(Course);
+        const batchCourses = await courseRepository
+          .createQueryBuilder("course")
+          .innerJoin("course.batches", "batch")
+          .where("batch.id = :batchId", { batchId })
+          .getMany();
+
+        let removedFromCourses = 0;
+        for (const course of batchCourses) {
+          try {
+            const result = await deleteRecords(UserCourse, {
+              user: { id: userId },
+              course: { id: course.id },
+            });
+            if (result.affected && result.affected > 0) {
+              removedFromCourses++;
+              console.log(`Removed user ${userId} from course ${course.id}`);
+            }
+          } catch (courseError) {
+            console.warn(`Failed to remove user ${userId} from course ${course.id}:`, courseError);
+          }
+        }
+
+        results.push({
+          userId,
+          userName: user.username || user.email,
+          success: true,
+          message: `Removed from batch and ${removedFromCourses} courses`,
+          removedFromCourses,
+        });
+
+        console.log(`Successfully removed user ${userId} from batch ${batchId}`);
+      } catch (userError) {
+        console.error(`Error processing user ${userId}:`, userError);
+        errors.push(`Failed to remove user ${userId}: ${userError}`);
+      }
+    }
+
+    console.log("=== REMOVAL SUMMARY ===");
+    console.log(`Successful removals: ${results.length}`);
+    console.log(`Errors: ${errors.length}`);
+
+    // Prepare response
+    const response: any = {
+      message: `Batch removal processed: ${results.length} successful, ${errors.length} errors`,
+      batchId,
+      batchName: batch.name,
+      results,
+      totalProcessed: userIds.length,
+      successCount: results.length,
+      errorCount: errors.length,
+    };
+
+    if (errors.length > 0) {
+      response.errors = errors;
+    }
+
+    return res.status(200).json(response);
+  } catch (err) {
+    console.error("Error in removeMultipleStudentsFromBatch:", err);
+    return res.status(500).json({ 
+      message: "Internal server error during batch removal",
+      error: err instanceof Error ? err.message : "Unknown error"
+    });
+  }
+};
+
+// ===== REMOVE SINGLE STUDENT FROM BATCH =====
+export const removeBatchFromStudent = async (req: Request, res: Response) => {
+  try {
+    const { batchId } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+
+    // Check if batch exists
+    const batch = await getSingleRecord<Batch, any>(Batch, {
+      where: { id: batchId },
+    });
+    if (!batch) {
+      return res.status(404).json({ message: "Batch not found" });
+    }
+
+    // Get user record
+    const user = await getSingleRecord<User, any>(User, {
+      where: { id: userId },
+    });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Check organization match
+    if (user.org_id !== batch.org_id) {
+      return res.status(400).json({ 
+        message: "User belongs to a different organization" 
+      });
+    }
+
+    // Check if user is actually assigned to this batch
+    const currentBatchIds = user.batch_id || [];
+    if (!currentBatchIds.includes(batchId)) {
+      return res.status(400).json({ 
+        message: "User is not assigned to this batch" 
+      });
+    }
+
+    // Remove batch from user's batch_id array
+    const updatedBatchIds = currentBatchIds.filter((id: string) => id !== batchId);
+    await updateRecords(
+      User,
+      { id: userId },
+      { batch_id: updatedBatchIds },
+      false
+    );
+
+    // Remove user from all courses in this batch
+    // FIX: Use proper many-to-many relationship query
+    const courseRepository = AppDataSource.getRepository(Course);
+    const courses = await courseRepository
+      .createQueryBuilder("course")
+      .innerJoin("course.batches", "batch")
+      .where("batch.id = :batchId", { batchId })
+      .getMany();
+
+    const removedCourses: Course[] = [];
+    for (const course of courses) {
+      try {
+        const result = await deleteRecords(UserCourse, {
+          user: { id: userId },
+          course: { id: course.id },
+        });
+        
+        if (result.affected && result.affected > 0) {
+          removedCourses.push(course);
+        }
+      } catch (courseError) {
+        console.warn(`Failed to remove user from course ${course.id}:`, courseError);
+      }
+    }
+
+    return res.status(200).json({
+      message: "Student removed from batch successfully",
+      userId,
+      batchId,
+      removedFromCourses: removedCourses.length,
+      updatedBatchIds,
+    });
+  } catch (err) {
+    console.error("Error removing batch from student:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// ===== GET USER'S BATCH INFORMATION =====
+export const getUserBatches = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+
+    const user = await getSingleRecord<User, any>(User, {
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Get batch details for the user's batch_id array
+    const batchIds = user.batch_id || [];
+    const batches = [];
+
+    for (const batchId of batchIds) {
+      try {
+        const batch = await getSingleRecord<Batch, any>(Batch, {
+          where: { id: batchId },
+        });
+        if (batch) {
+          batches.push({
+            id: batch.id,
+            name: batch.name,
+            description: batch.description,
+            org_id: batch.org_id,
+          });
+        }
+      } catch (err) {
+        console.warn(`Failed to fetch batch ${batchId}:`, err);
+      }
+    }
+
+    return res.status(200).json({
+      userId,
+      batch_id: batchIds,
+      batches,
+      totalBatches: batches.length,
+    });
+  } catch (err) {
+    console.error("Error fetching user batches:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
