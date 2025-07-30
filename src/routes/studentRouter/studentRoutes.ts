@@ -37,7 +37,7 @@ router.use(studentAuthMiddleware);
 
 // Test routes - specific routes must come before parameterized routes
 router.get("/tests", getStudentTests);
-router.get("/tests/leaderboard", getGlobalTestLeaderboard); // Move this before :testId routes
+router.get("/tests/leaderboard", getGlobalTestLeaderboard);
 router.get("/tests/:testId", getStudentTestById);
 router.post("/tests/:testId/submit", submitTest);
 router.get("/tests/:testId/submissions", getTestSubmissions);
