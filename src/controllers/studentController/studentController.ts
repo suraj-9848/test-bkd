@@ -475,13 +475,19 @@ export const getTestSubmissions = async (req: Request, res: Response) => {
 export const getStudentTestResults = async (req: Request, res: Response) => {
   try {
     const studentId = req.user.id;
+    const { testId } = req.params;
 
-    // Get test submissions for this student using utility function
+    console.log(`[GET TEST RESULTS] Student: ${studentId}, Test: ${testId}`);
+
+    // Get test submissions for this student and specific test using utility function
     const submissions = await getAllRecordsWithFilter(TestSubmission, {
-      where: { user: { id: studentId } },
-      relations: ["test", "test.course"],
+      where: { 
+        user: { id: studentId },
+        test: { id: testId }
+      },
+      relations: ["test", "test.course", "responses", "responses.question"],
       order: { submittedAt: "DESC" },
-    }, `student:${studentId}:test_results`, true, 5 * 60); // Cache for 5 minutes
+    }, `student:${studentId}:test:${testId}:results`, true, 5 * 60); // Cache for 5 minutes
 
     if (!submissions.length) {
       return res.status(200).json({
@@ -493,15 +499,27 @@ export const getStudentTestResults = async (req: Request, res: Response) => {
     // Process submissions to include additional computed data
     const processedSubmissions = submissions.map((submission) => {
       // Get individual responses for this submission
-      const responses = submission.responses || [];
+      const responses = (submission.responses || []).map((response) => ({
+        questionId: response.question?.id || response.questionId,
+        questionText: response.question?.question_text || "Question text not available", 
+        type: response.question?.type || "unknown",
+        answer: response.selectedOptions || response.textAnswer || "",
+        score: response.score || 0,
+        maxMarks: response.question?.marks || 0,
+        evaluationStatus: response.evaluationStatus || "NOT_EVALUATED",
+        evaluatorComments: response.evaluatorComments || null,
+        options: [] // Will need to be populated if needed
+      }));
 
       return {
         id: submission.id,
+        submissionId: submission.id, // Frontend expects this field
         testId: submission.test.id,
         testTitle: submission.test.title,
         courseTitle: submission.test.course?.title || "Unknown Course",
         submittedAt: submission.submittedAt,
         totalScore: submission.totalScore,
+        maxMarks: submission.test.maxMarks, // Frontend expects maxMarks not maxScore
         maxScore: submission.test.maxMarks,
         passingMarks: submission.test.passingMarks,
         percentage:
@@ -511,6 +529,7 @@ export const getStudentTestResults = async (req: Request, res: Response) => {
         passed:
           submission.totalScore !== null &&
           submission.totalScore >= submission.test.passingMarks,
+        status: submission.status || "SUBMITTED",
         responses,
       };
     });
