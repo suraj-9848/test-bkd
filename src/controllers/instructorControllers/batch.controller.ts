@@ -11,6 +11,7 @@ import {
 import { Course } from "../../db/mysqlModels/Course";
 import { User } from "../../db/mysqlModels/User";
 import { UserCourse } from "../../db/mysqlModels/UserCourse";
+import { TestSubmission } from "../../db/mysqlModels/TestSubmission";
 
 export const createBatch = async (req: Request, res: Response) => {
   try {
@@ -223,6 +224,107 @@ export const assignMultipleStudentsToBatch = async (
       .json({ message: "Batch assignment completed", results });
   } catch (err) {
     console.error("Error assigning multiple students to batch:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Get all students in a batch with their details
+export const fetchBatchStudents = async (req: Request, res: Response) => {
+  try {
+    const { batchId } = req.params;
+
+    console.log(`📋 Fetching students for batch: ${batchId}`);
+
+    // Verify batch exists
+    const batch = await getSingleRecord(Batch, { where: { id: batchId } });
+    if (!batch) {
+      return res.status(404).json({ message: "Batch not found" });
+    }
+
+    // Get all students enrolled in courses within this batch
+    const userCourses = await getAllRecordsWithFilter(UserCourse, {
+      where: { 
+        course: { 
+          batches: { id: batchId } 
+        } 
+      },
+      relations: ["user", "course"],
+    });
+
+    // Extract unique students with their details
+    const studentMap = new Map();
+    userCourses.forEach((uc) => {
+      if (uc.user && !studentMap.has(uc.user.id)) {
+        studentMap.set(uc.user.id, {
+          id: uc.user.id,
+          username: uc.user.username,
+          email: uc.user.email,
+          name: uc.user.name || uc.user.username,
+          user: uc.user
+        });
+      }
+    });
+
+    const students = Array.from(studentMap.values());
+    
+    console.log(`✅ Found ${students.length} students in batch ${batchId}`);
+
+    return res.status(200).json({
+      message: "Batch students fetched successfully",
+      students,
+      count: students.length
+    });
+  } catch (err) {
+    console.error("Error fetching batch students:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Get test scores for a specific student in a course
+export const getStudentCourseScores = async (req: Request, res: Response) => {
+  try {
+    const { batchId, courseId, studentId } = req.params;
+
+    console.log(`📊 Fetching scores for student: ${studentId}, course: ${courseId}, batch: ${batchId}`);
+
+    // Get all test submissions for this student in this course
+    const submissions = await getAllRecordsWithFilter(TestSubmission, {
+      where: {
+        user: { id: studentId },
+        test: { course: { id: courseId } }
+      },
+      relations: ["test", "test.course"],
+      order: { submittedAt: "DESC" }
+    });
+
+    // Calculate scores
+    const scores = submissions.map(submission => ({
+      testId: submission.test.id,
+      testTitle: submission.test.title,
+      score: submission.totalScore || 0,
+      maxScore: submission.test.maxMarks || 100,
+      percentage: submission.totalScore && submission.test.maxMarks 
+        ? Math.round((submission.totalScore / submission.test.maxMarks) * 100 * 10) / 10
+        : 0,
+      submittedAt: submission.submittedAt,
+      status: submission.status
+    }));
+
+    // Calculate average
+    const average = scores.length > 0
+      ? Math.round(scores.reduce((sum, s) => sum + s.percentage, 0) / scores.length * 10) / 10
+      : 0;
+
+    console.log(`✅ Found ${scores.length} test scores for student ${studentId}`);
+
+    return res.status(200).json({
+      message: "Student scores fetched successfully",
+      scores,
+      average,
+      totalTests: scores.length
+    });
+  } catch (err) {
+    console.error("Error fetching student scores:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

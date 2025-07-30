@@ -15,6 +15,8 @@ import {
   fetchBatch,
   assignBatchToStudent,
   assignMultipleStudentsToBatch,
+  fetchBatchStudents,
+  getStudentCourseScores,
 } from "../../controllers/instructorControllers/batch.controller";
 import {
   getSubmissionsForEvaluation,
@@ -85,6 +87,10 @@ router.put("/batches/:id", updateBatch);
 router.delete("/batches/:id", deleteBatch);
 router.post("/batches/:batchId/assign-student", assignBatchToStudent);
 router.post("/batches/:batchId/assign-students", assignMultipleStudentsToBatch);
+
+// Analytics routes for batches
+router.get("/batches/:batchId/students", fetchBatchStudents);
+router.get("/batches/:batchId/courses/:courseId/students/:studentId/scores", getStudentCourseScores);
 
 // Course routes (nested under batch)
 router.post("/batches/:batchId/courses", createCourse);
