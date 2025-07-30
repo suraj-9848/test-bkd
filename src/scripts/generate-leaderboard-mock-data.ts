@@ -4,6 +4,8 @@ import { Test, TestStatus } from "../db/mysqlModels/Test";
 import { TestSubmission } from "../db/mysqlModels/TestSubmission";
 import { Org } from "../db/mysqlModels/Org";
 import { Course } from "../db/mysqlModels/Course";
+import { Module } from "../db/mysqlModels/Module";
+import { Batch } from "../db/mysqlModels/Batch";
 
 async function main() {
   await AppDataSource.initialize();
@@ -11,6 +13,8 @@ async function main() {
   const orgRepo = AppDataSource.getRepository(Org);
   const userRepo = AppDataSource.getRepository(User);
   const courseRepo = AppDataSource.getRepository(Course);
+  const moduleRepo = AppDataSource.getRepository(Module);
+  const batchRepo = AppDataSource.getRepository(Batch);
   const testRepo = AppDataSource.getRepository(Test);
   const submissionRepo = AppDataSource.getRepository(TestSubmission);
 
@@ -21,17 +25,98 @@ async function main() {
     await orgRepo.save(org);
   }
 
-  // 2. Create Course
-  let course = await courseRepo.findOneBy({ title: "Leaderboard Course" });
-  if (!course) {
-    course = courseRepo.create({
-      title: "Leaderboard Course",
+  // 2. Create Multiple Sample Courses
+  const sampleCourses = [
+    {
+      title: "React Fundamentals",
       logo: "",
+      is_public: true,
+      instructor_name: "John Doe",
       start_date: new Date(Date.now() - 86400000),
       end_date: new Date(Date.now() + 86400000 * 30),
-      // Remove org_id, just create course without org if not required
+    },
+    {
+      title: "Node.js Backend Development", 
+      logo: "",
+      is_public: true,
+      instructor_name: "Jane Smith",
+      start_date: new Date(Date.now() - 86400000),
+      end_date: new Date(Date.now() + 86400000 * 45),
+    },
+    {
+      title: "Full Stack Web Development",
+      logo: "",
+      is_public: true, 
+      instructor_name: "Bob Wilson",
+      start_date: new Date(Date.now() - 86400000),
+      end_date: new Date(Date.now() + 86400000 * 60),
+    },
+    {
+      title: "Database Design & Management",
+      logo: "",
+      is_public: true,
+      instructor_name: "Alice Johnson", 
+      start_date: new Date(Date.now() - 86400000),
+      end_date: new Date(Date.now() + 86400000 * 40),
+    }
+  ];
+
+  const createdCourses = [];
+  for (const courseData of sampleCourses) {
+    let course = await courseRepo.findOneBy({ title: courseData.title });
+    if (!course) {
+      course = courseRepo.create(courseData);
+      await courseRepo.save(course);
+      console.log(`✅ Created course: ${course.title} (ID: ${course.id})`);
+    } else {
+      console.log(`ℹ️ Course already exists: ${course.title}`);
+    }
+    createdCourses.push(course);
+  }
+  
+  // Use the first course for the test
+  const course = createdCourses[0];
+
+  // 2.5. Create a sample batch and link courses to it  
+  let batch = await batchRepo.findOneBy({ name: "Sample Batch 2024" });
+  if (!batch) {
+    batch = batchRepo.create({
+      name: "Sample Batch 2024",
+      org_id: org.id,
+      courses: createdCourses // Link all courses to this batch
     });
-    await courseRepo.save(course);
+    await batchRepo.save(batch);
+    console.log(`✅ Created batch: ${batch.name} (ID: ${batch.id})`);
+  } else {
+    console.log(`ℹ️ Batch already exists: ${batch.name}`);
+  }
+
+  // 2.6. Create sample modules for each course
+  const moduleData = [
+    { title: "Introduction", order: 1 },
+    { title: "Core Concepts", order: 2 },
+    { title: "Advanced Topics", order: 3 },
+    { title: "Practical Applications", order: 4 }
+  ];
+
+  for (const courseItem of createdCourses) {
+    for (const modData of moduleData) {
+      const moduleTitle = `${courseItem.title} - ${modData.title}`;
+      let module = await moduleRepo.findOneBy({ title: moduleTitle });
+      
+      if (!module) {
+        module = moduleRepo.create({
+          title: moduleTitle,
+          order: modData.order,
+          course: courseItem,
+          isLocked: false, // Make modules unlocked so they're accessible
+        });
+        await moduleRepo.save(module);
+        console.log(`  ✅ Created module: ${module.title} (ID: ${module.id})`);
+      } else {
+        console.log(`  ℹ️ Module already exists: ${module.title}`);
+      }
+    }
   }
 
   // 3. Create Users
@@ -97,7 +182,13 @@ async function main() {
     }
   }
 
-  console.log("Mock leaderboard data created!");
+  console.log("✅ Sample courses, modules, batch, and leaderboard data created successfully!");
+  console.log(`📚 Created ${createdCourses.length} courses`);
+  console.log(`📖 Created ${createdCourses.length * 4} modules (4 per course)`);
+  console.log(`🎓 Created 1 batch linked to all courses`);
+  console.log(`👥 Created ${userEntities.length} users`);  
+  console.log("🎯 Created test and submissions for leaderboard");
+  console.log("\n🎉 Your MCQ management should now work in the admin panel!");
   process.exit(0);
 }
 

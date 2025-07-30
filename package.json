@@ -12,10 +12,11 @@
     "dev": "nodemon --exec ts-node src/index.ts",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\"",
     "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx}\"",
-    "lint": "eslint . --ext .ts,.tsx",
+    "lint": "eslint . --ext .ts,.tsx", 
     "test": "vitest run",
     "test:hiring": "./scripts/run-hiring-tests.sh",
-    "ci-test": "pnpm test || echo 'No tests found. Skipping test phase.'"
+    "ci-test": "pnpm test || echo 'No tests found. Skipping test phase.'",
+    "seed:courses": "ts-node src/scripts/generate-leaderboard-mock-data.ts"
   },
   "author": "",
   "license": "ISC",

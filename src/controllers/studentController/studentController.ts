@@ -1106,12 +1106,33 @@ export const getStudentModuleMCQ = async (req: Request, res: Response) => {
 
     const mcq = await getSingleRecord(ModuleMCQ, {
       where: { module: { id: moduleId } },
+      relations: ["module"],
     });
     if (!mcq) {
       return res.status(404).json({ message: "MCQ not found for this module" });
     }
 
-    res.status(200).json(mcq);
+    console.log("📚 Serving MCQ to student:", {
+      moduleId,
+      mcqId: mcq.id,
+      questionsCount: mcq.questions?.length || 0,
+    });
+
+    // Remove correct answers from questions before sending to student
+    const questionsWithoutAnswers = mcq.questions?.map((question: any) => ({
+      ...question,
+      correctAnswer: undefined, // Hide correct answers from students
+    })) || [];
+
+    res.status(200).json({
+      id: mcq.id,
+      passingScore: mcq.passingScore,
+      questions: questionsWithoutAnswers,
+      module: {
+        id: module.id,
+        title: module.title,
+      },
+    });
   } catch (error) {
     console.error("Error fetching MCQ:", error);
     res.status(500).json({ message: "Error fetching MCQ" });
@@ -1281,11 +1302,18 @@ export const getMCQReview = async (req: Request, res: Response) => {
         .json({ message: "You have not attempted this MCQ yet" });
     }
 
-    // Return the MCQ structure including correctAnswer
+    console.log("📚 Serving MCQ review to student:", {
+      moduleId,
+      mcqId: mcq.id,
+      questionsCount: mcq.questions?.length || 0,
+      studentId: student.id,
+    });
+
+    // Return the MCQ structure including correctAnswer for review
     res.status(200).json({
       id: mcq.id,
       passingScore: mcq.passingScore,
-      questions: mcq.questions,
+      questions: mcq.questions, // Include correct answers for review
       module: {
         id: module.id,
         title: module.title,

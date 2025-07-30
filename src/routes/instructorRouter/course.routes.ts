@@ -22,6 +22,7 @@ import {
   updateMCQ,
   deleteMCQ,
   getMCQ,
+  getMCQById,
   getMCQRetakeStatus,
 } from "../../controllers/moduleControllers/moduleMCQControllers";
 
@@ -65,10 +66,11 @@ courseRouter.get("/analytics/students", getSystemWideStudentAnalytics);
 
 // Course routes
 courseRouter.post("/courses", validateCourseBody, createCourse);
+courseRouter.get("/courses", fetchAllCoursesForInstructor); // Get all courses - must be before parameterized routes
+courseRouter.get("/fetch-all-courses", fetchAllCoursesForInstructor); // Keep legacy endpoint for compatibility
 courseRouter.get("/courses/:courseId", fetchCourse);
 courseRouter.put("/courses/:courseId", validateCourseBody, updateCourse);
 courseRouter.delete("/courses/:courseId", deleteCourse);
-courseRouter.get("/fetch-all-courses", fetchAllCoursesForInstructor);
 courseRouter.post("/courses/:courseId/assign", assignCourseToStudent);
 
 // Module routes
@@ -81,8 +83,9 @@ courseRouter.delete("/modules/:moduleId", deleteModule);
 // MCQ routes
 courseRouter.post("/courses/:courseId/modules/:moduleId/mcq", createMCQ);
 courseRouter.get("/courses/:courseId/modules/:moduleId/mcq", getMCQ);
-courseRouter.put("/courses/:courseId/modules/:moduleId/mcq", updateMCQ);
-courseRouter.delete("/courses/:courseId/modules/:moduleId/mcq", deleteMCQ);
+courseRouter.get("/courses/:courseId/modules/:moduleId/mcq/:mcqId", getMCQById);
+courseRouter.put("/courses/:courseId/modules/:moduleId/mcq/:mcqId", updateMCQ);
+courseRouter.delete("/courses/:courseId/modules/:moduleId/mcq/:mcqId", deleteMCQ);
 courseRouter.get("/courses/:courseId/modules/:moduleId/mcq/retake", getMCQRetakeStatus);
 
 // Day content routes

@@ -320,16 +320,24 @@ export const createCourse = async (req: Request, res: Response) => {
 // ========== FETCH ONE COURSE ==========
 export const fetchCourse = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    console.log("📚 [FETCH COURSE] Fetching individual course");
+    console.log("🔍 [FETCH COURSE] Request params:", req.params);
+    console.log("🔍 [FETCH COURSE] Request URL:", req.originalUrl);
+    
+    // Handle both 'id' and 'courseId' parameter names for compatibility
+    const courseId = req.params.courseId || req.params.id;
 
-    if (!id) {
+    if (!courseId) {
+      console.log("❌ [FETCH COURSE] No course ID provided");
       return res.status(400).json({ message: "Course ID is required" });
     }
+
+    console.log("🔍 [FETCH COURSE] Looking for course ID:", courseId);
 
     const course = await getSingleRecord(
       Course,
       {
-        where: { id },
+        where: { id: courseId },
         relations: ["modules", "modules.days", "batches"],
         order: {
           modules: {
@@ -340,21 +348,28 @@ export const fetchCourse = async (req: Request, res: Response) => {
           },
         },
       },
-      `course_${id}`,
+      `course_${courseId}`,
       true,
       10 * 60,
     );
 
     if (!course) {
+      console.log("❌ [FETCH COURSE] Course not found with ID:", courseId);
       return res.status(404).json({ message: "Course not found" });
     }
+
+    console.log("✅ [FETCH COURSE] Course found:", {
+      id: course.id,
+      title: course.title,
+      modulesCount: course.modules?.length || 0
+    });
 
     return res.status(200).json({
       message: "Course fetched successfully",
       course,
     });
   } catch (err) {
-    console.error("Fetch course error:", err);
+    console.error("❌ [FETCH COURSE] Fetch course error:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -444,10 +459,18 @@ export const fetchAllCoursesinBatch = async (req: Request, res: Response) => {
 // ========== FETCH ALL COURSES FOR INSTRUCTOR ==========
 export const fetchAllCoursesForInstructor = async (req: Request, res: Response) => {
   try {
+    console.log("📚 [INSTRUCTOR COURSES] Fetching all courses for instructor");
     const user = req.user;
     if (!user) {
+      console.log("❌ [INSTRUCTOR COURSES] User not authenticated");
       return res.status(401).json({ message: "User not authenticated" });
     }
+
+    console.log("👨‍🏫 [INSTRUCTOR COURSES] User:", {
+      id: user.id,
+      username: user.username,
+      role: user.userRole
+    });
 
     // Fetch all courses - for instructors, we can show all courses or filter by instructor
     // For now, let's fetch all courses with their relations
@@ -456,12 +479,15 @@ export const fetchAllCoursesForInstructor = async (req: Request, res: Response) 
       order: { title: "ASC" },
     }, `instructor:courses:${user.id}`, true, 10 * 60); // Cache for 10 minutes
 
+    console.log("✅ [INSTRUCTOR COURSES] Fetched courses count:", courses.length);
+    console.log("📋 [INSTRUCTOR COURSES] Course titles:", courses.map(c => c.title));
+
     return res.status(200).json({
       message: "Courses fetched successfully",
       courses,
     });
   } catch (err) {
-    console.error("Fetch instructor courses error:", err);
+    console.error("❌ [INSTRUCTOR COURSES] Fetch instructor courses error:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
