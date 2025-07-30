@@ -14,7 +14,7 @@ dotenv.config({
 });
 import { config } from "./config";
 import { AppDataSource, redisClient } from "./db/connect";
-import { authRouter } from "./routes/authRouter/authRoutes";
+import authRouter from "./routes/authRouter/authRoutes";
 import { getLogger } from "./utils/logger";
 
 const logger = getLogger();

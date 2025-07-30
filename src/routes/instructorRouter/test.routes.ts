@@ -1,7 +1,9 @@
 import { Router } from "express";
 import * as TestManagementController from "../../controllers/instructorControllers/testManagement.controller";
 import * as TestEvaluationController from "../../controllers/instructorControllers/testEvaluation.controller";
+import { authMiddleware } from "../../middleware/authMiddleware";
 import { instructorMiddleware } from "../../middleware/instructorMiddleware";
+import { viewAsMiddleware } from "../../middleware/viewAsMiddleware";
 import {
   getSubmissionsForEvaluation,
   getSubmissionForEvaluation,
@@ -9,10 +11,11 @@ import {
   bulkEvaluateResponses,
   getEvaluationStatistics,
 } from "../../controllers/instructorControllers/evaluation.controller";
+
 const router = Router();
 
-// Apply instructor authentication middleware to all routes
-router.use(instructorMiddleware);
+// Apply middleware chain: auth -> viewAs -> instructor
+router.use(authMiddleware, viewAsMiddleware, instructorMiddleware);
 
 // Test management routes
 // Question management routes
@@ -29,9 +32,27 @@ router.delete(
 // Test publishing and results
 router.put("/tests/:testId/publish", TestManagementController.publishTest);
 router.get("/tests/:testId/results", TestManagementController.getTestResults);
+
+// Evaluation routes
 router.get(
-  "/tests/:testId/statistics",
-  TestManagementController.getTestStatistics,
+  "/submissions/evaluation",
+  getSubmissionsForEvaluation,
+);
+router.get(
+  "/submissions/:submissionId/evaluation",
+  getSubmissionForEvaluation,
+);
+router.post(
+  "/submissions/:submissionId/evaluate",
+  evaluateResponse,
+);
+router.post(
+  "/submissions/bulk-evaluate",
+  bulkEvaluateResponses,
+);
+router.get(
+  "/evaluation/statistics",
+  getEvaluationStatistics,
 );
 
 // Test evaluation routes
@@ -52,17 +73,5 @@ router.get(
   "/tests/:testId/evaluation-stats",
   TestEvaluationController.getEvaluationStats,
 );
-// Submission evaluation routes
-router.get("/tests/:testId/submissions", getSubmissionsForEvaluation);
-router.get(
-  "/tests/:testId/submissions/:submissionId",
-  getSubmissionForEvaluation,
-);
-router.post(
-  "/tests/:testId/submissions/:submissionId/evaluate",
-  evaluateResponse,
-);
-router.post("/tests/:testId/submissions/bulk-evaluate", bulkEvaluateResponses);
-router.get("/tests/:testId/evaluation-statistics", getEvaluationStatistics);
 
-export const testRouter = router;
+export default router;

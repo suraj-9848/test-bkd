@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authMiddleware } from "../../middleware/authMiddleware";
 import { instructorMiddleware } from "../../middleware/instructorMiddleware";
+import { viewAsMiddleware } from "../../middleware/viewAsMiddleware";
 import {
   createTest,
   createTestsBulk,
@@ -73,7 +74,8 @@ import {
 
 const router = Router();
 
-router.use(authMiddleware, instructorMiddleware);
+// Apply middleware chain: auth -> viewAs -> instructor
+router.use(authMiddleware, viewAsMiddleware, instructorMiddleware);
 
 // Batch routes
 router.post("/batches", createBatch);

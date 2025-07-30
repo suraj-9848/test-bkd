@@ -35,13 +35,13 @@ const router = express.Router();
 // This ensures req.user is a full User entity and user has student role
 router.use(studentAuthMiddleware);
 
-// Test routes
+// Test routes - specific routes must come before parameterized routes
 router.get("/tests", getStudentTests);
+router.get("/tests/leaderboard", getGlobalTestLeaderboard); // Move this before :testId routes
 router.get("/tests/:testId", getStudentTestById);
 router.post("/tests/:testId/submit", submitTest);
 router.get("/tests/:testId/submissions", getTestSubmissions);
 router.get("/tests/:testId/results", getStudentTestResults);
-router.get("/tests/leaderboard", getGlobalTestLeaderboard);
 
 // Course routes
 router.get("/courses", getStudentCourses);
