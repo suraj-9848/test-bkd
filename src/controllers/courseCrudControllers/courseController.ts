@@ -608,20 +608,21 @@ export const updateCourse = async (req: Request, res: Response) => {
 // ========== DELETE COURSE ==========
 export const deleteCourse = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const { courseId, id } = req.params;
+    const courseIdToDelete = courseId || id; // Support both parameter names
 
-    if (!id) {
+    if (!courseIdToDelete) {
       return res.status(400).json({ message: "Course ID is required" });
     }
 
     // Check if course exists first
-    const course = await getSingleRecord(Course, { where: { id } });
+    const course = await getSingleRecord(Course, { where: { id: courseIdToDelete } });
     if (!course) {
       return res.status(404).json({ message: "Course not found" });
     }
 
     console.log("=== DELETE COURSE DEBUG ===");
-    console.log("Deleting course:", id, course.title);
+    console.log("Deleting course:", courseIdToDelete, course.title);
 
     // Use transaction to ensure all related data is deleted properly
     const result = await AppDataSource.transaction(
@@ -633,7 +634,7 @@ export const deleteCourse = async (req: Request, res: Response) => {
           .createQueryBuilder()
           .delete()
           .from("course_batch_assignments")
-          .where("courseId = :courseId", { courseId: id })
+          .where("courseId = :courseId", { courseId: courseIdToDelete })
           .execute();
 
         console.log("Deleted course-batch assignments");
@@ -643,7 +644,7 @@ export const deleteCourse = async (req: Request, res: Response) => {
           .createQueryBuilder()
           .delete()
           .from("user_course")
-          .where("courseId = :courseId", { courseId: id })
+          .where("courseId = :courseId", { courseId: courseIdToDelete })
           .execute();
 
         console.log("Deleted user course enrollments");
@@ -653,7 +654,7 @@ export const deleteCourse = async (req: Request, res: Response) => {
           .createQueryBuilder()
           .delete()
           .from("module")
-          .where("courseId = :courseId", { courseId: id })
+          .where("courseId = :courseId", { courseId: courseIdToDelete })
           .execute();
 
         console.log("Deleted modules");
@@ -663,7 +664,7 @@ export const deleteCourse = async (req: Request, res: Response) => {
           .createQueryBuilder()
           .delete()
           .from("test")
-          .where("courseId = :courseId", { courseId: id })
+          .where("courseId = :courseId", { courseId: courseIdToDelete })
           .execute();
 
         console.log("Deleted tests");
@@ -673,7 +674,7 @@ export const deleteCourse = async (req: Request, res: Response) => {
           .createQueryBuilder()
           .delete()
           .from("course")
-          .where("id = :id", { id })
+          .where("id = :id", { id: courseIdToDelete })
           .execute();
 
         console.log("Deleted course, affected rows:", deleteResult.affected);
