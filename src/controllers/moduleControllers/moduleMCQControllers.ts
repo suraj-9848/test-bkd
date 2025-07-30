@@ -52,6 +52,88 @@ const isValidQuillDelta = (delta: any): delta is QuillDelta => {
   );
 };
 
+// Helper function to convert string to QuillDelta format
+const stringToQuillDelta = (text: string): QuillDelta => {
+  return {
+    ops: [{ insert: text || "" }]
+  };
+};
+
+// Helper function to normalize MCQ questions from different frontend formats
+const normalizeMCQQuestions = (questions: any[]): MCQQuestion[] => {
+  return questions.map((question, qIndex) => {
+    // Handle both new and old question formats
+    let normalizedQuestion: MCQQuestion;
+
+    if (question.question && typeof question.question === 'object' && question.question.ops) {
+      // New format with QuillDelta
+      normalizedQuestion = question as MCQQuestion;
+    } else {
+      // Old format with strings - convert to QuillDelta
+      const questionId = question.id || `q_${Date.now()}_${qIndex}`;
+      
+      let normalizedOptions: { id: string; text: QuillDelta }[] = [];
+      
+      if (Array.isArray(question.options)) {
+        if (question.options.length > 0 && typeof question.options[0] === 'string') {
+          // Old format: options as string array
+          normalizedOptions = question.options.map((optionText: string, oIndex: number) => ({
+            id: `opt_${Date.now()}_${qIndex}_${oIndex}`,
+            text: stringToQuillDelta(optionText)
+          }));
+        } else {
+          // New format: options as object array
+          normalizedOptions = question.options.map((option: any, oIndex: number) => ({
+            id: option.id || `opt_${Date.now()}_${qIndex}_${oIndex}`,
+            text: (option.text && typeof option.text === 'object' && option.text.ops) 
+              ? option.text 
+              : stringToQuillDelta(option.text || '')
+          }));
+        }
+      }
+
+      // Handle correctAnswer (index vs ID)
+      let correctAnswerId: string;
+      if (typeof question.correctAnswer === 'number') {
+        // Old format: correctAnswer as index
+        correctAnswerId = normalizedOptions[question.correctAnswer]?.id || '';
+      } else {
+        // New format: correctAnswer as ID
+        correctAnswerId = question.correctAnswer || '';
+      }
+
+      normalizedQuestion = {
+        id: questionId,
+        question: (question.question && typeof question.question === 'object' && question.question.ops) 
+          ? question.question 
+          : stringToQuillDelta(question.question || ''),
+        options: normalizedOptions,
+        correctAnswer: correctAnswerId,
+        explanation: question.explanation 
+          ? ((question.explanation && typeof question.explanation === 'object' && question.explanation.ops)
+            ? question.explanation 
+            : stringToQuillDelta(question.explanation))
+          : undefined
+      };
+    }
+
+    // Ensure all options have valid IDs
+    if (!normalizedQuestion.options.every(opt => opt.id)) {
+      normalizedQuestion.options = normalizedQuestion.options.map((opt, oIndex) => ({
+        ...opt,
+        id: opt.id || `opt_${Date.now()}_${qIndex}_${oIndex}`
+      }));
+    }
+
+    // Ensure correctAnswer matches an option ID
+    if (!normalizedQuestion.options.some(opt => opt.id === normalizedQuestion.correctAnswer)) {
+      normalizedQuestion.correctAnswer = normalizedQuestion.options[0]?.id || '';
+    }
+
+    return normalizedQuestion;
+  });
+};
+
 // Validation function for MCQ questions
 const validateMCQQuestions = (questions: MCQQuestion[]): boolean => {
   if (!Array.isArray(questions) || questions.length === 0) {
@@ -105,6 +187,10 @@ export const createMCQ = async (req: Request, res: Response) => {
   const { questions, passingScore } = req.body;
 
   try {
+    console.log("📝 Creating MCQ for module:", moduleId);
+    console.log("📝 Raw questions received:", JSON.stringify(questions, null, 2));
+    console.log("📝 Passing score:", passingScore);
+
     // Validate input
     if (!questions || passingScore === undefined) {
       return res.status(400).json({
@@ -122,11 +208,15 @@ export const createMCQ = async (req: Request, res: Response) => {
       });
     }
 
+    // Normalize questions from different frontend formats
+    const normalizedQuestions = normalizeMCQQuestions(questions);
+    console.log("📝 Normalized questions:", JSON.stringify(normalizedQuestions, null, 2));
+
     // Validate MCQ questions with Quill format
-    if (!validateMCQQuestions(questions)) {
+    if (!validateMCQQuestions(normalizedQuestions)) {
       return res.status(400).json({
         message:
-          "Invalid questions format. Each question must have valid Quill Delta format for question text and options, with at least 2 options and a valid correct answer.",
+          "Invalid questions format. Each question must have valid content for question text and options, with at least 2 options and a valid correct answer.",
       });
     }
 
@@ -149,18 +239,19 @@ export const createMCQ = async (req: Request, res: Response) => {
       });
     }
 
-    // Create the new MCQ with Quill content
+    // Create the new MCQ with normalized Quill content
     const newMCQ = ModuleMCQ.create({
       module: moduleRecord,
-      questions: questions, // Store as JSON (TypeORM will handle serialization)
+      questions: normalizedQuestions, // Store normalized questions as JSON (TypeORM will handle serialization)
       passingScore,
     });
 
     const savedMCQ = (await createRecord(ModuleMCQ, newMCQ)) as ModuleMCQ;
+    console.log("📝 MCQ saved successfully with ID:", savedMCQ.id);
 
     // Store correct answers separately for evaluation
-    for (let index = 0; index < questions.length; index++) {
-      const question = questions[index];
+    for (let index = 0; index < normalizedQuestions.length; index++) {
+      const question = normalizedQuestions[index];
       const answer = ModuleMCQAnswer.create({
         moduleMCQ: savedMCQ,
         questionId: question.id || `q_${index}`, // Use provided ID or generate one
@@ -174,7 +265,7 @@ export const createMCQ = async (req: Request, res: Response) => {
       mcq: {
         id: savedMCQ.id,
         passingScore: savedMCQ.passingScore,
-        questions: savedMCQ.questions,
+        questions: normalizedQuestions, // Send back normalized questions
       },
     });
   } catch (error) {
@@ -217,15 +308,29 @@ export const updateMCQ = async (req: Request, res: Response) => {
   const { mcqId } = req.params;
   const { questions, passingScore } = req.body;
 
+  console.log("📝 [UPDATE MCQ] Updating MCQ");
+  console.log("🔍 [UPDATE MCQ] MCQ ID:", mcqId);
+  console.log("🔍 [UPDATE MCQ] Request params:", req.params);
+  console.log("🔍 [UPDATE MCQ] Has questions:", !!questions);
+  console.log("🔍 [UPDATE MCQ] Passing score:", passingScore);
+
   try {
+    if (!mcqId) {
+      console.log("❌ [UPDATE MCQ] No MCQ ID provided");
+      return res.status(400).json({ message: "MCQ ID is required" });
+    }
+
     // Check if MCQ exists
     const existingMCQ = await getSingleRecord(ModuleMCQ, {
       where: { id: mcqId },
     });
 
     if (!existingMCQ) {
+      console.log("❌ [UPDATE MCQ] MCQ not found with ID:", mcqId);
       return res.status(404).json({ message: "MCQ not found" });
     }
+
+    console.log("✅ [UPDATE MCQ] Found existing MCQ:", existingMCQ.id);
 
     // Check if any students have already attempted this MCQ
     const existingResponses = await getAllRecordsWithFilter(
@@ -241,12 +346,19 @@ export const updateMCQ = async (req: Request, res: Response) => {
       });
     }
 
-    // Validate input if provided
-    if (questions && !validateMCQQuestions(questions)) {
-      return res.status(400).json({
-        message:
-          "Invalid questions format. Each question must have valid Quill Delta format for question text and options, with at least 2 options and a valid correct answer.",
-      });
+    // Normalize and validate input if provided
+    let normalizedQuestions;
+    if (questions) {
+      console.log("📝 Updating MCQ with raw questions:", JSON.stringify(questions, null, 2));
+      normalizedQuestions = normalizeMCQQuestions(questions);
+      console.log("📝 Normalized questions for update:", JSON.stringify(normalizedQuestions, null, 2));
+      
+      if (!validateMCQQuestions(normalizedQuestions)) {
+        return res.status(400).json({
+          message:
+            "Invalid questions format. Each question must have valid content for question text and options, with at least 2 options and a valid correct answer.",
+        });
+      }
     }
 
     if (
@@ -262,8 +374,8 @@ export const updateMCQ = async (req: Request, res: Response) => {
 
     // Prepare update data
     const updateData: any = {};
-    if (questions) {
-      updateData.questions = questions;
+    if (normalizedQuestions) {
+      updateData.questions = normalizedQuestions;
     }
     if (passingScore !== undefined) {
       updateData.passingScore = passingScore;
@@ -272,13 +384,13 @@ export const updateMCQ = async (req: Request, res: Response) => {
     await updateRecords(ModuleMCQ, { id: mcqId }, updateData, false);
 
     // If questions are updated, update the answers as well
-    if (questions) {
+    if (normalizedQuestions) {
       // Delete existing answers
       await deleteRecords(ModuleMCQAnswer, { moduleMCQ: { id: mcqId } });
 
       // Create new answers
-      for (let index = 0; index < questions.length; index++) {
-        const question = questions[index];
+      for (let index = 0; index < normalizedQuestions.length; index++) {
+        const question = normalizedQuestions[index];
         const answer = ModuleMCQAnswer.create({
           moduleMCQ: existingMCQ,
           questionId: question.id || `q_${index}`,
@@ -311,15 +423,27 @@ export const updateMCQ = async (req: Request, res: Response) => {
 export const deleteMCQ = async (req: Request, res: Response) => {
   const { mcqId } = req.params;
 
+  console.log("🗑️ [DELETE MCQ] Deleting MCQ");
+  console.log("🔍 [DELETE MCQ] MCQ ID:", mcqId);
+  console.log("🔍 [DELETE MCQ] Request params:", req.params);
+
   try {
+    if (!mcqId) {
+      console.log("❌ [DELETE MCQ] No MCQ ID provided");
+      return res.status(400).json({ message: "MCQ ID is required" });
+    }
+
     // Check if MCQ exists
     const existingMCQ = await getSingleRecord(ModuleMCQ, {
       where: { id: mcqId },
     });
 
     if (!existingMCQ) {
+      console.log("❌ [DELETE MCQ] MCQ not found with ID:", mcqId);
       return res.status(404).json({ message: "MCQ not found" });
     }
+
+    console.log("✅ [DELETE MCQ] Found MCQ to delete:", existingMCQ.id);
 
     // Check if any students have already attempted this MCQ
     const existingResponses = await getAllRecordsWithFilter(
@@ -352,14 +476,14 @@ export const deleteMCQ = async (req: Request, res: Response) => {
 export const getMCQ = async (req: Request, res: Response) => {
   const { courseId, moduleId } = req.params;
 
-  console.log("=== getMCQ Controller Called ===");
-  console.log("Course ID:", courseId);
-  console.log("Module ID:", moduleId);
-  console.log("Full URL:", req.originalUrl);
-  console.log("User:", req.user);
+  console.log("📝 [GET MCQ] Getting MCQ for module");
+  console.log("🔍 [GET MCQ] Course ID:", courseId);
+  console.log("🔍 [GET MCQ] Module ID:", moduleId);
+  console.log("🔍 [GET MCQ] Full URL:", req.originalUrl);
+  console.log("🔍 [GET MCQ] User:", req.user?.username);
 
   try {
-    console.log(`Getting MCQ for Module ID: ${moduleId}`);
+    console.log(`🔍 [GET MCQ] Looking for module: ${moduleId}`);
 
     // Check if module exists
     const moduleData = await getSingleRecord(Module, {
@@ -367,11 +491,11 @@ export const getMCQ = async (req: Request, res: Response) => {
     });
 
     if (!moduleData) {
-      console.log(`Module not found with ID: ${moduleId}`);
+      console.log(`❌ [GET MCQ] Module not found with ID: ${moduleId}`);
       return res.status(404).json({ message: "Module not found" });
     }
 
-    console.log(`Module found: ${moduleData.id} - ${moduleData.title}`);
+    console.log(`✅ [GET MCQ] Module found: ${moduleData.id} - ${moduleData.title}`);
 
     // Get MCQ for this module (fixed relation name)
     const mcq = await getSingleRecord(ModuleMCQ, {
@@ -380,11 +504,11 @@ export const getMCQ = async (req: Request, res: Response) => {
     });
 
     if (!mcq) {
-      console.log(`No MCQ found for module: ${moduleId}`);
+      console.log(`ℹ️ [GET MCQ] No MCQ found for module: ${moduleId} - this is normal if MCQ hasn't been created yet`);
       return res.status(404).json({ message: "No MCQ found for this module" });
     }
 
-    console.log(`MCQ found for module: ${moduleId}, MCQ ID: ${mcq.id}`);
+    console.log(`✅ [GET MCQ] MCQ found for module: ${moduleId}, MCQ ID: ${mcq.id}`);
 
     res.status(200).json({
       id: mcq.id,
@@ -396,7 +520,7 @@ export const getMCQ = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error(`Error fetching MCQ for module ${moduleId}:`, error);
+    console.error(`❌ [GET MCQ] Error fetching MCQ for module ${moduleId}:`, error);
     res.status(500).json({ message: "Error fetching MCQ" });
   }
 };

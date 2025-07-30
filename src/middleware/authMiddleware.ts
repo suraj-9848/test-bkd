@@ -295,37 +295,92 @@ export const requireRole = (allowedRoles: UserRole[]) => {
 
 /**
  * Student-specific middleware that ensures full User entity
+ * Supports both direct student access and admin "view as" functionality
  */
 export const studentAuthMiddleware = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  // First authenticate
-  await new Promise<void>((resolve, reject) => {
-    authMiddleware(req, res, (error) => {
-      if (error) reject(error);
-      else resolve();
+  try {
+    // First authenticate
+    await new Promise<void>((resolve, reject) => {
+      authMiddleware(req, res, (error) => {
+        if (error) reject(error);
+        else resolve();
+      });
     });
-  });
 
-  // Check if user is student
-  if (req.user?.userRole !== UserRole.STUDENT) {
-    return res.status(403).json({
-      error: "Access denied. Student role required.",
-      userRole: req.user?.userRole,
+    // Check if user is authenticated
+    if (!req.user) {
+      return res.status(401).json({
+        error: "Authentication required",
+      });
+    }
+
+    // Get effective user role (considering "view as" functionality)
+    const effectiveRole = req.viewAsRole || req.user.userRole;
+    const originalRole = req.originalUserRole || req.user.userRole;
+
+    console.log("🔍 Student Auth Debug:", {
+      userId: req.user.id,
+      originalRole,
+      effectiveRole,
+      isViewingAs: req.isViewingAs,
+      userRoleFromToken: req.user.userRole,
+      headers: {
+        'x-view-as-role': req.headers['x-view-as-role'],
+        'authorization': req.headers.authorization ? 'Bearer [REDACTED]' : 'Not provided'
+      }
+    });
+
+    // Allow access if:
+    // 1. User is actually a student, OR
+    // 2. User is an admin viewing as a student
+    const isStudentAccess = effectiveRole === UserRole.STUDENT;
+    const isAdminViewingAsStudent = originalRole === UserRole.ADMIN && effectiveRole === UserRole.STUDENT;
+
+    if (!isStudentAccess && !isAdminViewingAsStudent) {
+      console.log("❌ Student access denied:", {
+        userId: req.user.id,
+        originalRole,
+        effectiveRole,
+        reason: "Neither student nor admin viewing as student"
+      });
+      
+      return res.status(403).json({
+        error: "Access denied. Student role required.",
+        userRole: req.user.userRole,
+        effectiveRole,
+        originalRole,
+        isViewingAs: req.isViewingAs,
+        debug: "User must be a student or admin viewing as student"
+      });
+    }
+
+    // Ensure we have full user entity
+    await new Promise<void>((resolve, reject) => {
+      ensureFullUserEntity(req, res, (error) => {
+        if (error) reject(error);
+        else resolve();
+      });
+    });
+
+    console.log("✅ Student access granted:", {
+      userId: req.user.id,
+      originalRole,
+      effectiveRole,
+      isViewingAs: req.isViewingAs
+    });
+
+    next();
+  } catch (error) {
+    console.error("❌ Error in studentAuthMiddleware:", error);
+    return res.status(500).json({
+      error: "Internal authentication error",
+      details: error.message
     });
   }
-
-  // Ensure we have full user entity
-  await new Promise<void>((resolve, reject) => {
-    ensureFullUserEntity(req, res, (error) => {
-      if (error) reject(error);
-      else resolve();
-    });
-  });
-
-  next();
 };
 
 /**

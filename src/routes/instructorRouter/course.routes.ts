@@ -4,7 +4,8 @@ import {
   fetchCourse,
   updateCourse,
   deleteCourse,
-  fetchAllCoursesAcrossBatches,
+  fetchAllCoursesinBatch,
+  fetchAllCoursesForInstructor,
   assignCourseToStudent,
 } from "../../controllers/courseCrudControllers/courseController";
 
@@ -21,6 +22,7 @@ import {
   updateMCQ,
   deleteMCQ,
   getMCQ,
+  getMCQById,
   getMCQRetakeStatus,
 } from "../../controllers/moduleControllers/moduleMCQControllers";
 
@@ -35,72 +37,76 @@ import {
 import {
   getInstructorDashboardStats,
   getInstructorStudents,
+  getAllStudentsForAssignment,
   getSystemWideStudentAnalytics,
+  getBatchCourseProgress,
+  getBatchCourseTests,
+  getBatchCourseTestStats,
+  getBatchCourseLeaderboard,
+  getBatchCourses,
+  getInstructorBatches,
 } from "../../controllers/instructorControllers/dashboard.controller";
 
 import { authMiddleware } from "../../middleware/authMiddleware";
 import { instructorMiddleware } from "../../middleware/instructorMiddleware";
+import { viewAsMiddleware } from "../../middleware/viewAsMiddleware";
 import { validateCourseBody } from "../../middleware/courseCrudPipes/coursePipe";
 
 const courseRouter = express.Router();
 
-// Apply middleware
-courseRouter.use(authMiddleware, instructorMiddleware);
+// Apply middleware chain: auth -> viewAs -> instructor
+courseRouter.use(authMiddleware, viewAsMiddleware, instructorMiddleware);
 
 // Dashboard stats route
-courseRouter.get("/dashboard/stats", getInstructorDashboardStats);
+courseRouter.get("/dashboard-stats", getInstructorDashboardStats);
 
-// Get instructor's students (instructor-specific)
-courseRouter.get("/students", getInstructorStudents);
-
-// Get system-wide student analytics (for StudentAnalytics component)
+// Student management routes
+courseRouter.get("/students", getAllStudentsForAssignment);
 courseRouter.get("/analytics/students", getSystemWideStudentAnalytics);
 
-// Direct course routes (not nested under batch)
-courseRouter.post("/courses", createCourse);
-courseRouter.get("/courses", fetchAllCoursesAcrossBatches);
-courseRouter.get("/courses/:id", fetchCourse);
-courseRouter.put("/courses/:id", updateCourse);
-courseRouter.delete("/courses/:id", deleteCourse);
-courseRouter.post("/courses/:courseId/assign-student", assignCourseToStudent);
+// Course routes
+courseRouter.post("/courses", validateCourseBody, createCourse);
+courseRouter.get("/courses", fetchAllCoursesForInstructor); // Get all courses - must be before parameterized routes
+courseRouter.get("/fetch-all-courses", fetchAllCoursesForInstructor); // Keep legacy endpoint for compatibility
+courseRouter.get("/courses/:courseId", fetchCourse);
+courseRouter.put("/courses/:courseId", validateCourseBody, updateCourse);
+courseRouter.delete("/courses/:courseId", deleteCourse);
+courseRouter.post("/courses/:courseId/assign", assignCourseToStudent);
 
-// Module routes for direct course access
-courseRouter.get("/courses/:courseId/modules", getAllModules);
+// Module routes
 courseRouter.post("/courses/:courseId/modules", createModule);
-courseRouter.get("/courses/:courseId/modules/:moduleId", getSingleModule);
-courseRouter.put("/courses/:courseId/modules/:moduleId", updateModule);
-courseRouter.delete("/courses/:courseId/modules/:moduleId", deleteModule);
+courseRouter.get("/courses/:courseId/modules", getAllModules);
+courseRouter.get("/modules/:moduleId", getSingleModule);
+courseRouter.put("/modules/:moduleId", updateModule);
+courseRouter.delete("/modules/:moduleId", deleteModule);
 
-// MCQ routes for direct course access
-courseRouter.get("/courses/:courseId/modules/:moduleId/mcq", getMCQ);
+// MCQ routes
 courseRouter.post("/courses/:courseId/modules/:moduleId/mcq", createMCQ);
+courseRouter.get("/courses/:courseId/modules/:moduleId/mcq", getMCQ);
+courseRouter.get("/courses/:courseId/modules/:moduleId/mcq/:mcqId", getMCQById);
 courseRouter.put("/courses/:courseId/modules/:moduleId/mcq/:mcqId", updateMCQ);
-courseRouter.delete(
-  "/courses/:courseId/modules/:moduleId/mcq/:mcqId",
-  deleteMCQ,
-);
-courseRouter.get("/courses/:courseId/modules/:moduleId/mcq/retake-status", getMCQRetakeStatus);
+courseRouter.delete("/courses/:courseId/modules/:moduleId/mcq/:mcqId", deleteMCQ);
+courseRouter.get("/courses/:courseId/modules/:moduleId/mcq/retake", getMCQRetakeStatus);
 
-// Day Content routes for direct course access
-courseRouter.get(
-  "/courses/:courseId/modules/:moduleId/day-content",
-  getDayContent,
-);
-courseRouter.post(
-  "/courses/:courseId/modules/:moduleId/day-content",
-  addDayContent,
-);
-courseRouter.put(
-  "/courses/:courseId/modules/:moduleId/day-content/:dayId",
-  updateDayContent,
-);
-courseRouter.delete(
-  "/courses/:courseId/modules/:moduleId/day-content/:dayId",
-  deleteDayContent,
-);
-courseRouter.patch(
-  "/courses/:courseId/modules/:moduleId/day-content/:dayId/complete",
-  markDayAsCompleted,
-);
+// Day content routes
+courseRouter.post("/modules/:moduleId/day/:dayId/content", addDayContent);
+courseRouter.get("/modules/:moduleId/day/:dayId", getDayContent);
+courseRouter.put("/modules/:moduleId/day/:dayId/content", updateDayContent);
+courseRouter.delete("/modules/:moduleId/day/:dayId/content", deleteDayContent);
+courseRouter.patch("/modules/:moduleId/day/:dayId/complete", markDayAsCompleted);
+
+// Analytics routes
+courseRouter.get("/batches", getInstructorBatches);
+courseRouter.get("/batches/:batchId/courses", getBatchCourses);
+courseRouter.get("/batches/:batchId/courses/:courseId/progress", getBatchCourseProgress);
+courseRouter.get("/batches/:batchId/courses/:courseId/tests", getBatchCourseTests);
+courseRouter.get("/batches/:batchId/courses/:courseId/test-stats", getBatchCourseTestStats);
+courseRouter.get("/batches/:batchId/courses/:courseId/leaderboard", getBatchCourseLeaderboard);
+
+// General analytics endpoints that components expect
+courseRouter.get("/analytics/students", getSystemWideStudentAnalytics);
+courseRouter.get("/analytics/progress", getSystemWideStudentAnalytics); // Reuse for now
+courseRouter.get("/analytics/tests", getBatchCourseTests); // Reuse for now
+courseRouter.get("/analytics/batches", getInstructorBatches); // Reuse for now
 
 export default courseRouter;

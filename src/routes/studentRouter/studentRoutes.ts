@@ -3,6 +3,7 @@ import express from "express";
 import {
   studentAuthMiddleware,
 } from "../../middleware/authMiddleware";
+import { viewAsMiddleware } from "../../middleware/viewAsMiddleware";
 import { withFullUser } from "../../utils/userHelpers";
 
 // Import your controller functions
@@ -31,18 +32,19 @@ import {
 
 const router = express.Router();
 
-// Apply student auth middleware to all routes
-// This ensures req.user is a full User entity and user has student role
+// Apply middlewares in order:
+// 1. View-as middleware (handles admin "view as student" functionality)
+// 2. Student auth middleware (validates student access)
+router.use(viewAsMiddleware);
 router.use(studentAuthMiddleware);
 
-// Test routes
+// Test routes - specific routes must come before parameterized routes
 router.get("/tests", getStudentTests);
 router.get("/tests/leaderboard", getGlobalTestLeaderboard);
 router.get("/tests/:testId", getStudentTestById);
 router.post("/tests/:testId/submit", submitTest);
 router.get("/tests/:testId/submissions", getTestSubmissions);
 router.get("/tests/:testId/results", getStudentTestResults);
-
 
 // Course routes
 router.get("/courses", getStudentCourses);
@@ -69,6 +71,44 @@ router.get("/batches", getStudentBatches);
 
 // Dashboard routes
 router.get("/dashboard/stats", getStudentDashboardStats);
+
+// Debug route for authentication troubleshooting
+router.get("/auth/debug", (req, res) => {
+  const debugInfo = {
+    timestamp: new Date().toISOString(),
+    authentication: {
+      isAuthenticated: !!req.user,
+      userId: req.user?.id,
+      username: req.user?.username,
+      userRole: req.user?.userRole,
+      email: req.user?.email,
+    },
+    viewAs: {
+      isViewingAs: req.isViewingAs,
+      viewAsRole: req.viewAsRole,
+      originalUserRole: req.originalUserRole,
+      effectiveRole: req.viewAsRole || req.user?.userRole,
+    },
+    headers: {
+      authorization: req.headers.authorization ? 'Bearer [TOKEN_PRESENT]' : 'Not provided',
+      'x-view-as-role': req.headers['x-view-as-role'] || 'Not set',
+      userAgent: req.headers['user-agent'],
+    },
+    cookies: {
+      hasAccessToken: !!req.cookies?.accessToken,
+      hasJWT: !!req.cookies?.jwt,
+      hasToken: !!req.cookies?.token,
+    },
+  };
+
+  console.log("🔍 Student Auth Debug Endpoint Called:", debugInfo);
+
+  res.json({
+    message: "Student authentication debug info",
+    debug: debugInfo,
+    status: "success"
+  });
+});
 
 export { router as studentRouter };
 

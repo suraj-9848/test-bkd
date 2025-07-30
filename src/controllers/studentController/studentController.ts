@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { In } from "typeorm";
+import { In, Not } from "typeorm";
 import { Course } from "../../db/mysqlModels/Course";
 import { Module } from "../../db/mysqlModels/Module";
 import { UserCourse } from "../../db/mysqlModels/UserCourse";
@@ -42,28 +42,42 @@ export const getStudentTests = async (req: Request, res: Response) => {
   try {
     const studentId = req.user.id;
 
-    // Get courses assigned to student
+    // Get courses explicitly assigned to student using utility function
     const userCourses = await getAllRecordsWithFilter(UserCourse, {
       where: { user: { id: studentId } },
       relations: ["course"],
-    });
+    }, `student:${studentId}:user_courses:tests`, true, 5 * 60); // Cache for 5 minutes
 
-    const courseIds = userCourses.map((uc) => uc.course.id);
-    if (!courseIds.length) {
+    const assignedCourses = userCourses.map((uc) => uc.course);
+    const assignedCourseIds = assignedCourses.map(course => course.id);
+
+    // Get all public courses that are not already assigned to this student using utility function
+    const publicCourses = await getAllRecordsWithFilter(Course, {
+      where: { 
+        is_public: true,
+        id: Not(In(assignedCourseIds.length > 0 ? assignedCourseIds : ['']))
+      }
+    }, `public_courses:tests:excluding:${assignedCourseIds.join(',')}`, true, 10 * 60); // Cache for 10 minutes
+
+    // Combine assigned courses and public courses
+    const allCourses = [...assignedCourses, ...publicCourses];
+    const allCourseIds = allCourses.map(course => course.id);
+
+    if (!allCourseIds.length) {
       return res
         .status(200)
-        .json({ message: "No courses assigned", data: { tests: [] } });
+        .json({ message: "No courses available", data: { tests: [] } });
     }
 
-    // Get all published tests from assigned courses
+    // Get all published tests from all courses (assigned + public) using utility function
     const tests = await getAllRecordsWithFilter(Test, {
       where: {
-        course: { id: In(courseIds) },
+        course: { id: In(allCourseIds) },
         status: "PUBLISHED",
       },
       relations: ["course"],
       order: { startDate: "ASC" },
-    });
+    }, `tests:published:courses:${allCourseIds.join(',')}`, true, 8 * 60); // Cache for 8 minutes
 
     // Process tests to include status, sanitize data, and add batch info
     const currentTime = new Date();
@@ -106,7 +120,9 @@ export const getStudentTests = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error fetching student tests:", error);
-    res.status(500).json({ message: "Error fetching tests" });
+    res
+      .status(500)
+      .json({ error: "Unable to fetch tests", details: error.message });
   }
 };
 
@@ -185,7 +201,7 @@ export const submitTest = async (req: Request, res: Response) => {
         .json({ message: "Test not found or not published" });
     }
 
-    // Check course enrollment
+    // Check course enrollment or if course is public
     const userCourse = await getSingleRecord(UserCourse, {
       where: {
         user: { id: student.id },
@@ -193,8 +209,15 @@ export const submitTest = async (req: Request, res: Response) => {
       },
     });
 
+    // If not enrolled, check if the course is public
     if (!userCourse) {
-      return res.status(403).json({ message: "Not enrolled in this course" });
+      const course = await getSingleRecord(Course, {
+        where: { id: test.course.id },
+      });
+      
+      if (!course || !course.is_public) {
+        return res.status(403).json({ message: "Not enrolled in this course and course is not public" });
+      }
     }
 
     // Check if test is ongoing
@@ -451,143 +474,62 @@ export const getTestSubmissions = async (req: Request, res: Response) => {
 // GET /student/tests/:testId/results
 export const getStudentTestResults = async (req: Request, res: Response) => {
   try {
+    const studentId = req.user.id;
     const { testId } = req.params;
-    const student = req.user as User;
 
-    // Validate test exists
-    const test = await getSingleRecord(Test, {
-      where: { id: testId },
-      relations: ["course", "questions"], // Ensure questions are loaded
-    });
-    if (!test) {
-      return res.status(404).json({ message: "Test not found" });
-    }
+    console.log(`[GET TEST RESULTS] Student: ${studentId}, Test: ${testId}`);
 
-    // Check course enrollment
-    const userCourse = await getSingleRecord(UserCourse, {
-      where: {
-        user: { id: student.id },
-        course: { id: test.course.id },
-      },
-    });
-    if (!userCourse) {
-      return res.status(403).json({ message: "Not enrolled in this course" });
-    }
-
-    // Fetch submissions with relations
+    // Get test submissions for this student and specific test using utility function
     const submissions = await getAllRecordsWithFilter(TestSubmission, {
-      where: {
-        test: { id: testId },
-        user: { id: student.id },
+      where: { 
+        user: { id: studentId },
+        test: { id: testId }
       },
-      relations: [
-        "test",
-        "responses",
-        "responses.question",
-        "responses.question.options",
-      ], // Ensure all necessary relations are loaded
+      relations: ["test", "test.course", "responses", "responses.question"],
       order: { submittedAt: "DESC" },
-    });
+    }, `student:${studentId}:test:${testId}:results`, true, 5 * 60); // Cache for 5 minutes
 
     if (!submissions.length) {
       return res.status(200).json({
-        message: "No submissions found for this test",
+        message: "No test results found",
         data: { submissions: [] },
       });
     }
 
-    // Process submissions
+    // Process submissions to include additional computed data
     const processedSubmissions = submissions.map((submission) => {
-      const totalMcqMarks =
-        test.questions
-          ?.filter((q) => q.type === "MCQ")
-          .reduce((sum, q) => sum + q.marks, 0) || 0;
-
-      const mcqScore = 0;
-
-      const responses = submission.responses.map((response) => {
-        const question = response.question;
-
-        if (question.type === "MCQ") {
-          // Parse answer (handle both single and multiple correct)
-          let parsedAnswer: string[] | string | null = null;
-          try {
-            parsedAnswer = JSON.parse(response.answer);
-          } catch {
-            parsedAnswer = response.answer;
-          }
-
-          // Map answer IDs to option text
-          let answerText: string;
-          if (Array.isArray(parsedAnswer)) {
-            if (parsedAnswer.length === 0) {
-              answerText = "No answer selected";
-            } else {
-              answerText =
-                question.options
-                  ?.filter((opt) => parsedAnswer.includes(opt.id))
-                  .map((opt) => opt.text)
-                  .join(", ") || "No answer selected";
-            }
-          } else if (typeof parsedAnswer === "string" && parsedAnswer) {
-            const opt = question.options?.find((o) => o.id === parsedAnswer);
-            answerText = opt ? opt.text : "No answer selected";
-          } else {
-            answerText = "No answer selected";
-          }
-
-          return {
-            questionId: question.id,
-            questionText: question.question_text,
-            type: question.type,
-            answer: answerText,
-            score: response.score || 0,
-            maxMarks: question.marks,
-            evaluationStatus: response.evaluationStatus,
-            evaluatorComments: response.evaluatorComments,
-            options:
-              question.options?.map((option) => ({
-                id: option.id,
-                text: option.text,
-                correct: option.correct,
-              })) || [],
-          };
-        } else {
-          // Descriptive and code questions require manual evaluation
-          return {
-            questionId: question.id,
-            questionText: question.question_text,
-            type: question.type,
-            answer: response.answer,
-            score: response.score || 0,
-            maxMarks: question.marks,
-            evaluationStatus: response.evaluationStatus,
-            evaluatorComments: response.evaluatorComments,
-          };
-        }
-      });
-
-      const mcqPercentage =
-        totalMcqMarks > 0 ? (mcqScore / totalMcqMarks) * 100 : 0;
+      // Get individual responses for this submission
+      const responses = (submission.responses || []).map((response) => ({
+        questionId: response.question?.id || response.questionId,
+        questionText: response.question?.question_text || "Question text not available", 
+        type: response.question?.type || "unknown",
+        answer: response.selectedOptions || response.textAnswer || "",
+        score: response.score || 0,
+        maxMarks: response.question?.marks || 0,
+        evaluationStatus: response.evaluationStatus || "NOT_EVALUATED",
+        evaluatorComments: response.evaluatorComments || null,
+        options: [] // Will need to be populated if needed
+      }));
 
       return {
-        submissionId: submission.id,
+        id: submission.id,
+        submissionId: submission.id, // Frontend expects this field
         testId: submission.test.id,
         testTitle: submission.test.title,
+        courseTitle: submission.test.course?.title || "Unknown Course",
         submittedAt: submission.submittedAt,
-        status: submission.status,
-        mcqScore,
-        totalMcqMarks,
-        mcqPercentage,
-        totalScore: submission.totalScore || null,
-        maxMarks: submission.test.maxMarks,
+        totalScore: submission.totalScore,
+        maxMarks: submission.test.maxMarks, // Frontend expects maxMarks not maxScore
+        maxScore: submission.test.maxMarks,
+        passingMarks: submission.test.passingMarks,
         percentage:
-          submission.totalScore !== null && submission.test.maxMarks > 0
+          submission.totalScore !== null
             ? (submission.totalScore / submission.test.maxMarks) * 100
             : null,
         passed:
           submission.totalScore !== null &&
           submission.totalScore >= submission.test.passingMarks,
+        status: submission.status || "SUBMITTED",
         responses,
       };
     });
@@ -758,68 +700,65 @@ export const getStudentCourses = async (req: Request, res: Response) => {
   try {
     const studentId = req.user.id;
     console.log("Authenticated studentId:", studentId);
-    const userCourses = await UserCourse.find({
+    
+    // Get courses explicitly assigned to the student via UserCourse using utility function
+    const userCourses = await getAllRecordsWithFilter(UserCourse, {
       where: { user: { id: studentId } },
-      relations: ["course"], // ensures course details are populated
-    });
+      relations: ["course"],
+    }, `student:${studentId}:user_courses`, true, 5 * 60); // Cache for 5 minutes
 
     const assignedCourses = userCourses.map((uc) => uc.course);
+    const assignedCourseIds = assignedCourses.map(course => course.id);
+
+    // Get all public courses that are not already assigned to this student using utility function
+    const publicCourses = await getAllRecordsWithFilter(Course, {
+      where: { 
+        is_public: true,
+        id: Not(In(assignedCourseIds.length > 0 ? assignedCourseIds : ['']))
+      }
+    }, `public_courses:excluding:${assignedCourseIds.join(',')}`, true, 10 * 60); // Cache for 10 minutes
+
+    // Combine assigned courses and public courses
+    const allCourses = [...assignedCourses, ...publicCourses];
+    console.log(`Found ${assignedCourses.length} assigned courses and ${publicCourses.length} public courses for student ${studentId}`);
 
     // Enhance each course with module statistics and progress
     const coursesWithStats = await Promise.all(
-      assignedCourses.map(async (course) => {
+      allCourses.map(async (course) => {
         try {
-          // Get modules for this course
+          // Get modules for this course using utility function with caching
           const modules = await getAllRecordsWithFilter(Module, {
             where: { course: { id: course.id } },
             order: { order: "ASC" },
             relations: ["days"],
-          });
+          }, `course:${course.id}:modules`, true, 15 * 60); // Cache for 15 minutes
 
           const student = req.user as User;
           
           // Calculate module completion status
           const modulesWithDetails = await Promise.all(
             modules.map(async (module: Module) => {
-              const allDaysCompleted = await areAllDaysCompleted(student.id, module);
+              const isUnlocked = await isModuleUnlocked(student, module);
+              const allDaysCompleted = await areAllDaysCompleted(
+                student.id,
+                module,
+              );
 
-              // Fetch MCQ status
-              const mcq = await getSingleRecord(ModuleMCQ, {
-                where: { module: { id: module.id } },
-              });
-              let mcqAttempted = false;
-              let mcqPassed = false;
+              // Check if student has MCQ for this module
+              const mcqResult = await isMCQPassed(student, module);
 
-              if (mcq) {
-                const mcqResponse = await getSingleRecord(ModuleMCQResponses, {
-                  where: { moduleMCQ: { id: mcq.id }, user: { id: student.id } },
-                });
-                if (mcqResponse) {
-                  mcqAttempted = true;
-                  const correctAnswers = await getAllRecordsWithFilter(
-                    ModuleMCQAnswer,
-                    {
-                      where: { moduleMCQ: { id: mcq.id } },
-                      order: { createdAt: "ASC" },
-                    },
-                  );
-                  let score = 0;
-                  mcqResponse.responses.forEach((response: any) => {
-                    const correct = correctAnswers.find(
-                      (ans: ModuleMCQAnswer) =>
-                        ans.questionId === response.questionId,
-                    );
-                    if (correct && correct.correctAnswer === response.answer) {
-                      score++;
-                    }
-                  });
-                  const percentage = (score / correctAnswers.length) * 100;
-                  mcqPassed = percentage >= mcq.passingScore;
-                }
-              }
+              const moduleFullyCompleted =
+                allDaysCompleted && mcqResult.passed;
 
-              const moduleFullyCompleted = allDaysCompleted && mcqPassed;
-              return { ...module, moduleFullyCompleted };
+              return {
+                ...module,
+                isUnlocked,
+                allDaysCompleted,
+                mcqAttempted: mcqResult.attempted,
+                mcqPassed: mcqResult.passed,
+                mcqScore: mcqResult.score,
+                moduleFullyCompleted,
+              };
             }),
           );
 
@@ -885,10 +824,11 @@ export const getStudentCourseModules = async (req: Request, res: Response) => {
   const { courseId } = req.params;
 
   try {
-    const modules = await Module.find({
+    // Use utility function with caching for modules
+    const modules = await getAllRecordsWithFilter(Module, {
       where: { course: { id: courseId } },
       order: { order: "ASC" },
-    });
+    }, `course:${courseId}:modules:list`, true, 15 * 60); // Cache for 15 minutes
 
     res.status(200).json(modules);
   } catch (error) {
@@ -1185,12 +1125,33 @@ export const getStudentModuleMCQ = async (req: Request, res: Response) => {
 
     const mcq = await getSingleRecord(ModuleMCQ, {
       where: { module: { id: moduleId } },
+      relations: ["module"],
     });
     if (!mcq) {
       return res.status(404).json({ message: "MCQ not found for this module" });
     }
 
-    res.status(200).json(mcq);
+    console.log("📚 Serving MCQ to student:", {
+      moduleId,
+      mcqId: mcq.id,
+      questionsCount: mcq.questions?.length || 0,
+    });
+
+    // Remove correct answers from questions before sending to student
+    const questionsWithoutAnswers = mcq.questions?.map((question: any) => ({
+      ...question,
+      correctAnswer: undefined, // Hide correct answers from students
+    })) || [];
+
+    res.status(200).json({
+      id: mcq.id,
+      passingScore: mcq.passingScore,
+      questions: questionsWithoutAnswers,
+      module: {
+        id: module.id,
+        title: module.title,
+      },
+    });
   } catch (error) {
     console.error("Error fetching MCQ:", error);
     res.status(500).json({ message: "Error fetching MCQ" });
@@ -1360,11 +1321,18 @@ export const getMCQReview = async (req: Request, res: Response) => {
         .json({ message: "You have not attempted this MCQ yet" });
     }
 
-    // Return the MCQ structure including correctAnswer
+    console.log("📚 Serving MCQ review to student:", {
+      moduleId,
+      mcqId: mcq.id,
+      questionsCount: mcq.questions?.length || 0,
+      studentId: student.id,
+    });
+
+    // Return the MCQ structure including correctAnswer for review
     res.status(200).json({
       id: mcq.id,
       passingScore: mcq.passingScore,
-      questions: mcq.questions,
+      questions: mcq.questions, // Include correct answers for review
       module: {
         id: module.id,
         title: module.title,
@@ -1444,10 +1412,23 @@ export const getModuleCompletionStatus = async (
 // GET /student/tests/leaderboard
 export const getGlobalTestLeaderboard = async (req, res) => {
   try {
+    console.log('📊 Fetching global test leaderboard...');
+    
     // Fetch all submissions with user and test relations
     const submissions = await TestSubmission.find({
       relations: ["user", "test", "test.course"],
     });
+
+    console.log(`📊 Found ${submissions.length} test submissions`);
+
+    // If no submissions, return empty leaderboard
+    if (submissions.length === 0) {
+      console.log('📊 No test submissions found, returning empty leaderboard');
+      return res.json({
+        message: "Global leaderboard fetched successfully",
+        data: [],
+      });
+    }
 
     // Map: userId -> { userName, totalScore, totalMaxMarks, tests: [...] }
     const userScores = new Map();
@@ -1471,6 +1452,8 @@ export const getGlobalTestLeaderboard = async (req, res) => {
       }
     }
 
+    console.log(`📊 Processing ${bestSubmissionsPerUserPerTest.size} best submissions`);
+
     // Aggregate per user
     for (const {
       user,
@@ -1481,7 +1464,8 @@ export const getGlobalTestLeaderboard = async (req, res) => {
     } of bestSubmissionsPerUserPerTest.values()) {
       if (!userScores.has(user.id)) {
         userScores.set(user.id, {
-          userName: user.username, // ✅ Use username field
+          id: user.id, // Add user ID for frontend matching
+          userName: user.username,
           totalScore: 0,
           totalMaxMarks: 0,
           tests: [],
@@ -1503,16 +1487,17 @@ export const getGlobalTestLeaderboard = async (req, res) => {
     // Prepare leaderboard array
     const leaderboard = Array.from(userScores.values())
       .map((entry) => ({
+        id: entry.id,
         userName: entry.userName,
-        // Optionally, show the first course name from their tests (or all unique courses)
         courseName: entry.tests.length > 0 ? entry.tests[0].courseName : "N/A",
-        totalScore: entry.totalScore,
+        score: entry.totalScore, // Match frontend interface
+        totalScore: entry.totalScore, // Keep for backward compatibility
         totalMaxMarks: entry.totalMaxMarks,
         tests: entry.tests,
         percentage:
           entry.totalMaxMarks > 0
-            ? (entry.totalScore / entry.totalMaxMarks) * 100
-            : null,
+            ? Math.round((entry.totalScore / entry.totalMaxMarks) * 100)
+            : 0,
       }))
       .sort((a, b) => {
         if (b.totalScore !== a.totalScore) {
@@ -1524,12 +1509,19 @@ export const getGlobalTestLeaderboard = async (req, res) => {
         return a.userName.localeCompare(b.userName);
       });
 
+    console.log(`📊 Generated leaderboard with ${leaderboard.length} users`);
+
     res.json({
       message: "Global leaderboard fetched successfully",
       data: leaderboard,
     });
   } catch (error) {
-    res.status(500).json({ message: "Error fetching leaderboard", error });
+    console.error('❌ Error fetching leaderboard:', error);
+    res.status(500).json({ 
+      message: "Error fetching leaderboard", 
+      error: error.message,
+      data: [] // Return empty array on error
+    });
   }
 };
 
@@ -1538,27 +1530,26 @@ export const getStudentBatches = async (req: Request, res: Response) => {
   try {
     const studentId = req.user.id;
 
-    // Get the user with their batch assignments
-    const user = await User.findOne({
+    // Get user details with batch information using utility function
+    const user = await getSingleRecord(User, {
       where: { id: studentId },
-      select: ["batch_id"],
-    });
+    }, `user:${studentId}:details`, true, 10 * 60); // Cache for 10 minutes
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
+    if (!user || !user.batch_id || user.batch_id.length === 0) {
+      return res
+        .status(200)
+        .json({ message: "No batches assigned", data: { batches: [] } });
     }
 
-    // If the user has no batch assignments, return empty array
-    if (!user.batch_id || user.batch_id.length === 0) {
-      return res.status(200).json([]);
-    }
-
-    // Get the batch details for all assigned batch IDs
-    const batches = await Batch.find({
+    // Get batches using utility function with caching
+    const batches = await getAllRecordsWithFilter(Batch, {
       where: { id: In(user.batch_id) },
-    });
+    }, `student:${studentId}:batches:${user.batch_id.join(',')}`, true, 15 * 60); // Cache for 15 minutes
 
-    res.status(200).json(batches);
+    res.status(200).json({
+      message: "Batches fetched successfully",
+      data: { batches },
+    });
   } catch (error) {
     console.error("Error fetching student batches:", error);
     res.status(500).json({ message: "Error fetching batches" });
@@ -1578,41 +1569,57 @@ export const getStudentDashboardStats = async (req: Request, res: Response) => {
     const studentId = user.id;
     console.log("=== Fetching stats for student:", studentId);
 
-    // Get courses assigned to this student
+    // Get courses explicitly assigned to this student using utility function
     const userCourses = await getAllRecordsWithFilter(UserCourse, {
       where: { user: { id: studentId } },
       relations: ["course"],
-    });
+    }, `student:${studentId}:user_courses:stats`, true, 5 * 60); // Cache for 5 minutes
 
-    const totalCourses = userCourses.length;
+    const assignedCourses = userCourses.map((uc) => uc.course);
+    const assignedCourseIds = assignedCourses.map(course => course.id);
+
+    // Get all public courses that are not already assigned to this student using utility function
+    const publicCourses = await getAllRecordsWithFilter(Course, {
+      where: { 
+        is_public: true,
+        id: Not(In(assignedCourseIds.length > 0 ? assignedCourseIds : ['']))
+      }
+    }, `public_courses:stats:excluding:${assignedCourseIds.join(',')}`, true, 10 * 60); // Cache for 10 minutes
+
+    // Combine assigned courses and public courses
+    const allCourses = [...assignedCourses, ...publicCourses];
+    console.log(`Dashboard stats: Found ${assignedCourses.length} assigned courses and ${publicCourses.length} public courses for student ${studentId}`);
+
+    const totalCourses = allCourses.length;
+    // For completed courses, we can only count explicitly assigned ones since we track completion in UserCourse
     const completedCourses = userCourses.filter((uc) => uc.completed).length;
 
-    // Get student's test data
-    const courseIds = userCourses.map((uc) => uc.course.id);
+    // Get all course IDs for test calculation
+    const allCourseIds = allCourses.map(course => course.id);
     let totalTests = 0;
     let completedTests = 0;
     let averageScore = 0;
 
-    if (courseIds.length > 0) {
-      // Get all published tests from assigned courses
+    if (allCourseIds.length > 0) {
+      // Get all published tests from all courses (assigned + public) using utility function
       const tests = await getAllRecordsWithFilter(Test, {
         where: {
-          course: { id: In(courseIds) },
+          course: { id: In(allCourseIds) },
           status: "PUBLISHED",
         },
         relations: ["course"],
-      });
+      }, `student:${studentId}:tests:${allCourseIds.join(',')}`, true, 10 * 60); // Cache for 10 minutes
 
       totalTests = tests.length;
 
-      // Get test submissions for this student
+      // Get test submissions for this student using utility function
       const testSubmissions = await getAllRecordsWithFilter(TestSubmission, {
         where: {
           user: { id: studentId },
           test: { id: In(tests.map((t) => t.id)) },
         },
         relations: ["test"],
-      });
+      }, `student:${studentId}:test_submissions`, true, 5 * 60); // Cache for 5 minutes
 
       completedTests = testSubmissions.length;
 
@@ -1632,14 +1639,15 @@ export const getStudentDashboardStats = async (req: Request, res: Response) => {
         ? Math.round((completedCourses / totalCourses) * 100)
         : 0;
 
-    // Get student's modules progress
+    // Get student's modules progress from all courses
     let totalModules = 0;
     let completedModules = 0;
 
-    for (const userCourse of userCourses) {
+    for (const course of allCourses) {
+      // Use utility function with caching for modules
       const modules = await getAllRecordsWithFilter(Module, {
-        where: { course: { id: userCourse.course.id } },
-      });
+        where: { course: { id: course.id } },
+      }, `course:${course.id}:modules:stats`, true, 15 * 60); // Cache for 15 minutes
 
       totalModules += modules.length;
 
@@ -1655,10 +1663,11 @@ export const getStudentDashboardStats = async (req: Request, res: Response) => {
     // Calculate hours learned (this would need to be implemented based on your business logic)
     // For now, we'll estimate based on completed modules and average time per module
     let hoursLearned = 0;
-    for (const userCourse of userCourses) {
+    for (const course of allCourses) {
+      // Use utility function with caching for modules
       const modules = await getAllRecordsWithFilter(Module, {
-        where: { course: { id: userCourse.course.id } },
-      });
+        where: { course: { id: course.id } },
+      }, `course:${course.id}:modules:hours`, true, 15 * 60); // Cache for 15 minutes
 
       // Estimate 2 hours per completed module
       for (const module of modules) {

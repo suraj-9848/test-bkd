@@ -9,6 +9,22 @@ import { Org } from "../../db/mysqlModels/Org";
 import { RefreshToken } from "../../db/mysqlModels/RefreshToken";
 import { getSingleRecord } from "../../lib/dbLib/sqlUtils";
 import { config } from "../../config";
+import {
+  generateAccessToken,
+  generateRefreshToken,
+  saveRefreshTokenToDB,
+  getRefreshTokenFromDB,
+  deleteRefreshTokenFromDB,
+  deleteAllUserRefreshTokens,
+  verifyRefreshToken,
+  refreshTokens,
+  getAccessTokenCookieOptions,
+  getRefreshTokenCookieOptions,
+  clearAuthCookies,
+  extractTokenFromRequest,
+  verifyAccessToken,
+  cleanExpiredTokens
+} from "../../utils/authUtils";
 
 const router = Router();
 const logger = require("../../utils/logger").getLogger();
@@ -19,600 +35,506 @@ const userRepository = AppDataSource.getRepository(User);
 const orgRepository = AppDataSource.getRepository(Org);
 const refreshTokenRepository = AppDataSource.getRepository(RefreshToken);
 
-// Token generation utilities
-const generateAccessToken = (user: any): string => {
-  return jwt.sign(
-    { 
-      id: user.id, 
-      username: user.username, 
-      userRole: user.userRole,
-      email: user.email 
-    },
-    config.JWT_SECRET,
-    { 
-      expiresIn: "15m",
-      issuer: "lms-backend",
-      audience: "lms-app"
-    }
-  );
-};
-
-const generateRefreshToken = (user: any): string => {
-  return jwt.sign(
-    { 
-      id: user.id,
-      type: "refresh"
-    },
-    config.JWT_SECRET,
-    { 
-      expiresIn: "7d",
-      issuer: "lms-backend",
-      audience: "lms-app"
-    }
-  );
-};
-
-const getAccessTokenCookieOptions = () => ({
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: process.env.NODE_ENV === "production" ? "none" as const : "lax" as const,
-  maxAge: 15 * 60 * 1000,
-  path: "/",
-});
-
-const getRefreshTokenCookieOptions = () => ({
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: process.env.NODE_ENV === "production" ? "none" as const : "lax" as const,
-  maxAge: 7 * 24 * 60 * 60 * 1000,
-  path: "/",
-});
-
-const saveRefreshTokenToDB = async (userId: string, token: string, expiresAt: Date) => {
+// Helper function to get or create default organization
+const getOrCreateDefaultOrg = async (): Promise<Org> => {
   try {
-    await refreshTokenRepository.delete({ user_id: userId });
-    const refreshTokenRecord = refreshTokenRepository.create({
-      user_id: userId,
-      token,
-      expires_at: expiresAt,
+    // Try to find existing default organization
+    let defaultOrg = await orgRepository.findOne({ 
+      where: { name: "Nirudhyog Default" } 
     });
-    await refreshTokenRepository.save(refreshTokenRecord);
-    logger.info(`Refresh token saved for user: ${userId}`);
+    
+    if (!defaultOrg) {
+      logger.info("🏢 Creating default organization...");
+      defaultOrg = orgRepository.create({
+        name: "Nirudhyog Default",
+        description: "Default organization for new users",
+        address: null
+      });
+      defaultOrg = await orgRepository.save(defaultOrg);
+      logger.info(`✅ Default organization created with ID: ${defaultOrg.id}`);
+    }
+    
+    return defaultOrg;
   } catch (error) {
-    logger.error("Error saving refresh token:", error);
+    logger.error("❌ Error getting/creating default organization:", error);
     throw error;
   }
 };
 
-const getRefreshTokenFromDB = async (token: string): Promise<any> => {
-  try {
-    return await refreshTokenRepository.findOne({
-      where: { token },
-      relations: ["user"]
-    });
-  } catch (error) {
-    logger.error("Error getting refresh token:", error);
-    return null;
-  }
+// Helper function to set auth cookies
+const setAuthCookies = (res: Response, accessToken: string, refreshToken: string) => {
+  res.cookie("accessToken", accessToken, getAccessTokenCookieOptions());
+  res.cookie("refreshToken", refreshToken, getRefreshTokenCookieOptions());
 };
 
-const deleteRefreshTokenFromDB = async (token: string) => {
-  try {
-    await refreshTokenRepository.delete({ token });
-    logger.info("Refresh token deleted from database");
-  } catch (error) {
-    logger.error("Error deleting refresh token:", error);
-  }
-};
-
-const cleanExpiredTokens = async () => {
-  try {
-    await refreshTokenRepository
-      .createQueryBuilder()
-      .delete()
-      .where("expires_at < :now", { now: new Date() })
-      .execute();
-  } catch (error) {
-    logger.error("Error cleaning expired tokens:", error);
-  }
-};
-
-/**
- * User Registration
- */
-router.post("/register", async (req: Request, res: Response) => {
-  const { username, email, password } = req.body;
-
-  if (!username || !email || !password) {
-    return res.status(400).json({ 
-      error: "Username, email, and password are required" 
-    });
-  }
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    return res.status(400).json({ error: "Invalid email format" });
-  }
-
-  const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
-  if (!strongPasswordRegex.test(password)) {
-    return res.status(400).json({
-      error: "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character",
-    });
-  }
-
-  try {
-    const existingUser = await getSingleRecord<User, any>(
-      User,
-      { where: [{ email }, { username }] },
-      `user_${email}_${username}`,
-      false, // Don't cache for registration check
-      10 * 60,
-    );
-
-    if (existingUser) {
-      return res.status(400).json({ 
-        error: "Email or username already exists" 
-      });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    let defaultOrg = await getSingleRecord<Org, any>(
-      Org,
-      { where: { name: "Default Org" } },
-      `org_default`,
-      true,
-      10 * 60,
-    );
-
-    if (!defaultOrg) {
-      defaultOrg = orgRepository.create({ name: "Default Org" });
-      await orgRepository.save(defaultOrg);
-    }
-
-    const newUser = userRepository.create({
-      username,
-      email,
-      password: hashedPassword,
-      batch_id: [],
-      org_id: defaultOrg.id,
-      userRole: UserRole.STUDENT,
-    });
-    
-    await userRepository.save(newUser);
-
-    logger.info(`New user registered: ${email}`);
-    return res.status(201).json({ 
-      message: "User registered successfully",
-      user: {
-        id: newUser.id,
-        username: newUser.username,
-        email: newUser.email,
-        userRole: newUser.userRole
-      }
-    });
-  } catch (error) {
-    logger.error("Error in Register Route:", error);
-    return res.status(500).json({ error: "Failed to register user" });
-  }
-});
-
-router.post("/login", async (req: Request, res: Response) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ 
-      error: "Email and password are required" 
-    });
-  }
-
-  try {
-    const user = await getSingleRecord<User, any>(
-      User,
-      { where: { email } },
-      `user_email_${email}`,
-      false,
-      10 * 60,
-    );
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    if (!user.password) {
-      return res.status(401).json({ error: "Invalid credentials - Google user" });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ error: "Invalid credentials" });
-    }
-
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
-
-    const refreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await saveRefreshTokenToDB(user.id, refreshToken, refreshTokenExpiresAt);
-
-    res.cookie("accessToken", accessToken, getAccessTokenCookieOptions());
-    res.cookie("refreshToken", refreshToken, getRefreshTokenCookieOptions());
-    res.cookie("token", accessToken, getAccessTokenCookieOptions()); 
-
-    logger.info(`User logged in: ${email}`);
-    return res.status(200).json({
-      message: "Login successful",
-      token: accessToken,
-      accessToken,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        userRole: user.userRole,
-      },
-    });
-  } catch (error) {
-    logger.error("Error in Login Route:", error);
-    return res.status(500).json({ error: "Failed to login" });
-  }
-});
-
-router.post("/admin-login", async (req: Request, res: Response) => {
-  const authHeader = req.headers.authorization;
-  const idToken = authHeader?.split(" ")[1];
-
-  if (!idToken) {
-    return res.status(400).json({ error: "ID token is required" });
-  }
-
-  try {
-    const ticket = await client.verifyIdToken({
-      idToken: idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-    
-    const payload = ticket.getPayload();
-    if (!payload || !payload.email) {
-      return res.status(400).json({ error: "Invalid Google token" });
-    }
-
-    const user = await getSingleRecord<User, any>(
-      User,
-      { where: { email: payload.email } },
-      `user_email_${payload.email}`,
-      false,
-      10 * 60,
-    );
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    const allowedRoles = [UserRole.ADMIN, UserRole.RECRUITER, UserRole.INSTRUCTOR];
-    if (!allowedRoles.includes(user.userRole)) {
-      return res.status(403).json({
-        error: "Access denied. Admin privileges required.",
-        userRole: user.userRole,
-      });
-    }
-
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
-
-    const refreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await saveRefreshTokenToDB(user.id, refreshToken, refreshTokenExpiresAt);
-
-    res.cookie("accessToken", accessToken, getAccessTokenCookieOptions());
-    res.cookie("refreshToken", refreshToken, getRefreshTokenCookieOptions());
-    res.cookie("token", accessToken, getAccessTokenCookieOptions());
-
-    logger.info(`Admin logged in: ${payload.email}`);
-    return res.status(200).json({
-      message: "Admin login successful",
-      token: accessToken,
-      accessToken,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        userRole: user.userRole,
-      },
-    });
-  } catch (error) {
-    logger.error("Error in Admin Login Route:", error);
-    return res.status(500).json({ error: "Failed to login as admin" });
-  }
-});
-
-/**
- * Google OAuth Token Exchange
- */
-router.post("/exchange", async (req: Request, res: Response) => {
-  const { token: googleJwt } = req.body;
+// Helper function to create tokens and save refresh token
+const createTokensAndSave = async (user: User): Promise<{ accessToken: string; refreshToken: string }> => {
+  const accessToken = generateAccessToken(user);
+  const refreshToken = generateRefreshToken();
   
-  if (!googleJwt) {
-    return res.status(400).json({ error: "Google token is required" });
-  }
+  // Save refresh token to database
+  await saveRefreshTokenToDB(user.id, refreshToken);
+  
+  return { accessToken, refreshToken };
+};
 
-  try {
-    const ticket = await client.verifyIdToken({
-      idToken: googleJwt,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-    
-    const payload = ticket.getPayload();
-    if (!payload || !payload.email) {
-      return res.status(400).json({ error: "Invalid Google token" });
-    }
-
-    let user = await getSingleRecord<User, any>(
-      User,
-      { where: { email: payload.email } },
-      `user_email_${payload.email}`,
-      false,
-      10 * 60,
-    );
-
-    if (!user) {
-      let defaultOrg = await getSingleRecord<Org, any>(
-        Org,
-        { where: { name: "Default Org" } },
-        `org_default`,
-        true,
-        10 * 60,
-      );
-
-      if (!defaultOrg) {
-        defaultOrg = orgRepository.create({ name: "Default Org" });
-        await orgRepository.save(defaultOrg);
-      }
-
-      user = userRepository.create({
-        username: payload.email.split("@")[0],
-        email: payload.email,
-        password: "",
-        batch_id: [],
-        org_id: defaultOrg.id,
-        userRole: UserRole.STUDENT,
-      });
-      
-      await userRepository.save(user);
-      logger.info(`New Google user created: ${payload.email}`);
-    }
-
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
-
-    const refreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await saveRefreshTokenToDB(user.id, refreshToken, refreshTokenExpiresAt);
-
-    res.cookie("accessToken", accessToken, getAccessTokenCookieOptions());
-    res.cookie("refreshToken", refreshToken, getRefreshTokenCookieOptions());
-    res.cookie("token", accessToken, getAccessTokenCookieOptions()); // Legacy
-
-    logger.info(`Google user authenticated: ${payload.email}`);
-    return res.status(200).json({ 
-      token: accessToken,
-      accessToken,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        userRole: user.userRole,
-      }
-    });
-  } catch (error) {
-    logger.error("Error in Google token exchange:", error);
-    return res.status(401).json({ error: "Invalid Google token" });
-  }
-});
-
-router.post("/refresh", async (req: Request, res: Response) => {
+// Periodic cleanup of expired tokens (run every hour)
+setInterval(async () => {
   try {
     await cleanExpiredTokens();
-
-    const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
-    
-    if (!refreshToken) {
-      return res.status(401).json({ 
-        error: "Refresh token is required" 
-      });
-    }
-
-    let payload: any;
-    try {
-      payload = jwt.verify(refreshToken, config.JWT_SECRET) as any;
-      
-      if (payload.type !== "refresh") {
-        throw new Error("Invalid token type");
-      }
-    } catch (err) {
-      return res.status(401).json({ 
-        error: "Invalid or expired refresh token" 
-      });
-    }
-
-    const tokenRecord = await getRefreshTokenFromDB(refreshToken);
-    
-    if (!tokenRecord) {
-      return res.status(401).json({ 
-        error: "Refresh token not found or expired" 
-      });
-    }
-
-    if (tokenRecord.expires_at < new Date()) {
-      await deleteRefreshTokenFromDB(refreshToken);
-      return res.status(401).json({ 
-        error: "Refresh token has expired" 
-      });
-    }
-
-    const user = await getSingleRecord<User, any>(
-      User,
-      { where: { id: payload.id } },
-      `user_id_${payload.id}`,
-      false,
-      10 * 60,
-    );
-
-    if (!user) {
-      await deleteRefreshTokenFromDB(refreshToken);
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    const newAccessToken = generateAccessToken(user);
-    const newRefreshToken = generateRefreshToken(user);
-    const newRefreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    
-    await deleteRefreshTokenFromDB(refreshToken);
-    await saveRefreshTokenToDB(user.id, newRefreshToken, newRefreshTokenExpiresAt);
-
-    res.cookie("accessToken", newAccessToken, getAccessTokenCookieOptions());
-    res.cookie("refreshToken", newRefreshToken, getRefreshTokenCookieOptions());
-    res.cookie("token", newAccessToken, getAccessTokenCookieOptions()); // Legacy
-
-    logger.info(`Tokens refreshed for user: ${user.id}`);
-    return res.status(200).json({ 
-      token: newAccessToken,
-      accessToken: newAccessToken,
-      message: "Tokens refreshed successfully"
-    });
   } catch (error) {
-    logger.error("Error in refresh token route:", error);
-    return res.status(500).json({ error: "Failed to refresh tokens" });
+    logger.error("Error in periodic token cleanup:", error);
   }
-});
+}, 60 * 60 * 1000); // 1 hour
 
-router.get("/me", async (req: Request, res: Response) => {
+
+// Google OAuth login for students
+router.post("/exchange", async (req: Request, res: Response) => {
+  const { token } = req.body;
+
+  if (!token) {
+    return res.status(400).json({ error: "Token is required" });
+  }
+
   try {
-    let token: string | undefined;
+    logger.info("🔄 Starting student authentication process");
 
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      token = authHeader.split(" ")[1];
-    } else if (req.cookies) {
-      token = req.cookies.accessToken || req.cookies.token;
+    // Step 1: Verify Google token
+    logger.info("📝 Step 1: Verifying Google token...");
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload) {
+      logger.error("❌ Invalid Google token payload");
+      return res.status(400).json({ error: "Invalid Google token payload" });
     }
 
-    if (!token) {
-      return res.status(401).json({ 
-        error: "Unauthorized - No access token found" 
-      });
+    const { email, name, sub: googleId, picture } = payload;
+
+    if (!email) {
+      logger.error("❌ Email not provided by Google");
+      return res.status(400).json({ error: "Email not provided by Google" });
     }
 
-    let decoded: any;
+    logger.info(`✅ Google verification successful for email: ${email}`);
+
+    // Step 2: Check if user exists
+    logger.info(`🔍 Step 2: Checking if user exists for email: ${email}`);
+    let user;
+    
     try {
-      decoded = jwt.verify(token, config.JWT_SECRET) as any;
-    } catch (err) {
-      return res.status(401).json({ 
-        error: "Invalid or expired access token" 
-      });
+      user = await getSingleRecord(User, { where: { email } });
+      logger.info(`📊 Database query result: ${user ? 'User found' : 'No user found'}`);
+    } catch (dbError) {
+      logger.error("❌ Database error while checking user:", dbError);
+      throw new Error(`Database query failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`);
     }
-
-    const user = await getSingleRecord<User, any>(
-      User,
-      { where: { id: decoded.id } },
-      `user_id_${decoded.id}`,
-      true,
-      5 * 60,
-    );
 
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      logger.info("➕ Step 3: Creating new student user...");
+      
+      try {
+        // Get or create default organization
+        const defaultOrg = await getOrCreateDefaultOrg();
+        
+        // Create new student user
+        logger.info(`📝 Creating user with data:`, {
+          username: name || email.split("@")[0],
+          email: email,
+          userRole: UserRole.STUDENT,
+          batch_id: [],
+          org_id: defaultOrg.id,
+          profile_picture: picture || null
+        });
+
+        const newUser = userRepository.create({
+          username: name || email.split("@")[0],
+          email,
+          userRole: UserRole.STUDENT,
+          batch_id: [],
+          org_id: defaultOrg.id,
+          profile_picture: picture || null,
+        });
+
+        logger.info("💾 Saving new user to database...");
+        user = await userRepository.save(newUser);
+        
+        logger.info(`✅ New student user created successfully with ID: ${user.id}`);
+        logger.info(`👤 Created user details:`, {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          userRole: user.userRole,
+          org_id: user.org_id
+        });
+
+      } catch (createError) {
+        logger.error("❌ Error creating new user:", createError);
+        
+        // Log detailed error information
+        if (createError instanceof Error) {
+          logger.error("Error message:", createError.message);
+          logger.error("Error stack:", createError.stack);
+        }
+        
+        // Check if it's a database constraint error
+        if (createError && typeof createError === 'object') {
+          const dbError = createError as any;
+          if (dbError.code) {
+            logger.error("Database error code:", dbError.code);
+          }
+          if (dbError.detail) {
+            logger.error("Database error details:", dbError.detail);
+          }
+        }
+        
+        throw new Error(`User creation failed: ${createError instanceof Error ? createError.message : 'Unknown error'}`);
+      }
+    } else {
+      logger.info(`✅ Existing user found with ID: ${user.id}`);
+      
+      // Ensure user is a student for this endpoint
+      if (user.userRole !== UserRole.STUDENT) {
+        logger.warn(`⚠️ Non-student user attempted student login: ${email} (role: ${user.userRole})`);
+        return res.status(403).json({ 
+          error: "This login is for students only. Please use the admin portal if you have admin access." 
+        });
+      }
+      logger.info(`✅ Existing student user logged in: ${user.id}`);
     }
 
-    return res.status(200).json({
+    // Step 4: Generate tokens
+    logger.info("🔐 Step 4: Generating authentication tokens...");
+    let accessToken, refreshToken;
+    
+    try {
+      const tokens = await createTokensAndSave(user);
+      accessToken = tokens.accessToken;
+      refreshToken = tokens.refreshToken;
+      logger.info("✅ Tokens generated successfully");
+    } catch (tokenError) {
+      logger.error("❌ Error generating tokens:", tokenError);
+      throw new Error(`Token generation failed: ${tokenError instanceof Error ? tokenError.message : 'Unknown error'}`);
+    }
+
+    // Step 5: Set cookies and respond
+    logger.info("🍪 Step 5: Setting authentication cookies...");
+    try {
+      setAuthCookies(res, accessToken, refreshToken);
+      logger.info("✅ Authentication cookies set successfully");
+    } catch (cookieError) {
+      logger.error("❌ Error setting cookies:", cookieError);
+      // Don't fail here, cookies are optional
+    }
+
+    logger.info(`🎉 Student login successful for user: ${user.id}`);
+
+    res.json({
+      message: "Authentication successful",
+      token: accessToken,
       user: {
         id: user.id,
         username: user.username,
         email: user.email,
         userRole: user.userRole,
         org_id: user.org_id,
-        batch_id: user.batch_id,
+      },
+    });
+
+  } catch (error) {
+    logger.error("💥 Student Google authentication failed:", error);
+    
+    // Log additional error details
+    if (error instanceof Error) {
+      logger.error("Error message:", error.message);
+      logger.error("Error stack:", error.stack);
+    }
+    
+    // Return more specific error message in development
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    
+    res.status(401).json({ 
+      error: "Authentication failed",
+      details: isDevelopment ? (error instanceof Error ? error.message : 'Unknown error') : undefined
+    });
+  }
+});
+
+// Google OAuth login for admin/instructor users
+router.post("/admin-login", async (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.startsWith("Bearer ") 
+    ? authHeader.substring(7) 
+    : req.body.token;
+
+  if (!token) {
+    return res.status(400).json({ error: "Token is required" });
+  }
+
+  try {
+    logger.info("Attempting to verify Google token for admin login");
+
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload) {
+      return res.status(400).json({ error: "Invalid Google token payload" });
+    }
+
+    const { email, name, sub: googleId } = payload;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email not provided by Google" });
+    }
+
+    logger.info(`Google verification successful for admin login: ${email}`);
+
+    // Check if user exists and has admin/instructor role
+    const user = await getSingleRecord(User, { where: { email } });
+
+    if (!user) {
+      logger.warn(`Admin login attempted by non-existing user: ${email}`);
+      return res.status(403).json({ 
+        error: "Access denied. Admin account not found." 
+      });
+    }
+
+    // Check if user has admin or instructor role
+    if (![UserRole.ADMIN, UserRole.INSTRUCTOR, UserRole.RECRUITER].includes(user.userRole)) {
+      logger.warn(`Admin login attempted by non-admin user: ${email} (role: ${user.userRole})`);
+      return res.status(403).json({ 
+        error: "Access denied. Admin or instructor privileges required." 
+      });
+    }
+
+    logger.info(`Admin login successful for user: ${user.id} (role: ${user.userRole})`);
+
+    // Generate tokens and save refresh token
+    const { accessToken, refreshToken } = await createTokensAndSave(user);
+
+    // Set cookies
+    setAuthCookies(res, accessToken, refreshToken);
+
+    res.json({
+      message: "Admin authentication successful",
+      token: accessToken,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        userRole: user.userRole,
+        org_id: user.org_id,
       },
     });
   } catch (error) {
-    logger.error("Error in /me route:", error);
-    return res.status(500).json({ error: "Failed to get user information" });
+    logger.error("Admin Google authentication error:", error);
+    res.status(401).json({ error: "Authentication failed" });
   }
 });
 
-router.post("/logout", async (req: Request, res: Response) => {
+// Refresh token endpoint
+router.post("/refresh", async (req: Request, res: Response) => {
   try {
-    const refreshToken = req.cookies.refreshToken;
-    
-    if (refreshToken) {
-      await deleteRefreshTokenFromDB(refreshToken);
+    // Get refresh token from cookie or body
+    const refreshToken = req.cookies?.refreshToken || req.body.refreshToken;
+
+    if (!refreshToken) {
+      return res.status(401).json({ error: "Refresh token not provided" });
     }
 
-    const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" as const : "lax" as const,
-      expires: new Date(0),
-      path: "/",
-    };
+    logger.info("Attempting to refresh tokens");
 
-    res.cookie("accessToken", "", cookieOptions);
-    res.cookie("refreshToken", "", cookieOptions);
-    res.cookie("token", "", cookieOptions);
+    // Refresh tokens
+    const result = await refreshTokens(refreshToken);
 
-    logger.info("User logged out successfully");
-    return res.status(200).json({ message: "Logged out successfully" });
-  } catch (error) {
-    logger.error("Error in logout route:", error);
-    return res.status(500).json({ error: "Failed to logout" });
-  }
-});
-
-router.post("/logout-all", async (req: Request, res: Response) => {
-  try {
-    let token: string | undefined;
-
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      token = authHeader.split(" ")[1];
-    } else if (req.cookies) {
-      token = req.cookies.accessToken || req.cookies.token;
+    if (!result) {
+      logger.warn("Invalid or expired refresh token");
+      clearAuthCookies(res);
+      return res.status(401).json({ error: "Invalid or expired refresh token" });
     }
 
-    if (!token) {
-      return res.status(401).json({ 
-        error: "Unauthorized - No access token found" 
-      });
-    }
+    const { accessToken, newRefreshToken, user } = result;
 
-    let decoded: any;
-    try {
-      decoded = jwt.verify(token, config.JWT_SECRET) as any;
-    } catch (err) {
-      return res.status(401).json({ 
-        error: "Invalid access token" 
-      });
-    }
+    // Set new cookies
+    setAuthCookies(res, accessToken, newRefreshToken);
 
-    await refreshTokenRepository.delete({ user_id: decoded.id });
+    logger.info(`Tokens refreshed successfully for user: ${user.id}`);
 
-    const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" as const : "lax" as const,
-      expires: new Date(0),
-      path: "/",
-    };
-
-    res.cookie("accessToken", "", cookieOptions);
-    res.cookie("refreshToken", "", cookieOptions);
-    res.cookie("token", "", cookieOptions);
-
-    logger.info(`User logged out from all devices: ${decoded.id}`);
-    return res.status(200).json({ 
-      message: "Logged out from all devices successfully" 
+    res.json({
+      message: "Tokens refreshed successfully",
+      token: accessToken,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        userRole: user.userRole,
+        org_id: user.org_id,
+      },
     });
   } catch (error) {
-    logger.error("Error in logout-all route:", error);
-    return res.status(500).json({ error: "Failed to logout from all devices" });
+    logger.error("Token refresh error:", error);
+    clearAuthCookies(res);
+    res.status(401).json({ error: "Token refresh failed" });
   }
 });
 
-export { router as authRouter };
+// Verify token endpoint (for client-side validation)
+router.post("/verify", async (req: Request, res: Response) => {
+  try {
+    const token = extractTokenFromRequest(req) || req.body.token;
+
+    if (!token) {
+      return res.status(401).json({ error: "Token not provided" });
+    }
+
+    const decoded = verifyAccessToken(token);
+    
+    // Get full user info
+    const user = await getSingleRecord(User, { where: { id: decoded.id } });
+    
+    if (!user) {
+      return res.status(401).json({ error: "User not found" });
+    }
+
+    res.json({
+      valid: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        userRole: user.userRole,
+        org_id: user.org_id,
+      },
+    });
+  } catch (error) {
+    logger.error("Token verification error:", error);
+    
+    if (error.message === "Token expired") {
+      return res.status(401).json({ error: "Token expired", code: "TOKEN_EXPIRED" });
+    } else if (error.message === "Invalid token") {
+      return res.status(401).json({ error: "Invalid token", code: "INVALID_TOKEN" });
+    } else {
+      return res.status(401).json({ error: "Token verification failed" });
+    }
+  }
+});
+
+// Get current user info (requires valid access token)
+router.get("/me", async (req: Request, res: Response) => {
+  try {
+    const token = extractTokenFromRequest(req);
+
+    if (!token) {
+      return res.status(401).json({ error: "Access token not provided" });
+    }
+
+    const decoded = verifyAccessToken(token);
+    const user = await getSingleRecord(User, { where: { id: decoded.id } });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        userRole: user.userRole,
+        org_id: user.org_id,
+      },
+    });
+  } catch (error) {
+    logger.error("Get user info error:", error);
+    
+    if (error.message === "Token expired") {
+      return res.status(401).json({ error: "Token expired", code: "TOKEN_EXPIRED" });
+    } else {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+  }
+});
+
+// Logout endpoint
+router.post("/logout", async (req: Request, res: Response) => {
+  try {
+    const refreshToken = req.cookies?.refreshToken || req.body.refreshToken;
+
+    if (refreshToken) {
+      // Delete refresh token from database
+      await deleteRefreshTokenFromDB(refreshToken);
+      logger.info("Refresh token deleted on logout");
+    }
+
+    // Clear cookies
+    clearAuthCookies(res);
+
+    res.json({ message: "Logged out successfully" });
+  } catch (error) {
+    logger.error("Logout error:", error);
+    // Still clear cookies even if database operation fails
+    clearAuthCookies(res);
+    res.json({ message: "Logged out successfully" });
+  }
+});
+
+// Logout from all devices
+router.post("/logout-all", async (req: Request, res: Response) => {
+  try {
+    const token = extractTokenFromRequest(req);
+
+    if (!token) {
+      return res.status(401).json({ error: "Access token not provided" });
+    }
+
+    const decoded = verifyAccessToken(token);
+    
+    // Delete all refresh tokens for this user
+    await deleteAllUserRefreshTokens(decoded.id);
+    
+    // Clear cookies
+    clearAuthCookies(res);
+
+    logger.info(`All refresh tokens deleted for user: ${decoded.id}`);
+
+    res.json({ message: "Logged out from all devices successfully" });
+  } catch (error) {
+    logger.error("Logout all error:", error);
+    clearAuthCookies(res);
+    res.status(500).json({ error: "Logout failed" });
+  }
+});
+
+// Admin endpoint to clean up expired tokens manually
+router.post("/cleanup-tokens", async (req: Request, res: Response) => {
+  try {
+    const token = extractTokenFromRequest(req);
+
+    if (!token) {
+      return res.status(401).json({ error: "Access token not provided" });
+    }
+
+    const decoded = verifyAccessToken(token);
+    const user = await getSingleRecord(User, { where: { id: decoded.id } });
+
+    // Only allow admin users to trigger cleanup
+    if (!user || user.userRole !== UserRole.ADMIN) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    await cleanExpiredTokens();
+
+    res.json({ message: "Expired tokens cleaned up successfully" });
+  } catch (error) {
+    logger.error("Token cleanup error:", error);
+    res.status(500).json({ error: "Token cleanup failed" });
+  }
+});
+
+export default router;

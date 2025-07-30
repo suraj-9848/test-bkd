@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { In } from "typeorm";
+import { In, Like } from "typeorm";
 import { Course } from "../../db/mysqlModels/Course";
 import { Batch } from "../../db/mysqlModels/Batch";
 import { Module } from "../../db/mysqlModels/Module";
@@ -320,16 +320,24 @@ export const createCourse = async (req: Request, res: Response) => {
 // ========== FETCH ONE COURSE ==========
 export const fetchCourse = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    console.log("📚 [FETCH COURSE] Fetching individual course");
+    console.log("🔍 [FETCH COURSE] Request params:", req.params);
+    console.log("🔍 [FETCH COURSE] Request URL:", req.originalUrl);
+    
+    // Handle both 'id' and 'courseId' parameter names for compatibility
+    const courseId = req.params.courseId || req.params.id;
 
-    if (!id) {
+    if (!courseId) {
+      console.log("❌ [FETCH COURSE] No course ID provided");
       return res.status(400).json({ message: "Course ID is required" });
     }
+
+    console.log("🔍 [FETCH COURSE] Looking for course ID:", courseId);
 
     const course = await getSingleRecord(
       Course,
       {
-        where: { id },
+        where: { id: courseId },
         relations: ["modules", "modules.days", "batches"],
         order: {
           modules: {
@@ -340,51 +348,82 @@ export const fetchCourse = async (req: Request, res: Response) => {
           },
         },
       },
-      `course_${id}`,
+      `course_${courseId}`,
       true,
       10 * 60,
     );
 
     if (!course) {
+      console.log("❌ [FETCH COURSE] Course not found with ID:", courseId);
       return res.status(404).json({ message: "Course not found" });
     }
+
+    console.log("✅ [FETCH COURSE] Course found:", {
+      id: course.id,
+      title: course.title,
+      modulesCount: course.modules?.length || 0
+    });
 
     return res.status(200).json({
       message: "Course fetched successfully",
       course,
     });
   } catch (err) {
-    console.error("Fetch course error:", err);
+    console.error("❌ [FETCH COURSE] Fetch course error:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
 
-// ========== FETCH ALL COURSES (Not batch specific) ==========
-export const fetchAllCoursesAcrossBatches = async (
-  req: Request,
-  res: Response,
-) => {
+// ========== GET ALL COURSES ==========
+export const getAllCourses = async (req: Request, res: Response) => {
   try {
-    // Get all courses with their batches
-    const courses = await getAllRecordsWithFilter<Course, any>(Course, {
-      relations: ["batches", "userCourses"],
-    });
+    const { page = 1, limit = 10, search = "" } = req.query;
+    const pageNumber = parseInt(page as string, 10);
+    const limitNumber = parseInt(limit as string, 10);
+    const offset = (pageNumber - 1) * limitNumber;
 
-    // Process courses to include student count
-    const processedCourses = courses.map((course) => {
-      return {
-        ...course,
-        studentCount: course.userCourses?.length || 0,
+    let whereCondition: any = {};
+    if (search) {
+      whereCondition = {
+        title: Like(`%${search}%`),
       };
-    });
+    }
 
-    return res.json({
-      message: "Courses fetched successfully",
-      courses: processedCourses,
+    // Use utility function with caching for courses
+    const courses = await getAllRecordsWithFilter(Course, {
+      where: whereCondition,
+      relations: ["batches"],
+      order: { title: "ASC" },
+      skip: offset,
+      take: limitNumber,
+    }, `courses:page:${pageNumber}:limit:${limitNumber}:search:${search}`, true, 10 * 60); // Cache for 10 minutes
+
+    // Get total count for pagination using utility function
+    const totalCourses = await getAllRecordsWithFilter(Course, {
+      where: whereCondition,
+    }, `courses:count:search:${search}`, true, 15 * 60); // Cache for 15 minutes
+
+    const totalCount = totalCourses.length;
+    const totalPages = Math.ceil(totalCount / limitNumber);
+
+    return res.status(200).json({
+      message: "Courses retrieved successfully",
+      data: {
+        courses,
+        pagination: {
+          currentPage: pageNumber,
+          totalPages,
+          totalCount,
+          hasNextPage: pageNumber < totalPages,
+          hasPrevPage: pageNumber > 1,
+        },
+      },
     });
   } catch (err) {
-    console.error("Error fetching all courses:", err);
-    return res.status(500).json({ message: "Internal server error" });
+    console.error("Get all courses error:", err);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
   }
 };
 
@@ -413,6 +452,42 @@ export const fetchAllCoursesinBatch = async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error("Fetch batch courses error:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// ========== FETCH ALL COURSES FOR INSTRUCTOR ==========
+export const fetchAllCoursesForInstructor = async (req: Request, res: Response) => {
+  try {
+    console.log("📚 [INSTRUCTOR COURSES] Fetching all courses for instructor");
+    const user = req.user;
+    if (!user) {
+      console.log("❌ [INSTRUCTOR COURSES] User not authenticated");
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    console.log("👨‍🏫 [INSTRUCTOR COURSES] User:", {
+      id: user.id,
+      username: user.username,
+      role: user.userRole
+    });
+
+    // Fetch all courses - for instructors, we can show all courses or filter by instructor
+    // For now, let's fetch all courses with their relations
+    const courses = await getAllRecordsWithFilter(Course, {
+      relations: ["modules", "batches"],
+      order: { title: "ASC" },
+    }, `instructor:courses:${user.id}`, true, 10 * 60); // Cache for 10 minutes
+
+    console.log("✅ [INSTRUCTOR COURSES] Fetched courses count:", courses.length);
+    console.log("📋 [INSTRUCTOR COURSES] Course titles:", courses.map(c => c.title));
+
+    return res.status(200).json({
+      message: "Courses fetched successfully",
+      courses,
+    });
+  } catch (err) {
+    console.error("❌ [INSTRUCTOR COURSES] Fetch instructor courses error:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -457,9 +532,10 @@ export const updateCourse = async (req: Request, res: Response) => {
     if (instructor_name) updateData.instructor_name = instructor_name;
 
     if (batch_ids && Array.isArray(batch_ids) && batch_ids.length > 0) {
-      const batches = await Batch.find({
+      // Use utility function with caching for batches
+      const batches = await getAllRecordsWithFilter(Batch, {
         where: { id: In(batch_ids) },
-      });
+      }, `batches:ids:${batch_ids.join(',')}`, true, 20 * 60); // Cache for 20 minutes
 
       if (!batches || batches.length !== batch_ids.length) {
         const foundBatchIds = batches?.map((b) => b.id) || [];
@@ -532,20 +608,21 @@ export const updateCourse = async (req: Request, res: Response) => {
 // ========== DELETE COURSE ==========
 export const deleteCourse = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const { courseId, id } = req.params;
+    const courseIdToDelete = courseId || id; // Support both parameter names
 
-    if (!id) {
+    if (!courseIdToDelete) {
       return res.status(400).json({ message: "Course ID is required" });
     }
 
     // Check if course exists first
-    const course = await getSingleRecord(Course, { where: { id } });
+    const course = await getSingleRecord(Course, { where: { id: courseIdToDelete } });
     if (!course) {
       return res.status(404).json({ message: "Course not found" });
     }
 
     console.log("=== DELETE COURSE DEBUG ===");
-    console.log("Deleting course:", id, course.title);
+    console.log("Deleting course:", courseIdToDelete, course.title);
 
     // Use transaction to ensure all related data is deleted properly
     const result = await AppDataSource.transaction(
@@ -557,7 +634,7 @@ export const deleteCourse = async (req: Request, res: Response) => {
           .createQueryBuilder()
           .delete()
           .from("course_batch_assignments")
-          .where("courseId = :courseId", { courseId: id })
+          .where("courseId = :courseId", { courseId: courseIdToDelete })
           .execute();
 
         console.log("Deleted course-batch assignments");
@@ -567,7 +644,7 @@ export const deleteCourse = async (req: Request, res: Response) => {
           .createQueryBuilder()
           .delete()
           .from("user_course")
-          .where("courseId = :courseId", { courseId: id })
+          .where("courseId = :courseId", { courseId: courseIdToDelete })
           .execute();
 
         console.log("Deleted user course enrollments");
@@ -577,7 +654,7 @@ export const deleteCourse = async (req: Request, res: Response) => {
           .createQueryBuilder()
           .delete()
           .from("module")
-          .where("courseId = :courseId", { courseId: id })
+          .where("courseId = :courseId", { courseId: courseIdToDelete })
           .execute();
 
         console.log("Deleted modules");
@@ -587,7 +664,7 @@ export const deleteCourse = async (req: Request, res: Response) => {
           .createQueryBuilder()
           .delete()
           .from("test")
-          .where("courseId = :courseId", { courseId: id })
+          .where("courseId = :courseId", { courseId: courseIdToDelete })
           .execute();
 
         console.log("Deleted tests");
@@ -597,7 +674,7 @@ export const deleteCourse = async (req: Request, res: Response) => {
           .createQueryBuilder()
           .delete()
           .from("course")
-          .where("id = :id", { id })
+          .where("id = :id", { id: courseIdToDelete })
           .execute();
 
         console.log("Deleted course, affected rows:", deleteResult.affected);

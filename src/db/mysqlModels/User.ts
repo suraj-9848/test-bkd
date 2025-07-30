@@ -35,6 +35,9 @@ export class User extends BaseEntity {
   @Column({ nullable: true })
   password: string;
 
+  @Column({ nullable: true })
+  profile_picture: string;
+
   @Column("uuid", { nullable: true })
   org_id: string;
 
