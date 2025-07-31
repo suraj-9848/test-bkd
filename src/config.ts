@@ -57,7 +57,7 @@ export const config = {
     index: false,
     maxAge: "600000",
     redirect: false,
-    setHeaders(res, path, stat) {
+    setHeaders(res, _path, _stat) {
       res.set("x-timestamp", Date.now());
     },
   },

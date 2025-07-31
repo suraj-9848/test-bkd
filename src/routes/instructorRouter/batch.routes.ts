@@ -90,7 +90,10 @@ router.post("/batches/:batchId/assign-students", assignMultipleStudentsToBatch);
 
 // Analytics routes for batches
 router.get("/batches/:batchId/students", fetchBatchStudents);
-router.get("/batches/:batchId/courses/:courseId/students/:studentId/scores", getStudentCourseScores);
+router.get(
+  "/batches/:batchId/courses/:courseId/students/:studentId/scores",
+  getStudentCourseScores,
+);
 
 // Course routes (nested under batch)
 router.post("/batches/:batchId/courses", createCourse);

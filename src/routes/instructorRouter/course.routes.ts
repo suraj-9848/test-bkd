@@ -4,7 +4,6 @@ import {
   fetchCourse,
   updateCourse,
   deleteCourse,
-  fetchAllCoursesinBatch,
   fetchAllCoursesForInstructor,
   assignCourseToStudent,
 } from "../../controllers/courseCrudControllers/courseController";
@@ -36,7 +35,6 @@ import {
 
 import {
   getInstructorDashboardStats,
-  getInstructorStudents,
   getAllStudentsForAssignment,
   getSystemWideStudentAnalytics,
   getBatchCourseProgress,
@@ -85,23 +83,44 @@ courseRouter.post("/courses/:courseId/modules/:moduleId/mcq", createMCQ);
 courseRouter.get("/courses/:courseId/modules/:moduleId/mcq", getMCQ);
 courseRouter.get("/courses/:courseId/modules/:moduleId/mcq/:mcqId", getMCQById);
 courseRouter.put("/courses/:courseId/modules/:moduleId/mcq/:mcqId", updateMCQ);
-courseRouter.delete("/courses/:courseId/modules/:moduleId/mcq/:mcqId", deleteMCQ);
-courseRouter.get("/courses/:courseId/modules/:moduleId/mcq/retake", getMCQRetakeStatus);
+courseRouter.delete(
+  "/courses/:courseId/modules/:moduleId/mcq/:mcqId",
+  deleteMCQ,
+);
+courseRouter.get(
+  "/courses/:courseId/modules/:moduleId/mcq/retake",
+  getMCQRetakeStatus,
+);
 
 // Day content routes
 courseRouter.post("/modules/:moduleId/day/:dayId/content", addDayContent);
 courseRouter.get("/modules/:moduleId/day/:dayId", getDayContent);
 courseRouter.put("/modules/:moduleId/day/:dayId/content", updateDayContent);
 courseRouter.delete("/modules/:moduleId/day/:dayId/content", deleteDayContent);
-courseRouter.patch("/modules/:moduleId/day/:dayId/complete", markDayAsCompleted);
+courseRouter.patch(
+  "/modules/:moduleId/day/:dayId/complete",
+  markDayAsCompleted,
+);
 
 // Analytics routes
 courseRouter.get("/batches", getInstructorBatches);
 courseRouter.get("/batches/:batchId/courses", getBatchCourses);
-courseRouter.get("/batches/:batchId/courses/:courseId/progress", getBatchCourseProgress);
-courseRouter.get("/batches/:batchId/courses/:courseId/tests", getBatchCourseTests);
-courseRouter.get("/batches/:batchId/courses/:courseId/test-stats", getBatchCourseTestStats);
-courseRouter.get("/batches/:batchId/courses/:courseId/leaderboard", getBatchCourseLeaderboard);
+courseRouter.get(
+  "/batches/:batchId/courses/:courseId/progress",
+  getBatchCourseProgress,
+);
+courseRouter.get(
+  "/batches/:batchId/courses/:courseId/tests",
+  getBatchCourseTests,
+);
+courseRouter.get(
+  "/batches/:batchId/courses/:courseId/test-stats",
+  getBatchCourseTestStats,
+);
+courseRouter.get(
+  "/batches/:batchId/courses/:courseId/leaderboard",
+  getBatchCourseLeaderboard,
+);
 
 // General analytics endpoints that components expect
 courseRouter.get("/analytics/students", getSystemWideStudentAnalytics);

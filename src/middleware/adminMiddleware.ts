@@ -11,19 +11,19 @@ export const adminMiddleware = (
   console.log("Decoded User:", user);
 
   if (!user) {
-    return res.status(401).json({ 
-      message: "Authentication required" 
+    return res.status(401).json({
+      message: "Authentication required",
     });
   }
 
   // Admin middleware should only allow actual admins, not view-as
   // This is for admin-only functions like user management, system settings, etc.
   if (user.userRole !== UserRole.ADMIN) {
-    return res.status(403).json({ 
+    return res.status(403).json({
       message: "Access denied. Administrator access required.",
       error: `Access denied. Required roles: admin`,
       userRole: user.userRole,
-      note: "This endpoint requires actual admin privileges"
+      note: "This endpoint requires actual admin privileges",
     });
   }
 

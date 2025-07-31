@@ -1,10 +1,9 @@
 // Test Analytics: Number of students who gave and did not give the test
 import { UserCourse } from "../../db/mysqlModels/UserCourse";
-import { User } from "../../db/mysqlModels/User";
 
 export const getTestAnalytics = async (req: Request, res: Response) => {
   try {
-    const { batchId, courseId, testId } = req.params;
+    const { courseId, testId } = req.params;
 
     // 1. Get all students enrolled in the course (UserCourse)
     const userCourses = await UserCourse.find({
@@ -63,21 +62,18 @@ import { Course } from "../../db/mysqlModels/Course";
 import { QuizOptions } from "../../db/mysqlModels/QuizOptions";
 import {
   createRecord,
-  updateRecords,
   getSingleRecord,
   deleteRecords,
   getAllRecordsWithFilter,
 } from "../../lib/dbLib/sqlUtils";
-import { redisClient } from "../../db/connect";
 import { TestSubmission } from "../../db/mysqlModels/TestSubmission";
 import { TestResponse } from "../../db/mysqlModels/TestResponse";
 
 import { validate } from "class-validator";
 import sanitizeHtml from "sanitize-html";
-import { LessThanOrEqual, MoreThanOrEqual } from "typeorm";
+import { getLoggerByName } from "../../utils/logger";
 
-const logger =
-  require("../../utils/logger").getLoggerByName("QuestionController");
+const logger = getLoggerByName("QuestionController");
 export const createTest = async (req: Request, res: Response) => {
   const { courseId } = req.params;
   const {

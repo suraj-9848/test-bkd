@@ -3,7 +3,6 @@ const { Org } = require("../build/db/mysqlModels/Org");
 const { User, UserRole } = require("../build/db/mysqlModels/User");
 const { Job, JobStatus } = require("../build/db/mysqlModels/Job");
 const { AppDataSource } = require("../build/db/connect");
-const { v4: uuidv4 } = require("uuid");
 const bcrypt = require("bcryptjs");
 
 async function generateSampleData() {

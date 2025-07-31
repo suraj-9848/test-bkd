@@ -1,12 +1,11 @@
-
 import * as jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { config } from "../../config";
-import { AppDataSource } from "../../db/connect";
 import { User } from "../../db/mysqlModels/User";
 import { getSingleRecord } from "../dbLib/sqlUtils";
+import { getLoggerByName } from "../../utils/logger";
 
-const logger = require("../../utils/logger").getLoggerByName("Auth Utils");
+const logger = getLoggerByName("Auth Utils");
 
 interface JWTPayload extends jwt.JwtPayload {
   id: string;
@@ -24,6 +23,7 @@ interface AuthUser {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: AuthUser;
@@ -31,17 +31,19 @@ declare global {
   }
 }
 
-export const userProtect = async (req: Request, res: Response, next: NextFunction) => {
+export const userProtect = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     let token: string;
 
     if (req.cookies.jwt) {
       token = req.cookies.jwt;
-    }
-    else if (req.cookies.accessToken) {
+    } else if (req.cookies.accessToken) {
       token = req.cookies.accessToken;
-    }
-    else if (req.cookies.token) {
+    } else if (req.cookies.token) {
       token = req.cookies.token;
     }
 
@@ -56,7 +58,7 @@ export const userProtect = async (req: Request, res: Response, next: NextFunctio
     }
 
     const decoded = jwt.verify(token, config.JWT_SECRET) as JWTPayload;
-    
+
     if (!decoded || !decoded.id || !decoded.username || !decoded.userRole) {
       throw new Error("Invalid token payload structure");
     }
@@ -66,7 +68,7 @@ export const userProtect = async (req: Request, res: Response, next: NextFunctio
       username: decoded.username,
       userRole: decoded.userRole,
       email: decoded.email || "",
-      token: token
+      token: token,
     };
 
     return next();
@@ -74,7 +76,7 @@ export const userProtect = async (req: Request, res: Response, next: NextFunctio
     for (const cookieName of Object.keys(req.cookies)) {
       res.clearCookie(cookieName);
     }
-    
+
     logger.error("Auth error:", error);
     return res.status(401).json({
       status: "token_is_expired",
@@ -83,7 +85,11 @@ export const userProtect = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
-export const userProtectWithDB = async (req: Request, res: Response, next: NextFunction) => {
+export const userProtectWithDB = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     let token: string;
 
@@ -102,7 +108,7 @@ export const userProtectWithDB = async (req: Request, res: Response, next: NextF
     }
 
     const decoded = jwt.verify(token, config.JWT_SECRET) as JWTPayload;
-    
+
     if (!decoded || !decoded.id || !decoded.username || !decoded.userRole) {
       throw new Error("Invalid token payload structure");
     }
@@ -124,7 +130,7 @@ export const userProtectWithDB = async (req: Request, res: Response, next: NextF
       username: user.username,
       userRole: user.userRole,
       email: user.email,
-      token: token
+      token: token,
     };
 
     return next();
@@ -132,7 +138,7 @@ export const userProtectWithDB = async (req: Request, res: Response, next: NextF
     for (const cookieName of Object.keys(req.cookies)) {
       res.clearCookie(cookieName);
     }
-    
+
     logger.error("Auth with DB error:", error);
     return res.status(401).json({
       status: "token_is_expired",
@@ -149,18 +155,18 @@ const signToken = (
   firstName: string,
 ): string => {
   return jwt.sign(
-    { 
-      id, 
+    {
+      id,
       username: firstName,
       userRole: role,
       email: "",
-      profilePicture, 
-      updatedUsername, 
-      firstName 
+      profilePicture,
+      updatedUsername,
+      firstName,
     },
     config.JWT_SECRET,
     {
-      expiresIn: config.JWT_EXPIRES_IN,
+      expiresIn: config.JWT_EXPIRES_IN as string | number,
     },
   );
 };
@@ -179,9 +185,9 @@ export const generateModernToken = (user: {
     },
     config.JWT_SECRET,
     {
-      expiresIn: config.JWT_EXPIRES_IN,
+      expiresIn: config.JWT_EXPIRES_IN as string | number,
       issuer: "lms-backend",
-      audience: "lms-app"
+      audience: "lms-app",
     },
   );
 };
@@ -202,7 +208,7 @@ export const createTokenAndSend = async (
   user: any,
   statusCode: number,
   res: Response,
-  firstLogin?: boolean,
+  _firstLogin?: boolean,
 ) => {
   try {
     const token: string = signToken(
@@ -230,7 +236,7 @@ export const createTokenAndSend = async (
     delete userResponse.tokens;
 
     logger.info(`Token created for user: ${user.id}`);
-    
+
     res.status(statusCode).json({
       status: "success",
       token,
@@ -268,8 +274,11 @@ export const createModernTokenAndSend = async (
     };
 
     res.cookie("accessToken", token, cookieOptions);
-    res.cookie("token", token, cookieOptions); 
-    res.cookie("jwt", token, { ...cookieOptions, maxAge: config.JWT_COOKIE_EXPIRES_IN });
+    res.cookie("token", token, cookieOptions);
+    res.cookie("jwt", token, {
+      ...cookieOptions,
+      maxAge: config.JWT_COOKIE_EXPIRES_IN,
+    });
 
     res.status(statusCode).json({
       status: "success",
@@ -293,7 +302,7 @@ export const createModernTokenAndSend = async (
 export const getUserFromToken = (token: string): AuthUser | null => {
   try {
     const decoded = jwt.verify(token, config.JWT_SECRET) as JWTPayload;
-    
+
     if (!decoded || !decoded.id || !decoded.username || !decoded.userRole) {
       return null;
     }
@@ -303,7 +312,7 @@ export const getUserFromToken = (token: string): AuthUser | null => {
       username: decoded.username,
       userRole: decoded.userRole,
       email: decoded.email || "",
-      token: token
+      token: token,
     };
   } catch (error) {
     logger.error("Error extracting user from token:", error);
@@ -315,7 +324,10 @@ export const clearAuthCookies = (res: Response) => {
   const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" as const : "lax" as const,
+    sameSite:
+      process.env.NODE_ENV === "production"
+        ? ("none" as const)
+        : ("lax" as const),
     expires: new Date(0),
     path: "/",
   };

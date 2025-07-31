@@ -4,7 +4,6 @@ import { Course } from "../../db/mysqlModels/Course";
 import {
   createRecord,
   getSingleRecord,
-  updateRecords,
   deleteRecords,
   getAllRecordsWithFilter,
 } from "../../lib/dbLib/sqlUtils";

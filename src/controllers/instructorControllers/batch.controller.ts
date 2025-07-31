@@ -26,7 +26,7 @@ export const createBatch = async (req: Request, res: Response) => {
       Batch.getRepository(),
       batch,
       "all_batches",
-      10 * 60
+      10 * 60,
     );
     return res.status(201).json({ message: "Batch created", batch: saved });
   } catch (err) {
@@ -58,7 +58,7 @@ export const fetchBatch = async (req: Request, res: Response) => {
       { where: { id } },
       `batch_${id}`,
       true,
-      10 * 60
+      10 * 60,
     );
     if (!batch) {
       return res.status(404).json({ message: "Batch not found" });
@@ -107,7 +107,7 @@ export const assignBatchToStudent = async (req: Request, res: Response) => {
       where: { id: batchId },
     });
     if (!batch) return res.status(404).json({ message: "Batch not found" });
-    let user = await getSingleRecord<User, any>(User, {
+    const user = await getSingleRecord<User, any>(User, {
       where: { id: userId },
     });
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -116,7 +116,7 @@ export const assignBatchToStudent = async (req: Request, res: Response) => {
         User,
         { id: userId },
         { org_id: batch.org_id },
-        false
+        false,
       );
       user.org_id = batch.org_id;
     } else if (user.org_id !== batch.org_id) {
@@ -130,7 +130,7 @@ export const assignBatchToStudent = async (req: Request, res: Response) => {
         User,
         { id: userId },
         { batch_id: user.batch_id },
-        false
+        false,
       );
     }
     const courses = await getAllRecordsWithFilter<Course, any>(Course, {
@@ -144,7 +144,7 @@ export const assignBatchToStudent = async (req: Request, res: Response) => {
       if (!exists)
         await createRecord(
           UserCourse.getRepository(),
-          Object.assign(new UserCourse(), { user, course })
+          Object.assign(new UserCourse(), { user, course }),
         );
       assigned.push(course);
     }
@@ -161,7 +161,7 @@ export const assignBatchToStudent = async (req: Request, res: Response) => {
 // Fixed assignMultipleStudentsToBatch function with correct relationship handling
 export const assignMultipleStudentsToBatch = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   try {
     console.log("=== ASSIGN MULTIPLE STUDENTS DEBUG ===");
@@ -233,7 +233,7 @@ export const assignMultipleStudentsToBatch = async (
       console.log(`Processing user ${i + 1}/${userIds.length}: ${uid}`);
 
       try {
-        let user = await getSingleRecord<User, any>(User, {
+        const user = await getSingleRecord<User, any>(User, {
           where: { id: uid },
         });
 
@@ -246,7 +246,7 @@ export const assignMultipleStudentsToBatch = async (
 
         console.log(`Found user: ${user.username} (${user.email})`);
         console.log(
-          `User org_id: ${user.org_id}, Batch org_id: ${batch.org_id}`
+          `User org_id: ${user.org_id}, Batch org_id: ${batch.org_id}`,
         );
 
         if (!user.org_id) {
@@ -255,12 +255,12 @@ export const assignMultipleStudentsToBatch = async (
             User,
             { id: uid },
             { org_id: batch.org_id },
-            false
+            false,
           );
           user.org_id = batch.org_id;
         } else if (user.org_id !== batch.org_id) {
           console.error(
-            `Org mismatch: User ${uid} org_id=${user.org_id}, Batch org_id=${batch.org_id}`
+            `Org mismatch: User ${uid} org_id=${user.org_id}, Batch org_id=${batch.org_id}`,
           );
           results.push({ userId: uid, status: "Organization mismatch" });
           errorCount++;
@@ -278,7 +278,7 @@ export const assignMultipleStudentsToBatch = async (
             User,
             { id: uid },
             { batch_id: newBatchIds },
-            false
+            false,
           );
         } else {
           console.log(`User ${uid} already assigned to batch ${batchId}`);
@@ -312,18 +312,18 @@ export const assignMultipleStudentsToBatch = async (
                 coursesAssigned++;
               } else {
                 console.error(
-                  `Failed to load entities for course assignment: user=${!!userEntity}, course=${!!courseEntity}`
+                  `Failed to load entities for course assignment: user=${!!userEntity}, course=${!!courseEntity}`,
                 );
               }
             } else {
               console.log(
-                `User ${uid} already assigned to course ${course.id}`
+                `User ${uid} already assigned to course ${course.id}`,
               );
             }
           } catch (courseError) {
             console.error(
               `Error assigning course ${course.id} to user ${uid}:`,
-              courseError
+              courseError,
             );
           }
         }
@@ -371,7 +371,7 @@ export const assignMultipleStudentsToBatch = async (
     console.error("Error details:", err);
     console.error(
       "Stack trace:",
-      err instanceof Error ? err.stack : "No stack trace"
+      err instanceof Error ? err.stack : "No stack trace",
     );
 
     let errorMessage = "Internal server error";
@@ -463,7 +463,7 @@ export const getStudentCourseScores = async (req: Request, res: Response) => {
     const { batchId, courseId, studentId } = req.params;
 
     console.log(
-      `📊 Fetching scores for student: ${studentId}, course: ${courseId}, batch: ${batchId}`
+      `📊 Fetching scores for student: ${studentId}, course: ${courseId}, batch: ${batchId}`,
     );
 
     // Get all test submissions for this student in this course
@@ -485,7 +485,7 @@ export const getStudentCourseScores = async (req: Request, res: Response) => {
       percentage:
         submission.totalScore && submission.test.maxMarks
           ? Math.round(
-              (submission.totalScore / submission.test.maxMarks) * 100 * 10
+              (submission.totalScore / submission.test.maxMarks) * 100 * 10,
             ) / 10
           : 0,
       submittedAt: submission.submittedAt,
@@ -497,12 +497,12 @@ export const getStudentCourseScores = async (req: Request, res: Response) => {
       scores.length > 0
         ? Math.round(
             (scores.reduce((sum, s) => sum + s.percentage, 0) / scores.length) *
-              10
+              10,
           ) / 10
         : 0;
 
     console.log(
-      `✅ Found ${scores.length} test scores for student ${studentId}`
+      `✅ Found ${scores.length} test scores for student ${studentId}`,
     );
 
     return res.status(200).json({

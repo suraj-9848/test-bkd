@@ -93,19 +93,6 @@ const sanitizeQuillContent = (content: string): string => {
   });
 };
 
-// Utility to validate Quill Delta format (optional)
-const isValidQuillDelta = (content: any): boolean => {
-  try {
-    if (typeof content === "string") {
-      const parsed = JSON.parse(content);
-      return parsed && Array.isArray(parsed.ops);
-    }
-    return content && Array.isArray(content.ops);
-  } catch {
-    return false;
-  }
-};
-
 // ==================== CREATE DAY CONTENT ====================
 export const addDayContent = async (req: Request, res: Response) => {
   const { moduleId } = req.params;

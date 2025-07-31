@@ -1,11 +1,6 @@
-
 import { Request } from "express";
 import { User } from "../db/mysqlModels/User";
 import { getSingleRecord } from "../lib/dbLib/sqlUtils";
-
-
-
-
 
 export const getUserFromRequest = async (req: Request): Promise<User> => {
   // First check if we already have the full user entity
@@ -75,21 +70,25 @@ export const requireFullUser = async (req: Request): Promise<User> => {
  * Type guard to check if req.user is a full User entity
  */
 export const isFullUser = (user: any): user is User => {
-  return user && typeof user === 'object' && 'password' in user && 'org_id' in user;
+  return (
+    user && typeof user === "object" && "password" in user && "org_id" in user
+  );
 };
 
 /**
  * Middleware helper to ensure req.user is properly typed
  */
-export const withFullUser = (handler: (req: Request & { user: User }, res: any) => Promise<any>) => {
+export const withFullUser = (
+  handler: (req: Request & { user: User }, res: any) => Promise<any>,
+) => {
   return async (req: Request, res: any) => {
     try {
       const fullUser = await getUserFromRequest(req);
       req.user = fullUser as any; // Override with full user
       return await handler(req as Request & { user: User }, res);
     } catch (error) {
-      return res.status(401).json({ 
-        error: error.message || "Failed to get user data" 
+      return res.status(401).json({
+        error: error.message || "Failed to get user data",
       });
     }
   };

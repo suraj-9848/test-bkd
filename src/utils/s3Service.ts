@@ -1,6 +1,5 @@
 import AWS from "aws-sdk";
 import { config } from "../config";
-import fs from "fs";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
 

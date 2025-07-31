@@ -3,11 +3,12 @@ import { Request, Response, NextFunction } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { config } from "../config";
 import { OAuth2Client } from "google-auth-library";
-import { AppDataSource } from "../db/connect";
+
 import { User, UserRole } from "../db/mysqlModels/User";
 import { getSingleRecord } from "../lib/dbLib/sqlUtils";
+import { getLogger } from "../utils/logger";
 
-const logger = require("../utils/logger").getLogger();
+const logger = getLogger();
 
 // Basic auth user interface (from token)
 interface AuthUser {
@@ -20,6 +21,7 @@ interface AuthUser {
 
 // Extend Express Request to include both basic and full user
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: AuthUser;
@@ -29,7 +31,6 @@ declare global {
 }
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-const userRepository = AppDataSource.getRepository(User);
 
 async function verifyGoogleToken(idToken: string) {
   try {
@@ -123,9 +124,9 @@ export const authMiddleware = async (
     next();
   } catch (error) {
     if (error.name === "TokenExpiredError") {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: "Token expired",
-        code: "TOKEN_EXPIRED"
+        code: "TOKEN_EXPIRED",
       });
     }
     return res.status(401).json({ error: "Invalid or expired token" });
@@ -234,7 +235,7 @@ export const adminAuthMiddleware = async (
   try {
     const payload = await verifyGoogleToken(idToken);
 
-    let user = await getSingleRecord<User, any>(
+    const user = await getSingleRecord<User, any>(
       User,
       { where: { email: payload.email } },
       `user_email_${payload.email}`,
@@ -246,7 +247,11 @@ export const adminAuthMiddleware = async (
       return res.status(404).json({ error: "User not found" });
     }
 
-    const allowedRoles = [UserRole.ADMIN, UserRole.RECRUITER, UserRole.INSTRUCTOR];
+    const allowedRoles = [
+      UserRole.ADMIN,
+      UserRole.RECRUITER,
+      UserRole.INSTRUCTOR,
+    ];
     if (!allowedRoles.includes(user.userRole)) {
       return res.status(403).json({
         error: "Access denied. Admin or recruiter role required.",
@@ -277,8 +282,8 @@ export const adminAuthMiddleware = async (
 export const requireRole = (allowedRoles: UserRole[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
-      return res.status(401).json({ 
-        error: "Authentication required" 
+      return res.status(401).json({
+        error: "Authentication required",
       });
     }
 
@@ -329,32 +334,35 @@ export const studentAuthMiddleware = async (
       isViewingAs: req.isViewingAs,
       userRoleFromToken: req.user.userRole,
       headers: {
-        'x-view-as-role': req.headers['x-view-as-role'],
-        'authorization': req.headers.authorization ? 'Bearer [REDACTED]' : 'Not provided'
-      }
+        "x-view-as-role": req.headers["x-view-as-role"],
+        authorization: req.headers.authorization
+          ? "Bearer [REDACTED]"
+          : "Not provided",
+      },
     });
 
     // Allow access if:
     // 1. User is actually a student, OR
     // 2. User is an admin viewing as a student
     const isStudentAccess = effectiveRole === UserRole.STUDENT;
-    const isAdminViewingAsStudent = originalRole === UserRole.ADMIN && effectiveRole === UserRole.STUDENT;
+    const isAdminViewingAsStudent =
+      originalRole === UserRole.ADMIN && effectiveRole === UserRole.STUDENT;
 
     if (!isStudentAccess && !isAdminViewingAsStudent) {
       console.log("❌ Student access denied:", {
         userId: req.user.id,
         originalRole,
         effectiveRole,
-        reason: "Neither student nor admin viewing as student"
+        reason: "Neither student nor admin viewing as student",
       });
-      
+
       return res.status(403).json({
         error: "Access denied. Student role required.",
         userRole: req.user.userRole,
         effectiveRole,
         originalRole,
         isViewingAs: req.isViewingAs,
-        debug: "User must be a student or admin viewing as student"
+        debug: "User must be a student or admin viewing as student",
       });
     }
 
@@ -370,7 +378,7 @@ export const studentAuthMiddleware = async (
       userId: req.user.id,
       originalRole,
       effectiveRole,
-      isViewingAs: req.isViewingAs
+      isViewingAs: req.isViewingAs,
     });
 
     next();
@@ -378,7 +386,7 @@ export const studentAuthMiddleware = async (
     console.error("❌ Error in studentAuthMiddleware:", error);
     return res.status(500).json({
       error: "Internal authentication error",
-      details: error.message
+      details: error.message,
     });
   }
 };
@@ -407,7 +415,7 @@ export const optionalAuth = async (
 
     try {
       const decoded = jwt.verify(token, config.JWT_SECRET) as any;
-      
+
       if (decoded && decoded.id) {
         const user = await getSingleRecord<User, any>(
           User,
