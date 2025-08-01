@@ -164,7 +164,7 @@ const sanitizeRichTextContent = (content: string): string => {
   console.log("Sanitized content length:", sanitized?.length || 0);
   console.log(
     "Sanitized content preview:",
-    sanitized?.substring(0, 200) + "..."
+    sanitized?.substring(0, 200) + "...",
   );
   console.log("=== CONTENT SANITIZATION END ===");
 
@@ -282,7 +282,7 @@ export const updateDayContent = async (req: Request, res: Response) => {
       DayContent,
       { id: dayId },
       updateData,
-      false
+      false,
     );
 
     console.log("Update result:", { affected: result?.affected });
@@ -416,7 +416,7 @@ export const addDayContent = async (req: Request, res: Response) => {
 
     const savedDayContent = await createRecord(
       DayContent.getRepository(),
-      newDayContent
+      newDayContent,
     );
 
     console.log("=== CREATE DAY CONTENT END ===");
@@ -528,7 +528,7 @@ export const markDayAsCompleted = async (req: Request, res: Response) => {
       DayContent,
       { id: dayId },
       { completed: true },
-      false
+      false,
     );
 
     if (!result || result.affected === 0) {

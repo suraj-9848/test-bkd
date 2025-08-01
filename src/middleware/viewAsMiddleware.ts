@@ -33,33 +33,37 @@ export const viewAsMiddleware = (
     }
 
     // Get the view-as role from request headers or query params
-    const viewAsRole = req.headers['x-view-as-role'] || req.query.viewAs;
-    
+    const viewAsRole = req.headers["x-view-as-role"] || req.query.viewAs;
+
     // Store original user role
     req.originalUserRole = req.user.userRole as UserRole;
-    
+
     // Only allow admins to use view-as functionality
     if (req.user.userRole === UserRole.ADMIN && viewAsRole) {
       const requestedRole = viewAsRole as string;
-      
+
       // Validate the requested role
       const validRoles = Object.values(UserRole);
       if (validRoles.includes(requestedRole as UserRole)) {
         req.viewAsRole = requestedRole as UserRole;
         req.isViewingAs = true;
-        
+
         // Temporarily change the user role for downstream middleware/controllers
         req.user.userRole = requestedRole as UserRole;
-        
+
         logger.info(`Admin ${req.user.id} viewing as ${requestedRole}`);
       } else {
-        logger.warn(`Invalid view-as role requested: ${requestedRole} by user ${req.user.id}`);
+        logger.warn(
+          `Invalid view-as role requested: ${requestedRole} by user ${req.user.id}`,
+        );
       }
     } else if (viewAsRole && req.user.userRole !== UserRole.ADMIN) {
       // Non-admin users cannot use view-as functionality
-      logger.warn(`Non-admin user ${req.user.id} attempted to use view-as functionality`);
+      logger.warn(
+        `Non-admin user ${req.user.id} attempted to use view-as functionality`,
+      );
     }
-    
+
     // Set default values if not viewing as another role
     if (!req.isViewingAs) {
       req.viewAsRole = req.user.userRole as UserRole;
@@ -68,7 +72,7 @@ export const viewAsMiddleware = (
 
     next();
   } catch (error) {
-    logger.error('Error in viewAsMiddleware:', error);
+    logger.error("Error in viewAsMiddleware:", error);
     next(error);
   }
 };
@@ -80,26 +84,28 @@ export const viewAsMiddleware = (
 export const requireRoleWithViewAs = (allowedRoles: UserRole[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
-      return res.status(401).json({ 
-        error: "Authentication required" 
+      return res.status(401).json({
+        error: "Authentication required",
       });
     }
 
     // Use the effective role (which might be the view-as role for admins)
-    const effectiveRole = req.viewAsRole || req.user.userRole as UserRole;
-    
+    const effectiveRole = req.viewAsRole || (req.user.userRole as UserRole);
+
     if (!allowedRoles.includes(effectiveRole)) {
       return res.status(403).json({
         error: `Access denied. Required roles: ${allowedRoles.join(", ")}`,
         userRole: effectiveRole,
         isViewingAs: req.isViewingAs,
-        originalRole: req.originalUserRole
+        originalRole: req.originalUserRole,
       });
     }
 
     // Log view-as usage for audit purposes
     if (req.isViewingAs) {
-      logger.info(`Admin ${req.user.id} (${req.originalUserRole}) accessing ${req.method} ${req.path} as ${effectiveRole}`);
+      logger.info(
+        `Admin ${req.user.id} (${req.originalUserRole}) accessing ${req.method} ${req.path} as ${effectiveRole}`,
+      );
     }
 
     next();
@@ -118,7 +124,7 @@ export const adminOnlyViewAs = (
   if (req.isViewingAs && req.originalUserRole !== UserRole.ADMIN) {
     return res.status(403).json({
       error: "Only administrators can use view-as functionality",
-      originalRole: req.originalUserRole
+      originalRole: req.originalUserRole,
     });
   }
 
@@ -148,11 +154,11 @@ export const addViewAsHeaders = (
   next: NextFunction,
 ) => {
   if (req.isViewingAs) {
-    res.setHeader('X-Viewing-As', req.viewAsRole || '');
-    res.setHeader('X-Original-Role', req.originalUserRole || '');
-    res.setHeader('X-Is-Viewing-As', 'true');
+    res.setHeader("X-Viewing-As", req.viewAsRole || "");
+    res.setHeader("X-Original-Role", req.originalUserRole || "");
+    res.setHeader("X-Is-Viewing-As", "true");
   }
-  
+
   next();
 };
 
@@ -165,13 +171,13 @@ export const instructorMiddlewareWithViewAs = (
   next: NextFunction,
 ) => {
   const effectiveRole = getEffectiveUserRole(req);
-  
+
   if (effectiveRole !== UserRole.INSTRUCTOR) {
-    return res.status(403).json({ 
+    return res.status(403).json({
       message: "Access denied. Instructors only.",
       effectiveRole,
       isViewingAs: req.isViewingAs,
-      originalRole: req.originalUserRole
+      originalRole: req.originalUserRole,
     });
   }
 
@@ -187,13 +193,13 @@ export const adminMiddlewareWithViewAs = (
   next: NextFunction,
 ) => {
   const effectiveRole = getEffectiveUserRole(req);
-  
+
   if (effectiveRole !== UserRole.ADMIN) {
-    return res.status(403).json({ 
+    return res.status(403).json({
       message: "Access denied. Admins only.",
       effectiveRole,
       isViewingAs: req.isViewingAs,
-      originalRole: req.originalUserRole
+      originalRole: req.originalUserRole,
     });
   }
 
@@ -209,13 +215,13 @@ export const studentMiddlewareWithViewAs = (
   next: NextFunction,
 ) => {
   const effectiveRole = getEffectiveUserRole(req);
-  
+
   if (effectiveRole !== UserRole.STUDENT) {
-    return res.status(403).json({ 
+    return res.status(403).json({
       message: "Access denied. Students only.",
       effectiveRole,
       isViewingAs: req.isViewingAs,
-      originalRole: req.originalUserRole
+      originalRole: req.originalUserRole,
     });
   }
 
@@ -231,15 +237,15 @@ export const recruiterMiddlewareWithViewAs = (
   next: NextFunction,
 ) => {
   const effectiveRole = getEffectiveUserRole(req);
-  
+
   if (effectiveRole !== UserRole.RECRUITER) {
-    return res.status(403).json({ 
+    return res.status(403).json({
       message: "Access denied. Recruiters only.",
       effectiveRole,
       isViewingAs: req.isViewingAs,
-      originalRole: req.originalUserRole
+      originalRole: req.originalUserRole,
     });
   }
 
   next();
-}; 
+};

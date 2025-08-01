@@ -70,7 +70,7 @@ export const createTest = async (req: Request, res: Response) => {
         Course,
         { where: { id: courseId } },
         `course:${courseId}`,
-        true
+        true,
       );
       if (!course) {
         // Optionally skip or return error for missing course
@@ -133,7 +133,7 @@ export const getTestsByCourse = async (req: Request, res: Response) => {
       },
       `tests_by_course_${courseId}`,
       true,
-      60
+      60,
     );
 
     return res.status(200).json({
@@ -157,7 +157,7 @@ export const getTestById = async (req: Request, res: Response) => {
         relations: ["questions", "questions.options", "course"],
       },
       `test_${testId}_detailed`,
-      true
+      true,
     );
 
     if (!test) {
@@ -192,7 +192,7 @@ export const updateTest = async (req: Request, res: Response) => {
       Test,
       { where: { id: testId } },
       `test_${testId}`,
-      true
+      true,
     );
 
     if (!test) {
@@ -266,7 +266,7 @@ export const deleteTest = async (req: Request, res: Response) => {
       Test,
       { where: { id: testId } },
       `test_${testId}`,
-      true
+      true,
     );
 
     if (!test) {
@@ -311,7 +311,7 @@ export const addQuestions = async (req: Request, res: Response) => {
       Test,
       { where: { id: testId } },
       `test_${testId}`,
-      true
+      true,
     );
 
     if (!test) {
@@ -347,7 +347,7 @@ export const addQuestions = async (req: Request, res: Response) => {
 
       const savedQuestion = (await createRecord(
         Question.getRepository(),
-        question
+        question,
       )) as Question;
 
       // Add options for MCQ questions
@@ -397,7 +397,7 @@ export const updateQuestion = async (req: Request, res: Response) => {
         relations: ["test", "options"],
       },
       `question_${questionId}`,
-      true
+      true,
     );
 
     if (!question) {
@@ -437,8 +437,8 @@ export const updateQuestion = async (req: Request, res: Response) => {
       if (question.options && question.options.length > 0) {
         await Promise.all(
           question.options.map((option) =>
-            deleteRecords(QuizOptions, { id: option.id })
-          )
+            deleteRecords(QuizOptions, { id: option.id }),
+          ),
         );
       }
 
@@ -530,7 +530,7 @@ export const publishTest = async (req: Request, res: Response) => {
         relations: ["questions", "questions.options"],
       },
       `test_${testId}_detailed`,
-      true
+      true,
     );
 
     if (!test) {
@@ -594,7 +594,7 @@ export const publishTest = async (req: Request, res: Response) => {
         showResults: test.showResults,
         showCorrectAnswers: test.showCorrectAnswers,
       }),
-      { EX: 86400 }
+      { EX: 86400 },
     ); // Cache for 24 hours
 
     // Cache questions without correct answers for students
@@ -617,7 +617,7 @@ export const publishTest = async (req: Request, res: Response) => {
     await redisClient.set(
       `test:${testId}:questions`,
       JSON.stringify(questionsForStudents),
-      { EX: 86400 }
+      { EX: 86400 },
     );
 
     return res.status(200).json({
@@ -651,7 +651,7 @@ export const getTestResults = async (req: Request, res: Response) => {
       {
         where: { test: { id: testId } },
         relations: ["student", "test"],
-      }
+      },
     );
 
     if (!attempts || attempts.length === 0) {
@@ -682,7 +682,7 @@ export const getTestResults = async (req: Request, res: Response) => {
         message: "Test results retrieved successfully",
         results,
       }),
-      { EX: 300 }
+      { EX: 300 },
     ); // Cache for 5 minutes
 
     return res.status(200).json({
@@ -714,7 +714,7 @@ export const getTestStatistics = async (req: Request, res: Response) => {
         relations: ["questions"],
       },
       `test_${testId}_with_questions`,
-      true
+      true,
     );
 
     if (!test) {
@@ -726,7 +726,7 @@ export const getTestStatistics = async (req: Request, res: Response) => {
       TestAttempt,
       {
         where: { test: { id: testId } },
-      }
+      },
     );
 
     // Calculate statistics
@@ -734,10 +734,10 @@ export const getTestStatistics = async (req: Request, res: Response) => {
     const submittedAttempts = attempts.filter(
       (a) =>
         a.status === AttemptStatus.SUBMITTED ||
-        a.status === AttemptStatus.EVALUATED
+        a.status === AttemptStatus.EVALUATED,
     ).length;
     const evaluatedAttempts = attempts.filter(
-      (a) => a.status === AttemptStatus.EVALUATED
+      (a) => a.status === AttemptStatus.EVALUATED,
     ).length;
 
     // Calculate average score
@@ -752,7 +752,7 @@ export const getTestStatistics = async (req: Request, res: Response) => {
 
     // Calculate pass rate
     const passCount = scores.filter(
-      (score) => score >= test.passingMarks
+      (score) => score >= test.passingMarks,
     ).length;
     const passRate = scores.length > 0 ? (passCount / scores.length) * 100 : 0;
 
@@ -778,7 +778,7 @@ export const getTestStatistics = async (req: Request, res: Response) => {
         message: "Test statistics retrieved successfully",
         statistics: stats,
       }),
-      { EX: 300 }
+      { EX: 300 },
     ); // Cache for 5 minutes
 
     return res.status(200).json({

@@ -10,23 +10,26 @@ export const instructorMiddleware = (
   const user = req.user;
 
   if (!user) {
-    return res.status(401).json({ 
-      message: "Authentication required" 
+    return res.status(401).json({
+      message: "Authentication required",
     });
   }
 
   // Get the effective role (considering view-as functionality)
   const effectiveRole = getEffectiveUserRole(req);
-  
+
   // Allow actual instructors, admins, or admins viewing as instructors
-  if (effectiveRole !== UserRole.INSTRUCTOR && user.userRole !== UserRole.ADMIN) {
-    return res.status(403).json({ 
+  if (
+    effectiveRole !== UserRole.INSTRUCTOR &&
+    user.userRole !== UserRole.ADMIN
+  ) {
+    return res.status(403).json({
       message: "Access denied. Instructor or admin access required.",
       error: `Access denied. Required roles: instructor, admin`,
       userRole: effectiveRole,
       actualRole: user.userRole,
       isViewingAs: req.isViewingAs,
-      originalRole: req.originalUserRole
+      originalRole: req.originalUserRole,
     });
   }
 

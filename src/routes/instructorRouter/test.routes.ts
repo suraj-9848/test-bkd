@@ -34,26 +34,11 @@ router.put("/tests/:testId/publish", TestManagementController.publishTest);
 router.get("/tests/:testId/results", TestManagementController.getTestResults);
 
 // Evaluation routes
-router.get(
-  "/submissions/evaluation",
-  getSubmissionsForEvaluation,
-);
-router.get(
-  "/submissions/:submissionId/evaluation",
-  getSubmissionForEvaluation,
-);
-router.post(
-  "/submissions/:submissionId/evaluate",
-  evaluateResponse,
-);
-router.post(
-  "/submissions/bulk-evaluate",
-  bulkEvaluateResponses,
-);
-router.get(
-  "/evaluation/statistics",
-  getEvaluationStatistics,
-);
+router.get("/submissions/evaluation", getSubmissionsForEvaluation);
+router.get("/submissions/:submissionId/evaluation", getSubmissionForEvaluation);
+router.post("/submissions/:submissionId/evaluate", evaluateResponse);
+router.post("/submissions/bulk-evaluate", bulkEvaluateResponses);
+router.get("/evaluation/statistics", getEvaluationStatistics);
 
 // Test evaluation routes
 router.get("/tests/:testId/attempts", TestEvaluationController.getTestAttempts);

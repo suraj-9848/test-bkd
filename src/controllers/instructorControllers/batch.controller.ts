@@ -62,7 +62,7 @@ export const getBatchStudents = async (req: Request, res: Response) => {
 // Check if a specific student is assigned to a specific batch
 export const checkStudentBatchAssignment = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   try {
     const { batchId, studentId } = req.params;
@@ -94,7 +94,7 @@ export const checkStudentBatchAssignment = async (
 // Transfer student from one batch to another
 export const transferStudentBetweenBatches = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   try {
     const { studentId, fromBatchId, toBatchId } = req.body;
@@ -133,8 +133,8 @@ export const transferStudentBetweenBatches = async (
     }
 
     // Update batch assignment
-    let updatedBatchIds = user.batch_id.filter(
-      (id: string) => id !== fromBatchId
+    const updatedBatchIds = user.batch_id.filter(
+      (id: string) => id !== fromBatchId,
     );
     if (!updatedBatchIds.includes(toBatchId)) {
       updatedBatchIds.push(toBatchId);
@@ -144,7 +144,7 @@ export const transferStudentBetweenBatches = async (
       User,
       { id: studentId },
       { batch_id: updatedBatchIds },
-      false
+      false,
     );
 
     // Handle course assignments
@@ -171,13 +171,13 @@ export const transferStudentBetweenBatches = async (
         UserCourse,
         {
           where: { user: { id: studentId }, course: { id: course.id } },
-        }
+        },
       );
 
       if (!existingEnrollment) {
         await createRecord(
           UserCourse.getRepository(),
-          Object.assign(new UserCourse(), { user, course })
+          Object.assign(new UserCourse(), { user, course }),
         );
       }
     }
@@ -208,7 +208,7 @@ export const createBatch = async (req: Request, res: Response) => {
       Batch.getRepository(),
       batch,
       "all_batches",
-      10 * 60
+      10 * 60,
     );
     return res.status(201).json({ message: "Batch created", batch: saved });
   } catch (err) {
@@ -240,7 +240,7 @@ export const fetchBatch = async (req: Request, res: Response) => {
       { where: { id } },
       `batch_${id}`,
       true,
-      10 * 60
+      10 * 60,
     );
     if (!batch) {
       return res.status(404).json({ message: "Batch not found" });
@@ -289,7 +289,7 @@ export const assignBatchToStudent = async (req: Request, res: Response) => {
       where: { id: batchId },
     });
     if (!batch) return res.status(404).json({ message: "Batch not found" });
-    let user = await getSingleRecord<User, any>(User, {
+    const user = await getSingleRecord<User, any>(User, {
       where: { id: userId },
     });
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -298,7 +298,7 @@ export const assignBatchToStudent = async (req: Request, res: Response) => {
         User,
         { id: userId },
         { org_id: batch.org_id },
-        false
+        false,
       );
       user.org_id = batch.org_id;
     } else if (user.org_id !== batch.org_id) {
@@ -312,7 +312,7 @@ export const assignBatchToStudent = async (req: Request, res: Response) => {
         User,
         { id: userId },
         { batch_id: user.batch_id },
-        false
+        false,
       );
     }
     const courses = await getAllRecordsWithFilter<Course, any>(Course, {
@@ -326,7 +326,7 @@ export const assignBatchToStudent = async (req: Request, res: Response) => {
       if (!exists)
         await createRecord(
           UserCourse.getRepository(),
-          Object.assign(new UserCourse(), { user, course })
+          Object.assign(new UserCourse(), { user, course }),
         );
       assigned.push(course);
     }
@@ -343,7 +343,7 @@ export const assignBatchToStudent = async (req: Request, res: Response) => {
 // Fixed assignMultipleStudentsToBatch function with correct relationship handling
 export const assignMultipleStudentsToBatch = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   try {
     console.log("=== ASSIGN MULTIPLE STUDENTS DEBUG ===");
@@ -415,7 +415,7 @@ export const assignMultipleStudentsToBatch = async (
       console.log(`Processing user ${i + 1}/${userIds.length}: ${uid}`);
 
       try {
-        let user = await getSingleRecord<User, any>(User, {
+        const user = await getSingleRecord<User, any>(User, {
           where: { id: uid },
         });
 
@@ -428,7 +428,7 @@ export const assignMultipleStudentsToBatch = async (
 
         console.log(`Found user: ${user.username} (${user.email})`);
         console.log(
-          `User org_id: ${user.org_id}, Batch org_id: ${batch.org_id}`
+          `User org_id: ${user.org_id}, Batch org_id: ${batch.org_id}`,
         );
 
         if (!user.org_id) {
@@ -437,12 +437,12 @@ export const assignMultipleStudentsToBatch = async (
             User,
             { id: uid },
             { org_id: batch.org_id },
-            false
+            false,
           );
           user.org_id = batch.org_id;
         } else if (user.org_id !== batch.org_id) {
           console.error(
-            `Org mismatch: User ${uid} org_id=${user.org_id}, Batch org_id=${batch.org_id}`
+            `Org mismatch: User ${uid} org_id=${user.org_id}, Batch org_id=${batch.org_id}`,
           );
           results.push({ userId: uid, status: "Organization mismatch" });
           errorCount++;
@@ -460,7 +460,7 @@ export const assignMultipleStudentsToBatch = async (
             User,
             { id: uid },
             { batch_id: newBatchIds },
-            false
+            false,
           );
         } else {
           console.log(`User ${uid} already assigned to batch ${batchId}`);
@@ -494,18 +494,18 @@ export const assignMultipleStudentsToBatch = async (
                 coursesAssigned++;
               } else {
                 console.error(
-                  `Failed to load entities for course assignment: user=${!!userEntity}, course=${!!courseEntity}`
+                  `Failed to load entities for course assignment: user=${!!userEntity}, course=${!!courseEntity}`,
                 );
               }
             } else {
               console.log(
-                `User ${uid} already assigned to course ${course.id}`
+                `User ${uid} already assigned to course ${course.id}`,
               );
             }
           } catch (courseError) {
             console.error(
               `Error assigning course ${course.id} to user ${uid}:`,
-              courseError
+              courseError,
             );
           }
         }
@@ -553,7 +553,7 @@ export const assignMultipleStudentsToBatch = async (
     console.error("Error details:", err);
     console.error(
       "Stack trace:",
-      err instanceof Error ? err.stack : "No stack trace"
+      err instanceof Error ? err.stack : "No stack trace",
     );
 
     let errorMessage = "Internal server error";
@@ -589,7 +589,7 @@ export const assignMultipleStudentsToBatch = async (
 
 export const assignMultipleStudentsToBatchEnhanced = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   try {
     console.log("=== ENHANCED ASSIGN MULTIPLE STUDENTS ===");
@@ -663,7 +663,7 @@ export const assignMultipleStudentsToBatchEnhanced = async (
             User,
             { id: userId },
             { org_id: batch.org_id },
-            false
+            false,
           );
           user.org_id = batch.org_id;
         } else if (user.org_id !== batch.org_id) {
@@ -697,7 +697,7 @@ export const assignMultipleStudentsToBatchEnhanced = async (
           User,
           { id: userId },
           { batch_id: updatedBatchIds },
-          false
+          false,
         );
 
         console.log(`Updated user ${userId} batch_id: ${updatedBatchIds}`);
@@ -713,13 +713,13 @@ export const assignMultipleStudentsToBatchEnhanced = async (
             UserCourse,
             {
               where: { user: { id: userId }, course: { id: course.id } },
-            }
+            },
           );
 
           if (!existingEnrollment) {
             await createRecord(
               UserCourse.getRepository(),
-              Object.assign(new UserCourse(), { user, course })
+              Object.assign(new UserCourse(), { user, course }),
             );
             assignedCourses++;
           }
@@ -834,7 +834,7 @@ export const getStudentCourseScores = async (req: Request, res: Response) => {
     const { batchId, courseId, studentId } = req.params;
 
     console.log(
-      `📊 Fetching scores for student: ${studentId}, course: ${courseId}, batch: ${batchId}`
+      `📊 Fetching scores for student: ${studentId}, course: ${courseId}, batch: ${batchId}`,
     );
 
     // Get all test submissions for this student in this course
@@ -856,7 +856,7 @@ export const getStudentCourseScores = async (req: Request, res: Response) => {
       percentage:
         submission.totalScore && submission.test.maxMarks
           ? Math.round(
-              (submission.totalScore / submission.test.maxMarks) * 100 * 10
+              (submission.totalScore / submission.test.maxMarks) * 100 * 10,
             ) / 10
           : 0,
       submittedAt: submission.submittedAt,
@@ -868,12 +868,12 @@ export const getStudentCourseScores = async (req: Request, res: Response) => {
       scores.length > 0
         ? Math.round(
             (scores.reduce((sum, s) => sum + s.percentage, 0) / scores.length) *
-              10
+              10,
           ) / 10
         : 0;
 
     console.log(
-      `✅ Found ${scores.length} test scores for student ${studentId}`
+      `✅ Found ${scores.length} test scores for student ${studentId}`,
     );
 
     return res.status(200).json({
@@ -886,17 +886,16 @@ export const getStudentCourseScores = async (req: Request, res: Response) => {
     console.error("Error fetching student scores:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
-  
 };
 
 export const getStudentsWithBatches = async (req: Request, res: Response) => {
   try {
     console.log("=== GET STUDENTS WITH BATCHES ===");
-    
+
     // Get the instructor's organization from the request
     // You may need to adjust this based on how you get the org_id in your system
     const instructorId = (req as any).user?.id;
-    
+
     if (!instructorId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -911,9 +910,11 @@ export const getStudentsWithBatches = async (req: Request, res: Response) => {
     }
 
     const orgId = instructor.org_id;
-    
+
     if (!orgId) {
-      return res.status(400).json({ message: "Instructor organization not found" });
+      return res
+        .status(400)
+        .json({ message: "Instructor organization not found" });
     }
 
     console.log(`Fetching students for organization: ${orgId}`);
@@ -950,9 +951,9 @@ export const getStudentsWithBatches = async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error("Error fetching students with batches:", err);
-    return res.status(500).json({ 
+    return res.status(500).json({
       message: "Internal server error",
-      error: err instanceof Error ? err.message : "Unknown error"
+      error: err instanceof Error ? err.message : "Unknown error",
     });
   }
 };
@@ -960,7 +961,7 @@ export const getStudentsWithBatches = async (req: Request, res: Response) => {
 // ===== REMOVE MULTIPLE STUDENTS FROM BATCH =====
 export const removeMultipleStudentsFromBatch = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   try {
     console.log("=== REMOVE MULTIPLE STUDENTS FROM BATCH ===");
@@ -977,8 +978,8 @@ export const removeMultipleStudentsFromBatch = async (
 
     if (!Array.isArray(userIds) || userIds.length === 0) {
       console.error("Invalid userIds:", userIds);
-      return res.status(400).json({ 
-        message: "userIds array is required and cannot be empty" 
+      return res.status(400).json({
+        message: "userIds array is required and cannot be empty",
       });
     }
 
@@ -1017,7 +1018,9 @@ export const removeMultipleStudentsFromBatch = async (
         // Check organization match
         if (user.org_id !== batch.org_id) {
           console.error(`Organization mismatch for user ${userId}`);
-          errors.push(`User ${user.username || user.email} belongs to a different organization`);
+          errors.push(
+            `User ${user.username || user.email} belongs to a different organization`,
+          );
           continue;
         }
 
@@ -1025,20 +1028,26 @@ export const removeMultipleStudentsFromBatch = async (
         const currentBatchIds = user.batch_id || [];
         if (!currentBatchIds.includes(batchId)) {
           console.warn(`User ${userId} is not assigned to batch ${batchId}`);
-          errors.push(`User ${user.username || user.email} is not assigned to this batch`);
+          errors.push(
+            `User ${user.username || user.email} is not assigned to this batch`,
+          );
           continue;
         }
 
         // Remove batch from user's batch_id array
-        const updatedBatchIds = currentBatchIds.filter((id: string) => id !== batchId);
+        const updatedBatchIds = currentBatchIds.filter(
+          (id: string) => id !== batchId,
+        );
         await updateRecords(
           User,
           { id: userId },
           { batch_id: updatedBatchIds },
-          false
+          false,
         );
 
-        console.log(`Updated user ${userId} batch_id from [${currentBatchIds}] to [${updatedBatchIds}]`);
+        console.log(
+          `Updated user ${userId} batch_id from [${currentBatchIds}] to [${updatedBatchIds}]`,
+        );
 
         // Remove user from all courses in this batch
         // FIX: Use proper many-to-many relationship query
@@ -1061,7 +1070,10 @@ export const removeMultipleStudentsFromBatch = async (
               console.log(`Removed user ${userId} from course ${course.id}`);
             }
           } catch (courseError) {
-            console.warn(`Failed to remove user ${userId} from course ${course.id}:`, courseError);
+            console.warn(
+              `Failed to remove user ${userId} from course ${course.id}:`,
+              courseError,
+            );
           }
         }
 
@@ -1073,7 +1085,9 @@ export const removeMultipleStudentsFromBatch = async (
           removedFromCourses,
         });
 
-        console.log(`Successfully removed user ${userId} from batch ${batchId}`);
+        console.log(
+          `Successfully removed user ${userId} from batch ${batchId}`,
+        );
       } catch (userError) {
         console.error(`Error processing user ${userId}:`, userError);
         errors.push(`Failed to remove user ${userId}: ${userError}`);
@@ -1102,9 +1116,9 @@ export const removeMultipleStudentsFromBatch = async (
     return res.status(200).json(response);
   } catch (err) {
     console.error("Error in removeMultipleStudentsFromBatch:", err);
-    return res.status(500).json({ 
+    return res.status(500).json({
       message: "Internal server error during batch removal",
-      error: err instanceof Error ? err.message : "Unknown error"
+      error: err instanceof Error ? err.message : "Unknown error",
     });
   }
 };
@@ -1137,26 +1151,28 @@ export const removeBatchFromStudent = async (req: Request, res: Response) => {
 
     // Check organization match
     if (user.org_id !== batch.org_id) {
-      return res.status(400).json({ 
-        message: "User belongs to a different organization" 
+      return res.status(400).json({
+        message: "User belongs to a different organization",
       });
     }
 
     // Check if user is actually assigned to this batch
     const currentBatchIds = user.batch_id || [];
     if (!currentBatchIds.includes(batchId)) {
-      return res.status(400).json({ 
-        message: "User is not assigned to this batch" 
+      return res.status(400).json({
+        message: "User is not assigned to this batch",
       });
     }
 
     // Remove batch from user's batch_id array
-    const updatedBatchIds = currentBatchIds.filter((id: string) => id !== batchId);
+    const updatedBatchIds = currentBatchIds.filter(
+      (id: string) => id !== batchId,
+    );
     await updateRecords(
       User,
       { id: userId },
       { batch_id: updatedBatchIds },
-      false
+      false,
     );
 
     // Remove user from all courses in this batch
@@ -1175,12 +1191,15 @@ export const removeBatchFromStudent = async (req: Request, res: Response) => {
           user: { id: userId },
           course: { id: course.id },
         });
-        
+
         if (result.affected && result.affected > 0) {
           removedCourses.push(course);
         }
       } catch (courseError) {
-        console.warn(`Failed to remove user from course ${course.id}:`, courseError);
+        console.warn(
+          `Failed to remove user from course ${course.id}:`,
+          courseError,
+        );
       }
     }
 
@@ -1201,7 +1220,7 @@ export const removeBatchFromStudent = async (req: Request, res: Response) => {
 export const getUserBatches = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
-    
+
     if (!userId) {
       return res.status(400).json({ message: "User ID is required" });
     }

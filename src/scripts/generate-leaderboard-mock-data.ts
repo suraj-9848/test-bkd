@@ -36,7 +36,7 @@ async function main() {
       end_date: new Date(Date.now() + 86400000 * 30),
     },
     {
-      title: "Node.js Backend Development", 
+      title: "Node.js Backend Development",
       logo: "",
       is_public: true,
       instructor_name: "Jane Smith",
@@ -46,7 +46,7 @@ async function main() {
     {
       title: "Full Stack Web Development",
       logo: "",
-      is_public: true, 
+      is_public: true,
       instructor_name: "Bob Wilson",
       start_date: new Date(Date.now() - 86400000),
       end_date: new Date(Date.now() + 86400000 * 60),
@@ -55,10 +55,10 @@ async function main() {
       title: "Database Design & Management",
       logo: "",
       is_public: true,
-      instructor_name: "Alice Johnson", 
+      instructor_name: "Alice Johnson",
       start_date: new Date(Date.now() - 86400000),
       end_date: new Date(Date.now() + 86400000 * 40),
-    }
+    },
   ];
 
   const createdCourses = [];
@@ -73,17 +73,17 @@ async function main() {
     }
     createdCourses.push(course);
   }
-  
+
   // Use the first course for the test
   const course = createdCourses[0];
 
-  // 2.5. Create a sample batch and link courses to it  
+  // 2.5. Create a sample batch and link courses to it
   let batch = await batchRepo.findOneBy({ name: "Sample Batch 2024" });
   if (!batch) {
     batch = batchRepo.create({
       name: "Sample Batch 2024",
       org_id: org.id,
-      courses: createdCourses // Link all courses to this batch
+      courses: createdCourses, // Link all courses to this batch
     });
     await batchRepo.save(batch);
     console.log(`✅ Created batch: ${batch.name} (ID: ${batch.id})`);
@@ -96,14 +96,14 @@ async function main() {
     { title: "Introduction", order: 1 },
     { title: "Core Concepts", order: 2 },
     { title: "Advanced Topics", order: 3 },
-    { title: "Practical Applications", order: 4 }
+    { title: "Practical Applications", order: 4 },
   ];
 
   for (const courseItem of createdCourses) {
     for (const modData of moduleData) {
       const moduleTitle = `${courseItem.title} - ${modData.title}`;
       let module = await moduleRepo.findOneBy({ title: moduleTitle });
-      
+
       if (!module) {
         module = moduleRepo.create({
           title: moduleTitle,
@@ -182,11 +182,13 @@ async function main() {
     }
   }
 
-  console.log("✅ Sample courses, modules, batch, and leaderboard data created successfully!");
+  console.log(
+    "✅ Sample courses, modules, batch, and leaderboard data created successfully!",
+  );
   console.log(`📚 Created ${createdCourses.length} courses`);
   console.log(`📖 Created ${createdCourses.length * 4} modules (4 per course)`);
   console.log(`🎓 Created 1 batch linked to all courses`);
-  console.log(`👥 Created ${userEntities.length} users`);  
+  console.log(`👥 Created ${userEntities.length} users`);
   console.log("🎯 Created test and submissions for leaderboard");
   console.log("\n🎉 Your MCQ management should now work in the admin panel!");
   process.exit(0);

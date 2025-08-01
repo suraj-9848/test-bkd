@@ -1,8 +1,5 @@
-
 import express from "express";
-import {
-  studentAuthMiddleware,
-} from "../../middleware/authMiddleware";
+import { studentAuthMiddleware } from "../../middleware/authMiddleware";
 import { viewAsMiddleware } from "../../middleware/viewAsMiddleware";
 import { withFullUser } from "../../utils/userHelpers";
 
@@ -90,9 +87,11 @@ router.get("/auth/debug", (req, res) => {
       effectiveRole: req.viewAsRole || req.user?.userRole,
     },
     headers: {
-      authorization: req.headers.authorization ? 'Bearer [TOKEN_PRESENT]' : 'Not provided',
-      'x-view-as-role': req.headers['x-view-as-role'] || 'Not set',
-      userAgent: req.headers['user-agent'],
+      authorization: req.headers.authorization
+        ? "Bearer [TOKEN_PRESENT]"
+        : "Not provided",
+      "x-view-as-role": req.headers["x-view-as-role"] || "Not set",
+      userAgent: req.headers["user-agent"],
     },
     cookies: {
       hasAccessToken: !!req.cookies?.accessToken,
@@ -106,7 +105,7 @@ router.get("/auth/debug", (req, res) => {
   res.json({
     message: "Student authentication debug info",
     debug: debugInfo,
-    status: "success"
+    status: "success",
   });
 });
 

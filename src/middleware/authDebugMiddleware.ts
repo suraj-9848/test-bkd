@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from "express";
 export const authDebugMiddleware = (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   if (req.headers.authorization) {
     const authHeader = req.headers.authorization;
@@ -22,7 +22,7 @@ export const authDebugMiddleware = (
 export const validateJWTMiddleware = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   try {
     const authHeader = req.headers.authorization;
@@ -77,7 +77,7 @@ export const validateJWTMiddleware = async (
 export const validateDayContentMiddleware = (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   if (req.method === "POST" || req.method === "PUT") {
     if (!req.body.content || typeof req.body.content !== "string") {
