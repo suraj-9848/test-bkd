@@ -6,6 +6,20 @@ import {
   createTest,
   createTestsBulk,
 } from "../../controllers/instructorControllers/testManagement.controller";
+import {
+  authDebugMiddleware,
+  validateJWTMiddleware,
+  validateDayContentMiddleware,
+} from "../../middleware/authDebugMiddleware";
+import {
+  addDayContent,
+  getDayContent,
+  getSingleDayContent,
+  updateDayContent,
+  deleteDayContent,
+  markDayAsCompleted,
+} from "../../controllers/moduleControllers/dayContentControllers";
+
 import { getTestAnalytics } from "../../controllers/instructorControllers/test.controller";
 import {
   createBatch,
@@ -63,13 +77,6 @@ import {
   getMCQ,
   updateMCQ,
 } from "../../controllers/moduleControllers/moduleMCQControllers";
-import {
-  addDayContent,
-  deleteDayContent,
-  getDayContent,
-  markDayAsCompleted,
-  updateDayContent,
-} from "../../controllers/moduleControllers/dayContentControllers";
 import {
   createModule,
   deleteModule,
@@ -373,6 +380,50 @@ router.post(
       return res.status(500).json({ message: "Transfer failed" });
     }
   }
+);
+
+router.use(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content*",
+  authDebugMiddleware
+);
+
+// Day Content routes with enhanced debugging and validation
+router.post(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content",
+  validateJWTMiddleware,
+  validateDayContentMiddleware,
+  addDayContent
+);
+
+router.get(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content",
+  validateJWTMiddleware,
+  getDayContent
+);
+
+router.get(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId",
+  validateJWTMiddleware,
+  getSingleDayContent
+);
+
+router.put(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId",
+  validateJWTMiddleware,
+  validateDayContentMiddleware,
+  updateDayContent
+);
+
+router.delete(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId",
+  validateJWTMiddleware,
+  deleteDayContent
+);
+
+router.patch(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId/complete",
+  validateJWTMiddleware,
+  markDayAsCompleted
 );
 
 router.put("/courses/:id", updateCourse);
