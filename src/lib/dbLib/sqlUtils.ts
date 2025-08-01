@@ -1,13 +1,15 @@
 import { BaseEntity } from "typeorm";
 import { redisClient } from "../../db/connect";
 import { setCacheData, getCacheData } from "../redisLib/redisUtils";
-const logger = require("../../utils/logger").getLoggerByName("SQL Utils");
+import { getLoggerByName } from "../../utils/logger";
+
+const logger = getLoggerByName("SQL Utils");
 
 export async function createRecord<T extends BaseEntity>(
   model: { save: (data: T) => Promise<T> },
   data: T,
   cacheKey?: string,
-  cacheLimit: number = 10 * 60,
+  _cacheLimit: number = 10 * 60,
 ): Promise<T> {
   try {
     const savedData = await model.save(data);
@@ -126,7 +128,7 @@ export async function deleteRecords<T, L>(
   }
 }
 
-export async function updateRecords<T, L, K, M>(
+export async function updateRecords<T>(
   model: typeof BaseEntity,
   query: any,
   update: any,
@@ -145,7 +147,7 @@ export async function updateRecords<T, L, K, M>(
   }
 }
 
-export async function getFillteredRecordsWithPagination<T, L, K>(
+export async function getFillteredRecordsWithPagination<T>(
   model: any,
   page: any,
   query: any,
@@ -184,7 +186,7 @@ export async function getFillteredRecordsWithPagination<T, L, K>(
           totalCount: res2,
           page: page["page"],
           limit: page["limit"],
-          data: [...res1] || [],
+          data: res1 ? [...res1] : [],
         };
         await setCacheData(key, data, cacheLimit);
         return data;
@@ -209,7 +211,7 @@ export async function getFillteredRecordsWithPagination<T, L, K>(
         totalCount: res2,
         page: page["page"],
         limit: page["limit"],
-        data: [...res1] || [],
+        data: res1 ? [...res1] : [],
       };
 
       return finalData;
@@ -227,7 +229,7 @@ export interface PaginatedResponseType<T> {
   data: T[];
 }
 
-export async function getFillteredRecordsWithPaginationNew<T, L, K>(
+export async function getFillteredRecordsWithPaginationNew<T>(
   model: any,
   page: any,
   query: any,
@@ -264,7 +266,7 @@ export async function getFillteredRecordsWithPaginationNew<T, L, K>(
           totalCount: res2,
           page: page["page"],
           limit: page["limit"],
-          data: [...res1] || [],
+          data: res1 ? [...res1] : [],
         };
         await setCacheData(key, data, cacheLimit);
         return data;
@@ -287,7 +289,7 @@ export async function getFillteredRecordsWithPaginationNew<T, L, K>(
         totalCount: res2,
         page: page["page"],
         limit: page["limit"],
-        data: [...res1] || [],
+        data: res1 ? [...res1] : [],
       };
 
       return finalData;

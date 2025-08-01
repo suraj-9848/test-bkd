@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { TestSubmission } from "../../db/mysqlModels/TestSubmission";
 import { TestResponse } from "../../db/mysqlModels/TestResponse";
 import { Test } from "../../db/mysqlModels/Test";
-import { Question, QuestionType } from "../../db/mysqlModels/Question";
+import { QuestionType } from "../../db/mysqlModels/Question";
 import {
   getSingleRecord,
   getAllRecordsWithFilter,

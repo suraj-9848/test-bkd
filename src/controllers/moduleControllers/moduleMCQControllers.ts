@@ -5,7 +5,6 @@ import { Module } from "../../db/mysqlModels/Module";
 import { ModuleMCQ } from "../../db/mysqlModels/ModuleMCQ";
 import { ModuleMCQAnswer } from "../../db/mysqlModels/ModuleMCQAnswer";
 import { ModuleMCQResponses } from "../../db/mysqlModels/ModuleMCQResponses";
-import { User } from "../../db/mysqlModels/User";
 import {
   createRecord,
   getSingleRecord,

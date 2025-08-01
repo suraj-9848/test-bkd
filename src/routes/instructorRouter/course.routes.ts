@@ -4,7 +4,6 @@ import {
   fetchCourse,
   updateCourse,
   deleteCourse,
-  fetchAllCoursesinBatch,
   fetchAllCoursesForInstructor,
   assignCourseToStudent,
 } from "../../controllers/courseCrudControllers/courseController";
@@ -36,7 +35,6 @@ import {
 
 import {
   getInstructorDashboardStats,
-  getInstructorStudents,
   getAllStudentsForAssignment,
   getSystemWideStudentAnalytics,
   getBatchCourseProgress,

@@ -6,14 +6,11 @@ import {
 } from "../../db/mysqlModels/JobApplication";
 import { Org } from "../../db/mysqlModels/Org";
 import {
-  createRecord,
   getSingleRecord,
-  getAllRecords,
+  getAllRecordsWithFilter,
   updateRecords,
   deleteRecords,
-  getAllRecordsWithFilter,
 } from "../../lib/dbLib/sqlUtils";
-import { User } from "../../db/mysqlModels/User";
 import s3Service from "../../utils/s3Service";
 
 // ==================== ADMIN CONTROLLERS ====================

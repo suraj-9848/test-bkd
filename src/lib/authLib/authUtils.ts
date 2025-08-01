@@ -1,11 +1,11 @@
 import * as jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { config } from "../../config";
-import { AppDataSource } from "../../db/connect";
 import { User } from "../../db/mysqlModels/User";
 import { getSingleRecord } from "../dbLib/sqlUtils";
+import { getLoggerByName } from "../../utils/logger";
 
-const logger = require("../../utils/logger").getLoggerByName("Auth Utils");
+const logger = getLoggerByName("Auth Utils");
 
 interface JWTPayload extends jwt.JwtPayload {
   id: string;
@@ -23,6 +23,7 @@ interface AuthUser {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: AuthUser;
@@ -165,7 +166,7 @@ const signToken = (
     },
     config.JWT_SECRET,
     {
-      expiresIn: config.JWT_EXPIRES_IN,
+      expiresIn: config.JWT_EXPIRES_IN as string | number,
     },
   );
 };
@@ -184,7 +185,7 @@ export const generateModernToken = (user: {
     },
     config.JWT_SECRET,
     {
-      expiresIn: config.JWT_EXPIRES_IN,
+      expiresIn: config.JWT_EXPIRES_IN as string | number,
       issuer: "lms-backend",
       audience: "lms-app",
     },
@@ -207,7 +208,7 @@ export const createTokenAndSend = async (
   user: any,
   statusCode: number,
   res: Response,
-  firstLogin?: boolean,
+  _firstLogin?: boolean,
 ) => {
   try {
     const token: string = signToken(

@@ -6,16 +6,12 @@ import { Module } from "../../db/mysqlModels/Module";
 import { User } from "../../db/mysqlModels/User";
 import { UserCourse } from "../../db/mysqlModels/UserCourse";
 import { DayContent } from "../../db/mysqlModels/DayContent";
-import { StudentCourseProgress } from "../../db/mysqlModels/StudentCourseProgress";
 import { AppDataSource } from "../../db/connect";
 import s3Service from "../../utils/s3Service";
 
 import {
-  createRecord,
   getSingleRecord,
   getAllRecords,
-  updateRecords,
-  deleteRecords,
   getAllRecordsWithFilter,
 } from "../../lib/dbLib/sqlUtils";
 
@@ -623,7 +619,7 @@ export const updateCourse = async (req: Request, res: Response) => {
     }
 
     // Save the updated course
-    const savedCourse = await course.save();
+    await course.save();
 
     // Fetch the updated course with relations
     const updated = await Course.findOne({

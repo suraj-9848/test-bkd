@@ -117,7 +117,7 @@ export { router as studentRouter };
 // Example of updating a single controller function:
 export const getStudentTestsUpdated = withFullUser(async (req, res) => {
   try {
-    const studentId = req.user.id; // req.user is now properly typed as User
+    // req.user is now properly typed as User
     // ... rest of your existing code
 
     // Now you can access all User properties without TypeScript errors

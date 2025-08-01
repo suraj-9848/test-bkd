@@ -18,7 +18,6 @@ export const instructorMiddleware = (
   // Get the effective role (considering view-as functionality)
   const effectiveRole = getEffectiveUserRole(req);
 
-  // Allow actual instructors, admins, or admins viewing as instructors
   if (
     effectiveRole !== UserRole.INSTRUCTOR &&
     user.userRole !== UserRole.ADMIN

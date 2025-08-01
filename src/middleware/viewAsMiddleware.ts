@@ -8,6 +8,7 @@ const logger = getLoggerByName("viewAsMiddleware");
  * Interface to extend the Request object with viewAs functionality
  */
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       viewAsRole?: UserRole;

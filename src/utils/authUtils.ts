@@ -4,8 +4,9 @@ import { AppDataSource } from "../db/connect";
 import { RefreshToken } from "../db/mysqlModels/RefreshToken";
 import { User } from "../db/mysqlModels/User";
 import { v4 as uuidv4 } from "uuid";
+import { getLoggerByName } from "./logger";
 
-const logger = require("./logger").getLoggerByName("Auth Utils");
+const logger = getLoggerByName("Auth Utils");
 
 /**
  * Token generation utilities with refresh token support
@@ -354,7 +355,7 @@ export const isTokenExpired = (token: string): boolean => {
 
     const currentTime = Math.floor(Date.now() / 1000);
     return decoded.exp < currentTime;
-  } catch (error) {
+  } catch {
     return true;
   }
 };
@@ -366,7 +367,7 @@ export const extractUserRole = (token: string): string | null => {
   try {
     const decoded = decodeToken(token);
     return decoded?.userRole || null;
-  } catch (error) {
+  } catch {
     return null;
   }
 };
@@ -378,7 +379,7 @@ export const extractUserId = (token: string): string | null => {
   try {
     const decoded = decodeToken(token);
     return decoded?.id || null;
-  } catch (error) {
+  } catch {
     return null;
   }
 };

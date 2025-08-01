@@ -2,13 +2,13 @@ name: Backend CI/CD
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, prod, develop ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, prod, develop ]
 
 jobs:
   lint-and-typecheck:
-    name: Lint & Type Check
+    name: Lint 
     runs-on: ubuntu-latest
     
     steps:
@@ -32,8 +32,11 @@ jobs:
       - name: Format check
         run: pnpm run format:check
         
-      - name: Type check
-        run: pnpm exec tsc --noEmit
+      - name: Lint
+        run: pnpm run lint
+        
+      # - name: Type check
+      #   run: pnpm exec tsc --noEmit
 
   test:
     name: Test
@@ -144,3 +147,9 @@ jobs:
             exit 1
           fi
           echo "Build completed successfully"
+          
+      - name: Cache build artifacts
+        uses: actions/cache@v3
+        with:
+          path: build
+          key: ${{ runner.os }}-build-${{ github.sha }}

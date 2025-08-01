@@ -234,11 +234,9 @@ export const submitTest = async (req: Request, res: Response) => {
       });
 
       if (!course || !course.is_public) {
-        return res
-          .status(403)
-          .json({
-            message: "Not enrolled in this course and course is not public",
-          });
+        return res.status(403).json({
+          message: "Not enrolled in this course and course is not public",
+        });
       }
     }
 
@@ -971,13 +969,10 @@ export const getStudentCourseById = async (req: Request, res: Response) => {
           days = module.days;
         } else {
           // fallback: fetch days if not present
-          days = await getAllRecordsWithFilter(
-            require("../../db/mysqlModels/DayContent").DayContent,
-            {
-              where: { module: { id: module.id } },
-              order: { dayNumber: "ASC" },
-            },
-          );
+          days = await getAllRecordsWithFilter(DayContent, {
+            where: { module: { id: module.id } },
+            order: { dayNumber: "ASC" },
+          });
         }
         const completedDays = days.filter((d: any) => d.completed).length;
         if (moduleFullyCompleted) {

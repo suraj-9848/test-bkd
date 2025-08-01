@@ -4,17 +4,16 @@ import { Question, QuestionType } from "../../db/mysqlModels/Question";
 import { QuizOptions } from "../../db/mysqlModels/QuizOptions";
 import { Course } from "../../db/mysqlModels/Course";
 import { TestAttempt, AttemptStatus } from "../../db/mysqlModels/TestAttempt";
-import { TestAnswer } from "../../db/mysqlModels/TestAnswer";
 import {
   createRecord,
   getSingleRecord,
   getAllRecordsWithFilter,
-  updateRecords,
   deleteRecords,
 } from "../../lib/dbLib/sqlUtils";
 import { redisClient } from "../../db/connect";
+import { getLoggerByName } from "../../utils/logger";
 
-const logger = require("../../utils/logger").getLoggerByName("Test Management");
+const logger = getLoggerByName("Test Management");
 
 // Create a new test (single or multiple courses)
 export const createTest = async (req: Request, res: Response) => {
@@ -115,7 +114,6 @@ export const createTestsBulk = (req: Request, res: Response) => {
   // This works because createTest checks for courseIds array
   // and handles multi-course creation
   // (must be after createTest is defined)
-  // @ts-ignore
   return (createTest as any)(req, res);
 };
 
@@ -319,7 +317,6 @@ export const addQuestions = async (req: Request, res: Response) => {
     }
 
     // Prevent updates for tests that have started
-    const now = new Date();
     if (test.status !== TestStatus.DRAFT) {
       return res
         .status(400)

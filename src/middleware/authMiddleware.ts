@@ -3,11 +3,12 @@ import { Request, Response, NextFunction } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { config } from "../config";
 import { OAuth2Client } from "google-auth-library";
-import { AppDataSource } from "../db/connect";
+
 import { User, UserRole } from "../db/mysqlModels/User";
 import { getSingleRecord } from "../lib/dbLib/sqlUtils";
+import { getLogger } from "../utils/logger";
 
-const logger = require("../utils/logger").getLogger();
+const logger = getLogger();
 
 // Basic auth user interface (from token)
 interface AuthUser {
@@ -20,6 +21,7 @@ interface AuthUser {
 
 // Extend Express Request to include both basic and full user
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: AuthUser;
@@ -29,7 +31,6 @@ declare global {
 }
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-const userRepository = AppDataSource.getRepository(User);
 
 async function verifyGoogleToken(idToken: string) {
   try {

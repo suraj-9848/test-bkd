@@ -5,17 +5,13 @@ import { OAuth2Client } from "google-auth-library";
 import { AppDataSource } from "../../db/connect";
 import { User, UserRole } from "../../db/mysqlModels/User";
 import { Org } from "../../db/mysqlModels/Org";
-import { RefreshToken } from "../../db/mysqlModels/RefreshToken";
 import { getSingleRecord } from "../../lib/dbLib/sqlUtils";
-import { config } from "../../config";
 import {
   generateAccessToken,
   generateRefreshToken,
   saveRefreshTokenToDB,
-  getRefreshTokenFromDB,
   deleteRefreshTokenFromDB,
   deleteAllUserRefreshTokens,
-  verifyRefreshToken,
   refreshTokens,
   getAccessTokenCookieOptions,
   getRefreshTokenCookieOptions,
@@ -25,14 +21,15 @@ import {
   cleanExpiredTokens,
 } from "../../utils/authUtils";
 
+import { getLogger } from "../../utils/logger";
+
 const router = Router();
-const logger = require("../../utils/logger").getLogger();
+const logger = getLogger();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Repository instances
 const userRepository = AppDataSource.getRepository(User);
 const orgRepository = AppDataSource.getRepository(Org);
-const refreshTokenRepository = AppDataSource.getRepository(RefreshToken);
 
 // Helper function to get or create default organization
 const getOrCreateDefaultOrg = async (): Promise<Org> => {
@@ -119,7 +116,7 @@ router.post("/exchange", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid Google token payload" });
     }
 
-    const { email, name, sub: googleId, picture } = payload;
+    const { email, name, picture } = payload;
 
     if (!email) {
       logger.error("❌ Email not provided by Google");
@@ -310,7 +307,7 @@ router.post("/admin-login", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid Google token payload" });
     }
 
-    const { email, name, sub: googleId } = payload;
+    const { email } = payload;
 
     if (!email) {
       return res.status(400).json({ error: "Email not provided by Google" });
