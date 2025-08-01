@@ -1,59 +1,55 @@
-
 import { Router, Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs"; 
+import bcrypt from "bcryptjs";
 import { OAuth2Client } from "google-auth-library";
 import { AppDataSource } from "../../db/connect";
 import { User, UserRole } from "../../db/mysqlModels/User";
 import { Org } from "../../db/mysqlModels/Org";
-import { RefreshToken } from "../../db/mysqlModels/RefreshToken";
 import { getSingleRecord } from "../../lib/dbLib/sqlUtils";
-import { config } from "../../config";
 import {
   generateAccessToken,
   generateRefreshToken,
   saveRefreshTokenToDB,
-  getRefreshTokenFromDB,
   deleteRefreshTokenFromDB,
   deleteAllUserRefreshTokens,
-  verifyRefreshToken,
   refreshTokens,
   getAccessTokenCookieOptions,
   getRefreshTokenCookieOptions,
   clearAuthCookies,
   extractTokenFromRequest,
   verifyAccessToken,
-  cleanExpiredTokens
+  cleanExpiredTokens,
 } from "../../utils/authUtils";
 
+import { getLogger } from "../../utils/logger";
+
 const router = Router();
-const logger = require("../../utils/logger").getLogger();
+const logger = getLogger();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Repository instances
 const userRepository = AppDataSource.getRepository(User);
 const orgRepository = AppDataSource.getRepository(Org);
-const refreshTokenRepository = AppDataSource.getRepository(RefreshToken);
 
 // Helper function to get or create default organization
 const getOrCreateDefaultOrg = async (): Promise<Org> => {
   try {
     // Try to find existing default organization
-    let defaultOrg = await orgRepository.findOne({ 
-      where: { name: "Nirudhyog Default" } 
+    let defaultOrg = await orgRepository.findOne({
+      where: { name: "Nirudhyog Default" },
     });
-    
+
     if (!defaultOrg) {
       logger.info("🏢 Creating default organization...");
       defaultOrg = orgRepository.create({
         name: "Nirudhyog Default",
         description: "Default organization for new users",
-        address: null
+        address: null,
       });
       defaultOrg = await orgRepository.save(defaultOrg);
       logger.info(`✅ Default organization created with ID: ${defaultOrg.id}`);
     }
-    
+
     return defaultOrg;
   } catch (error) {
     logger.error("❌ Error getting/creating default organization:", error);
@@ -62,31 +58,39 @@ const getOrCreateDefaultOrg = async (): Promise<Org> => {
 };
 
 // Helper function to set auth cookies
-const setAuthCookies = (res: Response, accessToken: string, refreshToken: string) => {
+const setAuthCookies = (
+  res: Response,
+  accessToken: string,
+  refreshToken: string,
+) => {
   res.cookie("accessToken", accessToken, getAccessTokenCookieOptions());
   res.cookie("refreshToken", refreshToken, getRefreshTokenCookieOptions());
 };
 
 // Helper function to create tokens and save refresh token
-const createTokensAndSave = async (user: User): Promise<{ accessToken: string; refreshToken: string }> => {
+const createTokensAndSave = async (
+  user: User,
+): Promise<{ accessToken: string; refreshToken: string }> => {
   const accessToken = generateAccessToken(user);
   const refreshToken = generateRefreshToken();
-  
+
   // Save refresh token to database
   await saveRefreshTokenToDB(user.id, refreshToken);
-  
+
   return { accessToken, refreshToken };
 };
 
 // Periodic cleanup of expired tokens (run every hour)
-setInterval(async () => {
-  try {
-    await cleanExpiredTokens();
-  } catch (error) {
-    logger.error("Error in periodic token cleanup:", error);
-  }
-}, 60 * 60 * 1000); // 1 hour
-
+setInterval(
+  async () => {
+    try {
+      await cleanExpiredTokens();
+    } catch (error) {
+      logger.error("Error in periodic token cleanup:", error);
+    }
+  },
+  60 * 60 * 1000,
+); // 1 hour
 
 // Google OAuth login for students
 router.post("/exchange", async (req: Request, res: Response) => {
@@ -112,7 +116,7 @@ router.post("/exchange", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid Google token payload" });
     }
 
-    const { email, name, sub: googleId, picture } = payload;
+    const { email, name, picture } = payload;
 
     if (!email) {
       logger.error("❌ Email not provided by Google");
@@ -124,22 +128,26 @@ router.post("/exchange", async (req: Request, res: Response) => {
     // Step 2: Check if user exists
     logger.info(`🔍 Step 2: Checking if user exists for email: ${email}`);
     let user;
-    
+
     try {
       user = await getSingleRecord(User, { where: { email } });
-      logger.info(`📊 Database query result: ${user ? 'User found' : 'No user found'}`);
+      logger.info(
+        `📊 Database query result: ${user ? "User found" : "No user found"}`,
+      );
     } catch (dbError) {
       logger.error("❌ Database error while checking user:", dbError);
-      throw new Error(`Database query failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`);
+      throw new Error(
+        `Database query failed: ${dbError instanceof Error ? dbError.message : "Unknown error"}`,
+      );
     }
 
     if (!user) {
       logger.info("➕ Step 3: Creating new student user...");
-      
+
       try {
         // Get or create default organization
         const defaultOrg = await getOrCreateDefaultOrg();
-        
+
         // Create new student user
         logger.info(`📝 Creating user with data:`, {
           username: name || email.split("@")[0],
@@ -147,7 +155,7 @@ router.post("/exchange", async (req: Request, res: Response) => {
           userRole: UserRole.STUDENT,
           batch_id: [],
           org_id: defaultOrg.id,
-          profile_picture: picture || null
+          profile_picture: picture || null,
         });
 
         const newUser = userRepository.create({
@@ -161,27 +169,28 @@ router.post("/exchange", async (req: Request, res: Response) => {
 
         logger.info("💾 Saving new user to database...");
         user = await userRepository.save(newUser);
-        
-        logger.info(`✅ New student user created successfully with ID: ${user.id}`);
+
+        logger.info(
+          `✅ New student user created successfully with ID: ${user.id}`,
+        );
         logger.info(`👤 Created user details:`, {
           id: user.id,
           username: user.username,
           email: user.email,
           userRole: user.userRole,
-          org_id: user.org_id
+          org_id: user.org_id,
         });
-
       } catch (createError) {
         logger.error("❌ Error creating new user:", createError);
-        
+
         // Log detailed error information
         if (createError instanceof Error) {
           logger.error("Error message:", createError.message);
           logger.error("Error stack:", createError.stack);
         }
-        
+
         // Check if it's a database constraint error
-        if (createError && typeof createError === 'object') {
+        if (createError && typeof createError === "object") {
           const dbError = createError as any;
           if (dbError.code) {
             logger.error("Database error code:", dbError.code);
@@ -190,17 +199,22 @@ router.post("/exchange", async (req: Request, res: Response) => {
             logger.error("Database error details:", dbError.detail);
           }
         }
-        
-        throw new Error(`User creation failed: ${createError instanceof Error ? createError.message : 'Unknown error'}`);
+
+        throw new Error(
+          `User creation failed: ${createError instanceof Error ? createError.message : "Unknown error"}`,
+        );
       }
     } else {
       logger.info(`✅ Existing user found with ID: ${user.id}`);
-      
+
       // Ensure user is a student for this endpoint
       if (user.userRole !== UserRole.STUDENT) {
-        logger.warn(`⚠️ Non-student user attempted student login: ${email} (role: ${user.userRole})`);
-        return res.status(403).json({ 
-          error: "This login is for students only. Please use the admin portal if you have admin access." 
+        logger.warn(
+          `⚠️ Non-student user attempted student login: ${email} (role: ${user.userRole})`,
+        );
+        return res.status(403).json({
+          error:
+            "This login is for students only. Please use the admin portal if you have admin access.",
         });
       }
       logger.info(`✅ Existing student user logged in: ${user.id}`);
@@ -209,7 +223,7 @@ router.post("/exchange", async (req: Request, res: Response) => {
     // Step 4: Generate tokens
     logger.info("🔐 Step 4: Generating authentication tokens...");
     let accessToken, refreshToken;
-    
+
     try {
       const tokens = await createTokensAndSave(user);
       accessToken = tokens.accessToken;
@@ -217,7 +231,9 @@ router.post("/exchange", async (req: Request, res: Response) => {
       logger.info("✅ Tokens generated successfully");
     } catch (tokenError) {
       logger.error("❌ Error generating tokens:", tokenError);
-      throw new Error(`Token generation failed: ${tokenError instanceof Error ? tokenError.message : 'Unknown error'}`);
+      throw new Error(
+        `Token generation failed: ${tokenError instanceof Error ? tokenError.message : "Unknown error"}`,
+      );
     }
 
     // Step 5: Set cookies and respond
@@ -243,22 +259,25 @@ router.post("/exchange", async (req: Request, res: Response) => {
         org_id: user.org_id,
       },
     });
-
   } catch (error) {
     logger.error("💥 Student Google authentication failed:", error);
-    
+
     // Log additional error details
     if (error instanceof Error) {
       logger.error("Error message:", error.message);
       logger.error("Error stack:", error.stack);
     }
-    
+
     // Return more specific error message in development
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    
-    res.status(401).json({ 
+    const isDevelopment = process.env.NODE_ENV !== "production";
+
+    res.status(401).json({
       error: "Authentication failed",
-      details: isDevelopment ? (error instanceof Error ? error.message : 'Unknown error') : undefined
+      details: isDevelopment
+        ? error instanceof Error
+          ? error.message
+          : "Unknown error"
+        : undefined,
     });
   }
 });
@@ -266,9 +285,10 @@ router.post("/exchange", async (req: Request, res: Response) => {
 // Google OAuth login for admin/instructor users
 router.post("/admin-login", async (req: Request, res: Response) => {
   const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.startsWith("Bearer ") 
-    ? authHeader.substring(7) 
-    : req.body.token;
+  const token =
+    authHeader && authHeader.startsWith("Bearer ")
+      ? authHeader.substring(7)
+      : req.body.token;
 
   if (!token) {
     return res.status(400).json({ error: "Token is required" });
@@ -287,7 +307,7 @@ router.post("/admin-login", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid Google token payload" });
     }
 
-    const { email, name, sub: googleId } = payload;
+    const { email } = payload;
 
     if (!email) {
       return res.status(400).json({ error: "Email not provided by Google" });
@@ -300,20 +320,28 @@ router.post("/admin-login", async (req: Request, res: Response) => {
 
     if (!user) {
       logger.warn(`Admin login attempted by non-existing user: ${email}`);
-      return res.status(403).json({ 
-        error: "Access denied. Admin account not found." 
+      return res.status(403).json({
+        error: "Access denied. Admin account not found.",
       });
     }
 
     // Check if user has admin or instructor role
-    if (![UserRole.ADMIN, UserRole.INSTRUCTOR, UserRole.RECRUITER].includes(user.userRole)) {
-      logger.warn(`Admin login attempted by non-admin user: ${email} (role: ${user.userRole})`);
-      return res.status(403).json({ 
-        error: "Access denied. Admin or instructor privileges required." 
+    if (
+      ![UserRole.ADMIN, UserRole.INSTRUCTOR, UserRole.RECRUITER].includes(
+        user.userRole,
+      )
+    ) {
+      logger.warn(
+        `Admin login attempted by non-admin user: ${email} (role: ${user.userRole})`,
+      );
+      return res.status(403).json({
+        error: "Access denied. Admin or instructor privileges required.",
       });
     }
 
-    logger.info(`Admin login successful for user: ${user.id} (role: ${user.userRole})`);
+    logger.info(
+      `Admin login successful for user: ${user.id} (role: ${user.userRole})`,
+    );
 
     // Generate tokens and save refresh token
     const { accessToken, refreshToken } = await createTokensAndSave(user);
@@ -356,7 +384,9 @@ router.post("/refresh", async (req: Request, res: Response) => {
     if (!result) {
       logger.warn("Invalid or expired refresh token");
       clearAuthCookies(res);
-      return res.status(401).json({ error: "Invalid or expired refresh token" });
+      return res
+        .status(401)
+        .json({ error: "Invalid or expired refresh token" });
     }
 
     const { accessToken, newRefreshToken, user } = result;
@@ -394,10 +424,10 @@ router.post("/verify", async (req: Request, res: Response) => {
     }
 
     const decoded = verifyAccessToken(token);
-    
+
     // Get full user info
     const user = await getSingleRecord(User, { where: { id: decoded.id } });
-    
+
     if (!user) {
       return res.status(401).json({ error: "User not found" });
     }
@@ -414,11 +444,15 @@ router.post("/verify", async (req: Request, res: Response) => {
     });
   } catch (error) {
     logger.error("Token verification error:", error);
-    
+
     if (error.message === "Token expired") {
-      return res.status(401).json({ error: "Token expired", code: "TOKEN_EXPIRED" });
+      return res
+        .status(401)
+        .json({ error: "Token expired", code: "TOKEN_EXPIRED" });
     } else if (error.message === "Invalid token") {
-      return res.status(401).json({ error: "Invalid token", code: "INVALID_TOKEN" });
+      return res
+        .status(401)
+        .json({ error: "Invalid token", code: "INVALID_TOKEN" });
     } else {
       return res.status(401).json({ error: "Token verification failed" });
     }
@@ -452,9 +486,11 @@ router.get("/me", async (req: Request, res: Response) => {
     });
   } catch (error) {
     logger.error("Get user info error:", error);
-    
+
     if (error.message === "Token expired") {
-      return res.status(401).json({ error: "Token expired", code: "TOKEN_EXPIRED" });
+      return res
+        .status(401)
+        .json({ error: "Token expired", code: "TOKEN_EXPIRED" });
     } else {
       return res.status(401).json({ error: "Invalid or expired token" });
     }
@@ -494,10 +530,10 @@ router.post("/logout-all", async (req: Request, res: Response) => {
     }
 
     const decoded = verifyAccessToken(token);
-    
+
     // Delete all refresh tokens for this user
     await deleteAllUserRefreshTokens(decoded.id);
-    
+
     // Clear cookies
     clearAuthCookies(res);
 

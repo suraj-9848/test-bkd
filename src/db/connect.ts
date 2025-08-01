@@ -4,8 +4,9 @@ import "reflect-metadata";
 import { DataSource } from "typeorm";
 import { MysqlConfig } from "../ormconfig";
 import { createClient } from "redis";
+import { getLogger } from "../utils/logger";
 
-const logger = require("../utils/logger").getLogger();
+const logger = getLogger();
 
 // const connectionString = config.MONGO_DB_CONNECTION_STRING
 

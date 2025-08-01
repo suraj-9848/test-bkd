@@ -5,7 +5,6 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
   BaseEntity,
-  OneToOne,
 } from "typeorm";
 import { Course } from "./Course";
 import { DayContent } from "./DayContent";

@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-import { In } from "typeorm";
 import { StudentCourseProgress } from "../../db/mysqlModels/StudentCourseProgress";
 import { StudentSessionProgress } from "../../db/mysqlModels/StudentSessionProgress";
 import { User } from "../../db/mysqlModels/User";
@@ -8,7 +7,9 @@ import {
   getAllRecordsWithFilter,
   getSingleRecord,
 } from "../../lib/dbLib/sqlUtils";
-const logger = require("../../utils/logger").getLoggerByName("Progress Ctrl");
+import { getLoggerByName } from "../../utils/logger";
+
+const logger = getLoggerByName("Progress Ctrl");
 
 export const fetchCourseProgress = async (req: Request, res: Response) => {
   const { batchId, courseId } = req.params;

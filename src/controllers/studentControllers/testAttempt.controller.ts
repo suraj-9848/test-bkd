@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { Test, TestStatus } from "../../db/mysqlModels/Test";
 import { Question, QuestionType } from "../../db/mysqlModels/Question";
-import { QuizOptions } from "../../db/mysqlModels/QuizOptions";
+
 import { TestAttempt, AttemptStatus } from "../../db/mysqlModels/TestAttempt";
 import { TestAnswer } from "../../db/mysqlModels/TestAnswer";
 import { User } from "../../db/mysqlModels/User";
@@ -12,8 +12,9 @@ import {
   updateRecords,
 } from "../../lib/dbLib/sqlUtils";
 import { redisClient } from "../../db/connect";
+import { getLoggerByName } from "../../utils/logger";
 
-const logger = require("../../utils/logger").getLoggerByName("Test Attempt");
+const logger = getLoggerByName("Test Attempt");
 
 // Get available tests for a student
 export const getAvailableTests = async (req: Request, res: Response) => {

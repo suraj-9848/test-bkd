@@ -1,17 +1,15 @@
 import { Request, Response } from "express";
-import { Test, TestStatus } from "../../db/mysqlModels/Test";
-import { Question, QuestionType } from "../../db/mysqlModels/Question";
+import { Test } from "../../db/mysqlModels/Test";
+import { QuestionType } from "../../db/mysqlModels/Question";
 import { TestAttempt, AttemptStatus } from "../../db/mysqlModels/TestAttempt";
-import { TestAnswer } from "../../db/mysqlModels/TestAnswer";
-import { User } from "../../db/mysqlModels/User";
 import {
   getSingleRecord,
   getAllRecordsWithFilter,
-  updateRecords,
 } from "../../lib/dbLib/sqlUtils";
 import { redisClient } from "../../db/connect";
+import { getLoggerByName } from "../../utils/logger";
 
-const logger = require("../../utils/logger").getLoggerByName("Test Evaluation");
+const logger = getLoggerByName("Test Evaluation");
 
 // Get all test attempts for evaluation
 export const getTestAttempts = async (req: Request, res: Response) => {

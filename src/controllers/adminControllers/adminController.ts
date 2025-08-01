@@ -109,7 +109,7 @@ export const updateOrg = async (req: Request, res: Response) => {
       return res.status(400).json({ errors: errors.map((e) => e.toString()) });
     }
 
-    const updatedOrg = await updateRecords<Org, { id: string }, any, any>(
+    const updatedOrg = await updateRecords<Org>(
       Org,
       { id: org_id },
       {
@@ -131,7 +131,7 @@ export const updateOrg = async (req: Request, res: Response) => {
 
 export const deleteAllOrg = async (req: Request, res: Response) => {
   try {
-    const deleteResult = await deleteRecords<Org, {}>(Org, {});
+    const deleteResult = await deleteRecords<Org, object>(Org, {});
     return res.status(200).json({
       message: "All organizations deleted successfully",
       affected: deleteResult.affected,
@@ -233,7 +233,7 @@ const updateUserWithRole = async (
       return res.status(400).json({ errors: errors.map((e) => e.toString()) });
     }
 
-    const updatedUser = await updateRecords<User, { id: string }, any, any>(
+    const updatedUser = await updateRecords<User>(
       User,
       { id: user_id },
       {
@@ -532,7 +532,7 @@ export const updateUser = async (req: Request, res: Response) => {
       });
     }
 
-    const updatedUser = await updateRecords<User, { id: string }, any, any>(
+    const updatedUser = await updateRecords<User>(
       User,
       { id: user_id },
       {

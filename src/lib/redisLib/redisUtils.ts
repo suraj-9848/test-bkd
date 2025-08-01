@@ -1,7 +1,9 @@
 import { redisClient } from "../../db/connect";
-const logger = require("../../utils/logger").getLoggerByName("Redis Utils");
+import { getLoggerByName } from "../../utils/logger";
 
-export async function getCacheData<T>(key: any) {
+const logger = getLoggerByName("Redis Utils");
+
+export async function getCacheData(key: any) {
   try {
     const cachedData = await redisClient.get(key);
     if (cachedData) {
@@ -16,7 +18,7 @@ export async function getCacheData<T>(key: any) {
   }
 }
 
-export async function setCacheData<T>(key: any, data: any, cacheLimit: number) {
+export async function setCacheData(key: any, data: any, cacheLimit: number) {
   try {
     // Ensure cacheLimit is a valid positive integer
     const safeCacheLimit = Math.max(1, Math.floor(cacheLimit) || 60);
@@ -27,7 +29,7 @@ export async function setCacheData<T>(key: any, data: any, cacheLimit: number) {
   }
 }
 
-export async function deleteCacheData<T>(key: any) {
+export async function deleteCacheData(key: any) {
   try {
     await redisClient.del(key);
   } catch (err) {
@@ -36,7 +38,7 @@ export async function deleteCacheData<T>(key: any) {
   }
 }
 
-export async function checkCacheDataExist<T>(key: any) {
+export async function checkCacheDataExist(key: any) {
   try {
     const exists = await redisClient.exists(key);
     return exists;
@@ -46,7 +48,7 @@ export async function checkCacheDataExist<T>(key: any) {
   }
 }
 
-export async function getExpiryTimeInSec<T>(key: any) {
+export async function getExpiryTimeInSec(key: any) {
   try {
     const expiryTimeInSec = await redisClient.TTL(key);
     return expiryTimeInSec;
@@ -56,7 +58,7 @@ export async function getExpiryTimeInSec<T>(key: any) {
   }
 }
 
-export async function deleteCacheKeysWithPrefix<T>(key: any) {
+export async function deleteCacheKeysWithPrefix(key: any) {
   try {
     const keys = await redisClient.keys(`${key}*`);
     if (keys) {

@@ -1,7 +1,14 @@
-import mongoose, { Document, PaginateModel } from "mongoose";
+import mongoose from "mongoose";
 import { setCacheData, getCacheData } from "../redisLib/redisUtils";
+import { getLoggerByName } from "../../utils/logger";
 
-const logger = require("../../utils/logger").getLoggerByName("Mongo Utils");
+const logger = getLoggerByName("Mongo Utils");
+
+interface PaginationOptions {
+  page: number;
+  limit: number;
+  [key: string]: any;
+}
 
 export async function getAllRecords<T, K>(
   model: mongoose.Model<T>,
@@ -69,10 +76,10 @@ export async function getAllRecordsWithQuery<T, K>(
   }
 }
 
-export async function getAllRecordsWithPagination<T, K, L>(
-  model: PaginateModel<Document<T>>,
+export async function getAllRecordsWithPagination<T, K>(
+  model: mongoose.Model<T>,
   query: K,
-  options: L,
+  options: PaginationOptions,
   key: any = "",
   isCache: boolean = false,
   cacheLimit: number = 10 * 60,
@@ -87,14 +94,36 @@ export async function getAllRecordsWithPagination<T, K, L>(
         data = cacheData;
         return data;
       } else {
-        data = await model.paginate(query, options);
+        const skip = (options.page - 1) * options.limit;
+        const docs = await model.find(query).skip(skip).limit(options.limit);
+        const totalDocs = await model.countDocuments(query);
+        data = {
+          docs,
+          totalDocs,
+          limit: options.limit,
+          page: options.page,
+          totalPages: Math.ceil(totalDocs / options.limit),
+          hasNextPage: options.page < Math.ceil(totalDocs / options.limit),
+          hasPrevPage: options.page > 1,
+        };
         logger.info("Data fetched from db");
         logger.debug("Data from db", data);
         await setCacheData(key, data, cacheLimit);
         return data;
       }
     } else {
-      data = await model.paginate(query, options);
+      const skip = (options.page - 1) * options.limit;
+      const docs = await model.find(query).skip(skip).limit(options.limit);
+      const totalDocs = await model.countDocuments(query);
+      data = {
+        docs,
+        totalDocs,
+        limit: options.limit,
+        page: options.page,
+        totalPages: Math.ceil(totalDocs / options.limit),
+        hasNextPage: options.page < Math.ceil(totalDocs / options.limit),
+        hasPrevPage: options.page > 1,
+      };
       return data;
     }
   } catch (error) {
@@ -104,7 +133,7 @@ export async function getAllRecordsWithPagination<T, K, L>(
 }
 
 export async function getRecord<T, K, L>(
-  model: PaginateModel<Document<T>>,
+  model: mongoose.Model<T>,
   query: K,
   option?: L,
   key: any = "",
@@ -138,8 +167,8 @@ export async function getRecord<T, K, L>(
 }
 
 // TO GET THE ARRAY OF DISTINCTFIELD FIELD WITH MATCHING QUERY ON MONGODB COLLECTION
-export async function getDistinctRecord<T, K, L>(
-  model: PaginateModel<Document<T>>,
+export async function getDistinctRecord<T, K>(
+  model: mongoose.Model<T>,
   query: K,
   option?: string,
   key: any = "",
@@ -172,7 +201,7 @@ export async function getDistinctRecord<T, K, L>(
   }
 }
 
-export async function createNewRecord<T, K>(model: any, data?: K) {
+export async function createNewRecord<K>(model: any, data?: K) {
   try {
     const newData = await model.create(data);
     return newData;
@@ -182,8 +211,8 @@ export async function createNewRecord<T, K>(model: any, data?: K) {
   }
 }
 
-export async function updateOneRecord<T, K, L, M>(
-  model: PaginateModel<Document<T>>,
+export async function updateOneRecord<T, K, L>(
+  model: mongoose.Model<T>,
   query?: K,
   update?: L,
   upsert?: boolean,
@@ -197,8 +226,8 @@ export async function updateOneRecord<T, K, L, M>(
   }
 }
 
-export async function updateOneRecordByFilter<T, K, L, M>(
-  model: PaginateModel<Document<T>>,
+export async function updateOneRecordByFilter<T, K, L>(
+  model: mongoose.Model<T>,
   query: K,
   update: L,
 ) {
@@ -212,7 +241,7 @@ export async function updateOneRecordByFilter<T, K, L, M>(
 }
 
 export async function updateSingleRecordById<T, K, L>(
-  model: PaginateModel<Document<T>>,
+  model: mongoose.Model<T>,
   id: K,
   data?: L,
 ) {
@@ -225,8 +254,8 @@ export async function updateSingleRecordById<T, K, L>(
   }
 }
 
-export async function getSingleRecordById<T, K, L>(
-  model: PaginateModel<Document<T>>,
+export async function getSingleRecordById<T, K>(
+  model: mongoose.Model<T>,
   id: K,
   options: any,
   key: any = "",
