@@ -1,6 +1,4 @@
 import { Router, Request, Response } from "express";
-import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
 import { OAuth2Client } from "google-auth-library";
 import { AppDataSource } from "../../db/connect";
 import { User, UserRole } from "../../db/mysqlModels/User";

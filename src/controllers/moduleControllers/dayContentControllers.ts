@@ -155,6 +155,7 @@ const sanitizeRichTextContent = (content: string): string => {
     parseStyleAttributes: true,
     allowProtocolRelative: false,
     exclusiveFilter: function (frame) {
+      console.log(frame);
       return false;
     },
     nonTextTags: ["style", "script", "textarea", "option"],

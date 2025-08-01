@@ -1683,7 +1683,6 @@ export const getStudentDashboardStats = async (req: Request, res: Response) => {
 
     // Get all course IDs for test calculation
     const allCourseIds = allCourses.map((course) => course.id);
-    let totalTests = 0;
     let completedTests = 0;
     let averageScore = 0;
 
@@ -1702,8 +1701,6 @@ export const getStudentDashboardStats = async (req: Request, res: Response) => {
         true,
         10 * 60,
       ); // Cache for 10 minutes
-
-      totalTests = tests.length;
 
       // Get test submissions for this student using utility function
       const testSubmissions = await getAllRecordsWithFilter(
