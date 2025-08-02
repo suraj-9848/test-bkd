@@ -1,19 +1,18 @@
 import { Request, Response, NextFunction } from "express";
 
-
 export const authDebugMiddleware = (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   const authReq = req as any;
-  
+
   if (authReq.user) {
     // User is authenticated - could add debug logging here if needed
-    console.log('Authenticated user:', authReq.user.email);
+    console.log("Authenticated user:", authReq.user.email);
   } else {
     // User is not authenticated - could add debug logging here if needed
-    console.log('No authenticated user found');
+    console.log("No authenticated user found");
   }
 
   next();
@@ -22,7 +21,7 @@ export const authDebugMiddleware = (
 export const validateJWTMiddleware = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   try {
     const authHeader = req.headers.authorization;
@@ -59,7 +58,7 @@ export const validateJWTMiddleware = async (
         },
       });
     }
-    
+
     // Use proper typing instead of any
     (req as any).user = {
       id: "test-user-id",
@@ -80,7 +79,7 @@ export const validateJWTMiddleware = async (
 export const validateDayContentMiddleware = (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   if (req.method === "POST" || req.method === "PUT") {
     if (!req.body.content || typeof req.body.content !== "string") {
