@@ -15,136 +15,388 @@ import { getLoggerByName } from "../../utils/logger";
 
 const logger = getLoggerByName("Test Management");
 
-// Create a new test (single or multiple courses)
-export const createTest = async (req: Request, res: Response) => {
+import sanitizeHtml from "sanitize-html";
+export const createQuestion = async (req: Request, res: Response) => {
   try {
-    // Accept either courseId from params or courseIds from body (array)
-    let courseIds: string[] = [];
-    if (req.body.courseIds && Array.isArray(req.body.courseIds)) {
-      courseIds = req.body.courseIds;
-    } else if (req.params.courseId) {
-      courseIds = [req.params.courseId];
-    }
+    const { testId } = req.params;
+    const { question_text, type, marks, options, expectedWordCount } = req.body;
 
-    const {
-      title,
-      description,
-      maxMarks,
-      passingMarks,
-      durationInMinutes,
-      startDate,
-      endDate,
-      shuffleQuestions,
-      showResults,
-      showCorrectAnswers,
-    } = req.body;
+    console.log("🔥 FIXED - Creating question for test:", {
+      testId,
+      question_text_length: question_text?.length,
+      has_html_tags: question_text?.includes("<"),
+      question_text_preview: question_text?.substring(0, 100),
+      type,
+      marks,
+    });
 
     // Validate required fields
-    if (
-      !title ||
-      !courseIds.length ||
-      !maxMarks ||
-      !durationInMinutes ||
-      !startDate ||
-      !endDate
-    ) {
-      return res.status(400).json({ error: "Missing required fields" });
+    if (!question_text || !type || !marks) {
+      return res.status(400).json({
+        error: "question_text, type, and marks are required",
+      });
     }
 
-    // Validate dates
-    const startDateObj = new Date(startDate);
-    const endDateObj = new Date(endDate);
-    if (
-      isNaN(startDateObj.getTime()) ||
-      isNaN(endDateObj.getTime()) ||
-      startDateObj >= endDateObj
-    ) {
-      return res.status(400).json({ error: "Invalid start or end time" });
+    // Validate question type
+    if (!["MCQ", "DESCRIPTIVE", "CODE"].includes(type)) {
+      return res.status(400).json({ error: "Invalid question type" });
     }
 
-    // Create a test for each courseId
-    const createdTests = [];
-    for (const courseId of courseIds) {
-      const course = await getSingleRecord<Course, any>(
-        Course,
-        { where: { id: courseId } },
-        `course:${courseId}`,
-        true,
-      );
-      if (!course) {
-        // Optionally skip or return error for missing course
-        continue;
-      }
-      const test = new Test();
-      test.title = title;
-      test.description = description || "";
-      test.maxMarks = maxMarks;
-      test.passingMarks = passingMarks || 0;
-      test.durationInMinutes = durationInMinutes;
-      test.startDate = startDateObj;
-      test.endDate = endDateObj;
-      test.shuffleQuestions = shuffleQuestions || false;
-      test.showResults = showResults || false;
-      test.showCorrectAnswers = showCorrectAnswers || false;
-      test.status = TestStatus.DRAFT;
-      test.course = course;
-      const savedTest = await createRecord(Test.getRepository(), test);
-      createdTests.push(savedTest);
+    if (marks <= 0) {
+      return res.status(400).json({ error: "Marks must be greater than zero" });
     }
 
-    if (!createdTests.length) {
-      return res
-        .status(404)
-        .json({ error: "No valid courses found for test creation" });
-    }
-
-    return res.status(201).json({
-      message: `Test(s) created successfully in ${createdTests.length} course(s)`,
-      tests: createdTests,
-    });
-  } catch (error) {
-    logger.error("Error creating test:", error);
-    return res.status(500).json({ error: "Failed to create test" });
-  }
-};
-
-// Bulk create tests in multiple courses (for new route)
-export const createTestsBulk = (req: Request, res: Response) => {
-  // Call createTest with the same req/res
-  // This works because createTest checks for courseIds array
-  // and handles multi-course creation
-  // (must be after createTest is defined)
-  return (createTest as any)(req, res);
-};
-
-// Get all tests for a course
-export const getTestsByCourse = async (req: Request, res: Response) => {
-  try {
-    const { courseId } = req.params;
-
-    const tests = await getAllRecordsWithFilter<Test, any>(
-      Test,
-      {
-        where: { course: { id: courseId } },
-        relations: ["course"],
-        order: { createdAt: "DESC" },
+    const sanitizedQuestionText = sanitizeHtml(question_text, {
+      allowedTags: [
+        "p",
+        "strong",
+        "em",
+        "ul",
+        "ol",
+        "li",
+        "code",
+        "pre",
+        "span",
+        "div",
+        "br",
+        "blockquote",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "u",
+        "s",
+        "i",
+        "b",
+      ],
+      allowedAttributes: {
+        "*": ["class", "style", "spellcheck", "data-*"],
       },
-      `tests_by_course_${courseId}`,
-      true,
-      60,
+      allowedStyles: {
+        "*": {
+          color: [/^.*$/],
+          "background-color": [/^.*$/],
+          "font-weight": [/^.*$/],
+          "font-style": [/^.*$/],
+          "text-decoration": [/^.*$/],
+          "font-size": [/^.*$/],
+          "font-family": [/^.*$/],
+          "text-align": [/^.*$/],
+          "white-space": [/^.*$/],
+        },
+      },
+      allowVulnerableTags: false,
+    }).trim();
+
+    if (!sanitizedQuestionText) {
+      return res.status(400).json({
+        error: "Question text cannot be empty after sanitization",
+      });
+    }
+
+    console.log("🔥 FIXED - Sanitized question text:", {
+      original_length: question_text.length,
+      sanitized_length: sanitizedQuestionText.length,
+      has_html_tags: sanitizedQuestionText.includes("<"),
+      sanitized_preview: sanitizedQuestionText.substring(0, 100),
+    });
+
+    // Get the test
+    const test = await getSingleRecord<Test, any>(
+      Test,
+      { where: { id: testId } },
+      `test_${testId}`,
+      true
     );
 
-    return res.status(200).json({
-      tests,
+    if (!test) {
+      return res.status(404).json({ error: "Test not found" });
+    }
+
+    // Prevent updates for published tests
+    if (test.status !== TestStatus.DRAFT) {
+      return res.status(400).json({
+        error: "Cannot add questions to a published test",
+      });
+    }
+
+    // Create Question
+    const question = new Question();
+    question.question_text = sanitizedQuestionText;
+    question.type = type as QuestionType;
+    question.marks = marks;
+    question.test = test;
+
+    if (expectedWordCount && (type === "DESCRIPTIVE" || type === "CODE")) {
+      question.expectedWordCount = expectedWordCount;
+    }
+
+    const savedQuestion = (await createRecord(
+      Question.getRepository(),
+      question
+    )) as Question;
+
+    console.log("🔥 FIXED - Question saved with HTML:", {
+      questionId: savedQuestion.id,
+      stored_text_length: savedQuestion.question_text?.length,
+      stored_has_html: savedQuestion.question_text?.includes("<"),
+      stored_preview: savedQuestion.question_text?.substring(0, 100),
+    });
+
+    // Handle MCQ options
+    if (type === "MCQ" && options && Array.isArray(options)) {
+      if (options.length < 2) {
+        return res.status(400).json({
+          error: "MCQ must have at least 2 options",
+        });
+      }
+
+      let hasCorrectOption = false;
+
+      for (const opt of options) {
+        const { text, correct } = opt;
+
+        if (!text || typeof text !== "string" || !text.trim()) {
+          return res.status(400).json({
+            error: "All options must have non-empty text",
+          });
+        }
+
+        if (correct) hasCorrectOption = true;
+
+        const option = new QuizOptions();
+        option.text = text.trim();
+        option.correct = correct || false;
+        option.question = savedQuestion;
+
+        await createRecord(QuizOptions.getRepository(), option);
+      }
+
+      if (!hasCorrectOption) {
+        return res.status(400).json({
+          error: "MCQ must have at least one correct option",
+        });
+      }
+    }
+
+    // Update test lastUpdated timestamp
+    test.lastUpdated = new Date();
+    await test.save();
+
+    // Clear cache
+    await redisClient.del(`test_${testId}_detailed`);
+
+    // Get the complete question with options
+    const completeQuestion = await getSingleRecord<Question, any>(Question, {
+      where: { id: savedQuestion.id },
+      relations: ["options"],
+    });
+
+    return res.status(201).json({
+      message: "Question created successfully",
+      question: completeQuestion,
     });
   } catch (error) {
-    logger.error("Error fetching tests:", error);
-    return res.status(500).json({ error: "Failed to fetch tests" });
+    logger.error("Error creating question:", error);
+    return res.status(500).json({ error: "Failed to create question" });
   }
 };
 
-// Get a specific test with questions
-export const getTestById = async (req: Request, res: Response) => {
+// 🔥 REPLACE your existing updateQuestion function with this:
+export const updateQuestion = async (req: Request, res: Response) => {
+  try {
+    const { testId, questionId } = req.params;
+    const { question_text, type, marks, options, expectedWordCount } = req.body;
+
+    console.log("🔥 FIXED - Updating question:", {
+      testId,
+      questionId,
+      question_text_length: question_text?.length,
+      has_html_tags: question_text?.includes("<"),
+      question_text_preview: question_text?.substring(0, 100),
+    });
+
+    const question = await getSingleRecord<Question, any>(
+      Question,
+      {
+        where: { id: questionId, test: { id: testId } },
+        relations: ["test", "options"],
+      },
+      `question_${questionId}`,
+      true
+    );
+
+    if (!question) {
+      return res.status(404).json({ error: "Question not found" });
+    }
+
+    // Prevent updates for published tests
+    if (question.test.status !== TestStatus.DRAFT) {
+      return res.status(400).json({
+        error: "Cannot update questions on a published test",
+      });
+    }
+
+    if (question_text !== undefined) {
+      const sanitizedQuestionText = sanitizeHtml(question_text, {
+        allowedTags: [
+          "p",
+          "strong",
+          "em",
+          "ul",
+          "ol",
+          "li",
+          "code",
+          "pre",
+          "span",
+          "div",
+          "br",
+          "blockquote",
+          "h1",
+          "h2",
+          "h3",
+          "h4",
+          "h5",
+          "h6",
+          "u",
+          "s",
+          "i",
+          "b",
+        ],
+        allowedAttributes: {
+          "*": ["class", "style", "spellcheck", "data-*"],
+        },
+        allowedStyles: {
+          "*": {
+            color: [/^.*$/],
+            "background-color": [/^.*$/],
+            "font-weight": [/^.*$/],
+            "font-style": [/^.*$/],
+            "text-decoration": [/^.*$/],
+            "font-size": [/^.*$/],
+            "font-family": [/^.*$/],
+            "text-align": [/^.*$/],
+            "white-space": [/^.*$/],
+          },
+        },
+        allowVulnerableTags: false,
+      }).trim();
+
+      if (!sanitizedQuestionText) {
+        return res.status(400).json({
+          error: "Question text cannot be empty after sanitization",
+        });
+      }
+
+      question.question_text = sanitizedQuestionText;
+
+      console.log("🔥 FIXED - Updated question text:", {
+        updated_length: question.question_text?.length,
+        updated_has_html: question.question_text?.includes("<"),
+        updated_preview: question.question_text?.substring(0, 100),
+      });
+    }
+
+    if (marks !== undefined) question.marks = marks;
+    if (type) {
+      question.type = type as QuestionType;
+    }
+
+    if (
+      expectedWordCount !== undefined &&
+      (type === "DESCRIPTIVE" || type === "CODE")
+    ) {
+      question.expectedWordCount = expectedWordCount;
+    }
+
+    await question.save();
+
+    // Update options if provided and question is MCQ
+    if (
+      options &&
+      Array.isArray(options) &&
+      question.type === QuestionType.MCQ
+    ) {
+      // Delete existing options
+      if (question.options && question.options.length > 0) {
+        await Promise.all(
+          question.options.map((option) =>
+            deleteRecords(QuizOptions, { id: option.id })
+          )
+        );
+      }
+
+      // Validate new options
+      if (options.length < 2) {
+        return res.status(400).json({
+          error: "MCQ must have at least 2 options",
+        });
+      }
+
+      let hasCorrectOption = false;
+
+      // Create new options
+      for (const opt of options) {
+        const { text, correct } = opt;
+
+        if (!text || typeof text !== "string" || !text.trim()) {
+          return res.status(400).json({
+            error: "All options must have non-empty text",
+          });
+        }
+
+        if (correct) hasCorrectOption = true;
+
+        const option = new QuizOptions();
+        option.text = text.trim();
+        option.correct = correct || false;
+        option.question = question;
+
+        await createRecord(QuizOptions.getRepository(), option);
+      }
+
+      if (!hasCorrectOption) {
+        return res.status(400).json({
+          error: "MCQ must have at least one correct option",
+        });
+      }
+    }
+
+    // Update test lastUpdated timestamp
+    question.test.lastUpdated = new Date();
+    await question.test.save();
+
+    // Clear cache
+    await redisClient.del(`question_${questionId}`);
+    await redisClient.del(`test_${testId}_detailed`);
+
+    // Get the updated question with options
+    const updatedQuestion = await getSingleRecord<Question, any>(Question, {
+      where: { id: questionId },
+      relations: ["options"],
+    });
+
+    console.log("🔥 FIXED - Question updated successfully:", {
+      questionId,
+      final_text_length: updatedQuestion?.question_text?.length,
+      final_has_html: updatedQuestion?.question_text?.includes("<"),
+      final_preview: updatedQuestion?.question_text?.substring(0, 100),
+    });
+
+    return res.status(200).json({
+      message: "Question updated successfully",
+      question: updatedQuestion,
+    });
+  } catch (error) {
+    logger.error("Error updating question:", error);
+    return res.status(500).json({ error: "Failed to update question" });
+  }
+};
+
+// 🔥 REPLACE your existing getQuestions function with this:
+export const getQuestions = async (req: Request, res: Response) => {
   try {
     const { testId } = req.params;
 
@@ -152,150 +404,49 @@ export const getTestById = async (req: Request, res: Response) => {
       Test,
       {
         where: { id: testId },
-        relations: ["questions", "questions.options", "course"],
+        relations: ["questions", "questions.options"],
       },
       `test_${testId}_detailed`,
-      true,
+      true
     );
 
     if (!test) {
       return res.status(404).json({ error: "Test not found" });
     }
 
-    return res.status(200).json({ test });
-  } catch (error) {
-    logger.error("Error fetching test:", error);
-    return res.status(500).json({ error: "Failed to fetch test" });
-  }
-};
+    const questionsWithHtml =
+      test.questions?.map((question) => {
+        console.log("🔥 FIXED - Retrieving question:", {
+          questionId: question.id,
+          text_length: question.question_text?.length,
+          has_html_tags: question.question_text?.includes("<"),
+          text_preview: question.question_text?.substring(0, 100),
+        });
 
-// Update test details
-export const updateTest = async (req: Request, res: Response) => {
-  try {
-    const { testId } = req.params;
-    const {
-      title,
-      description,
-      maxMarks,
-      passingMarks,
-      durationInMinutes,
-      startDate,
-      endDate,
-      shuffleQuestions,
-      showResults,
-      showCorrectAnswers,
-    } = req.body;
+        return {
+          ...question,
+          question_text: question.question_text || "", // Keep HTML formatting
+        };
+      }) || [];
 
-    const test = await getSingleRecord<Test, any>(
-      Test,
-      { where: { id: testId } },
-      `test_${testId}`,
-      true,
-    );
-
-    if (!test) {
-      return res.status(404).json({ error: "Test not found" });
-    }
-
-    // Allow only startDate and endDate to be changed after publishing, unless test has ended
-    const now = new Date();
-    const testEnded = now > new Date(test.endDate);
-    if (test.status !== TestStatus.DRAFT && testEnded) {
-      return res.status(400).json({
-        error: "Cannot update a test that has ended",
-      });
-    }
-
-    if (test.status !== TestStatus.DRAFT) {
-      // Only allow startDate and endDate to be updated
-      if (startDate) {
-        const startDateObj = new Date(startDate);
-        if (!isNaN(startDateObj.getTime())) test.startDate = startDateObj;
-      }
-      if (endDate) {
-        const endDateObj = new Date(endDate);
-        if (!isNaN(endDateObj.getTime())) test.endDate = endDateObj;
-      }
-    } else {
-      // Allow all fields to be updated in DRAFT
-      if (title) test.title = title;
-      if (description !== undefined) test.description = description;
-      if (maxMarks) test.maxMarks = maxMarks;
-      if (passingMarks !== undefined) test.passingMarks = passingMarks;
-      if (durationInMinutes) test.durationInMinutes = durationInMinutes;
-      if (startDate) {
-        const startDateObj = new Date(startDate);
-        if (!isNaN(startDateObj.getTime())) test.startDate = startDateObj;
-      }
-      if (endDate) {
-        const endDateObj = new Date(endDate);
-        if (!isNaN(endDateObj.getTime())) test.endDate = endDateObj;
-      }
-      if (shuffleQuestions !== undefined)
-        test.shuffleQuestions = shuffleQuestions;
-      if (showResults !== undefined) test.showResults = showResults;
-      if (showCorrectAnswers !== undefined)
-        test.showCorrectAnswers = showCorrectAnswers;
-    }
-
-    test.lastUpdated = new Date();
-    await test.save();
-
-    // Clear cache
-    await redisClient.del(`test_${testId}`);
-    await redisClient.del(`test_${testId}_detailed`);
+    console.log("🔥 FIXED - Retrieved questions successfully:", {
+      testId,
+      questionsCount: questionsWithHtml.length,
+      firstQuestionHasHtml: questionsWithHtml[0]?.question_text?.includes("<"),
+    });
 
     return res.status(200).json({
-      message: "Test updated successfully",
-      test,
+      message: "Questions retrieved successfully",
+      data: { questions: questionsWithHtml }, // Note: your API expects data.questions based on frontend
     });
   } catch (error) {
-    logger.error("Error updating test:", error);
-    return res.status(500).json({ error: "Failed to update test" });
+    logger.error("Error retrieving questions:", error);
+    return res.status(500).json({ error: "Failed to retrieve questions" });
   }
 };
 
-// Delete a test
-export const deleteTest = async (req: Request, res: Response) => {
-  try {
-    const { testId } = req.params;
 
-    const test = await getSingleRecord<Test, any>(
-      Test,
-      { where: { id: testId } },
-      `test_${testId}`,
-      true,
-    );
 
-    if (!test) {
-      return res.status(404).json({ error: "Test not found" });
-    }
-
-    // Prevent deletion of active tests
-    const now = new Date();
-    if (test.status !== TestStatus.DRAFT && now >= new Date(test.startDate)) {
-      return res.status(400).json({
-        error: "Cannot delete a test that has already started",
-      });
-    }
-
-    await deleteRecords(Test, { id: testId });
-
-    // Clear cache
-    await redisClient.del(`test_${testId}`);
-    await redisClient.del(`test_${testId}_detailed`);
-    await redisClient.del(`tests_by_course_${test.course.id}`);
-
-    return res.status(200).json({
-      message: "Test deleted successfully",
-    });
-  } catch (error) {
-    logger.error("Error deleting test:", error);
-    return res.status(500).json({ error: "Failed to delete test" });
-  }
-};
-
-// Add questions to a test
 export const addQuestions = async (req: Request, res: Response) => {
   try {
     const { testId } = req.params;
@@ -381,141 +532,8 @@ export const addQuestions = async (req: Request, res: Response) => {
   }
 };
 
-// Update a question
-export const updateQuestion = async (req: Request, res: Response) => {
-  try {
-    const { testId, questionId } = req.params;
-    const { question_text, type, marks, options, expectedWordCount } = req.body;
 
-    const question = await getSingleRecord<Question, any>(
-      Question,
-      {
-        where: { id: questionId, test: { id: testId } },
-        relations: ["test", "options"],
-      },
-      `question_${questionId}`,
-      true,
-    );
 
-    if (!question) {
-      return res.status(404).json({ error: "Question not found" });
-    }
-
-    // Prevent updates for tests that have started
-    if (question.test.status !== TestStatus.DRAFT) {
-      return res
-        .status(400)
-        .json({ error: "Cannot update questions on a published test" });
-    }
-
-    // Update question fields
-    if (question_text) question.question_text = question_text;
-    if (marks) question.marks = marks;
-    if (type) {
-      question.type =
-        type === QuestionType.DESCRIPTIVE
-          ? QuestionType.DESCRIPTIVE
-          : QuestionType.MCQ;
-    }
-
-    if (expectedWordCount !== undefined && type === QuestionType.DESCRIPTIVE) {
-      question.expectedWordCount = expectedWordCount;
-    }
-
-    await question.save();
-
-    // Update options if provided
-    if (
-      options &&
-      Array.isArray(options) &&
-      question.type === QuestionType.MCQ
-    ) {
-      // Delete existing options
-      if (question.options && question.options.length > 0) {
-        await Promise.all(
-          question.options.map((option) =>
-            deleteRecords(QuizOptions, { id: option.id }),
-          ),
-        );
-      }
-
-      // Create new options
-      for (const opt of options) {
-        const { text, correct } = opt;
-
-        const option = new QuizOptions();
-        option.text = text;
-        option.correct = correct || false;
-        option.question = question;
-
-        await createRecord(QuizOptions.getRepository(), option);
-      }
-    }
-
-    // Update test lastUpdated timestamp
-    question.test.lastUpdated = new Date();
-    await question.test.save();
-
-    // Clear cache
-    await redisClient.del(`question_${questionId}`);
-    await redisClient.del(`test_${testId}_detailed`);
-
-    // Get the updated question with options
-    const updatedQuestion = await getSingleRecord<Question, any>(Question, {
-      where: { id: questionId },
-      relations: ["options"],
-    });
-
-    return res.status(200).json({
-      message: "Question updated successfully",
-      question: updatedQuestion,
-    });
-  } catch (error) {
-    logger.error("Error updating question:", error);
-    return res.status(500).json({ error: "Failed to update question" });
-  }
-};
-
-// Delete a question
-export const deleteQuestion = async (req: Request, res: Response) => {
-  try {
-    const { testId, questionId } = req.params;
-
-    const question = await getSingleRecord<Question, any>(Question, {
-      where: { id: questionId, test: { id: testId } },
-      relations: ["test"],
-    });
-
-    if (!question) {
-      return res.status(404).json({ error: "Question not found" });
-    }
-
-    // Prevent updates for tests that have started
-    if (question.test.status !== TestStatus.DRAFT) {
-      return res.status(400).json({
-        error: "Cannot delete questions from a published test",
-      });
-    }
-
-    await deleteRecords(Question, { id: questionId });
-
-    // Clear cache
-    await redisClient.del(`test_${testId}_detailed`);
-
-    // Update test lastUpdated timestamp
-    question.test.lastUpdated = new Date();
-    await question.test.save();
-
-    return res.status(200).json({
-      message: "Question deleted successfully",
-    });
-  } catch (error) {
-    logger.error("Error deleting question:", error);
-    return res.status(500).json({ error: "Failed to delete question" });
-  }
-};
-
-// Publish a test to make it available
 export const publishTest = async (req: Request, res: Response) => {
   try {
     const { testId } = req.params;
@@ -689,101 +707,5 @@ export const getTestResults = async (req: Request, res: Response) => {
   } catch (error) {
     logger.error("Error fetching test results:", error);
     return res.status(500).json({ error: "Failed to fetch test results" });
-  }
-};
-
-// Get test statistics
-export const getTestStatistics = async (req: Request, res: Response) => {
-  try {
-    const { testId } = req.params;
-
-    // Try to get from cache first
-    const cachedStats = await redisClient.get(`test:${testId}:stats`);
-    if (cachedStats) {
-      return res.status(200).json(JSON.parse(cachedStats));
-    }
-
-    // Get the test with questions
-    const test = await getSingleRecord<Test, any>(
-      Test,
-      {
-        where: { id: testId },
-        relations: ["questions"],
-      },
-      `test_${testId}_with_questions`,
-      true,
-    );
-
-    if (!test) {
-      return res.status(404).json({ error: "Test not found" });
-    }
-
-    // Get all attempts
-    const attempts = await getAllRecordsWithFilter<TestAttempt, any>(
-      TestAttempt,
-      {
-        where: { test: { id: testId } },
-      },
-    );
-
-    // Calculate statistics
-    const totalAttempts = attempts.length;
-    const submittedAttempts = attempts.filter(
-      (a) =>
-        a.status === AttemptStatus.SUBMITTED ||
-        a.status === AttemptStatus.EVALUATED,
-    ).length;
-    const evaluatedAttempts = attempts.filter(
-      (a) => a.status === AttemptStatus.EVALUATED,
-    ).length;
-
-    // Calculate average score
-    const scores = attempts
-      .filter((a) => a.status === AttemptStatus.EVALUATED && a.score !== null)
-      .map((a) => a.score!);
-
-    const averageScore =
-      scores.length > 0
-        ? scores.reduce((sum, score) => sum + score, 0) / scores.length
-        : 0;
-
-    // Calculate pass rate
-    const passCount = scores.filter(
-      (score) => score >= test.passingMarks,
-    ).length;
-    const passRate = scores.length > 0 ? (passCount / scores.length) * 100 : 0;
-
-    const stats = {
-      testId: test.id,
-      title: test.title,
-      questionCount: test.questions.length,
-      totalMarks: test.maxMarks,
-      passingMarks: test.passingMarks,
-      totalAttempts,
-      submittedAttempts,
-      evaluatedAttempts,
-      averageScore,
-      passRate,
-      highestScore: scores.length > 0 ? Math.max(...scores) : 0,
-      lowestScore: scores.length > 0 ? Math.min(...scores) : 0,
-    };
-
-    // Cache statistics
-    await redisClient.set(
-      `test:${testId}:stats`,
-      JSON.stringify({
-        message: "Test statistics retrieved successfully",
-        statistics: stats,
-      }),
-      { EX: 300 },
-    ); // Cache for 5 minutes
-
-    return res.status(200).json({
-      message: "Test statistics retrieved successfully",
-      statistics: stats,
-    });
-  } catch (error) {
-    logger.error("Error fetching test statistics:", error);
-    return res.status(500).json({ error: "Failed to fetch test statistics" });
   }
 };

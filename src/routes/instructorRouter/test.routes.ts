@@ -11,6 +11,7 @@ import {
   bulkEvaluateResponses,
   getEvaluationStatistics,
 } from "../../controllers/instructorControllers/evaluation.controller";
+import { deleteQuestion } from "../../controllers/instructorControllers/test.controller";
 
 const router = Router();
 
@@ -22,12 +23,9 @@ router.use(authMiddleware, viewAsMiddleware, instructorMiddleware);
 router.post("/tests/:testId/questions", TestManagementController.addQuestions);
 router.put(
   "/tests/:testId/questions/:questionId",
-  TestManagementController.updateQuestion,
+  TestManagementController.updateQuestion
 );
-router.delete(
-  "/tests/:testId/questions/:questionId",
-  TestManagementController.deleteQuestion,
-);
+router.delete("/tests/:testId/questions/:questionId", deleteQuestion);
 
 // Test publishing and results
 router.put("/tests/:testId/publish", TestManagementController.publishTest);
@@ -44,19 +42,19 @@ router.get("/evaluation/statistics", getEvaluationStatistics);
 router.get("/tests/:testId/attempts", TestEvaluationController.getTestAttempts);
 router.get(
   "/attempts/:attemptId/grade",
-  TestEvaluationController.getAttemptForGrading,
+  TestEvaluationController.getAttemptForGrading
 );
 router.post(
   "/attempts/:attemptId/grade",
-  TestEvaluationController.gradeDescriptiveAnswers,
+  TestEvaluationController.gradeDescriptiveAnswers
 );
 router.post(
   "/attempts/:attemptId/finalize",
-  TestEvaluationController.finalizeGrading,
+  TestEvaluationController.finalizeGrading
 );
 router.get(
   "/tests/:testId/evaluation-stats",
-  TestEvaluationController.getEvaluationStats,
+  TestEvaluationController.getEvaluationStats
 );
 
 export default router;

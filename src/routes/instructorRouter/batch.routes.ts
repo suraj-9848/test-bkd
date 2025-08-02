@@ -5,7 +5,7 @@ import { viewAsMiddleware } from "../../middleware/viewAsMiddleware";
 import {
   createTest,
   createTestsBulk,
-} from "../../controllers/instructorControllers/testManagement.controller";
+} from "../../controllers/instructorControllers/test.controller";
 import {
   authDebugMiddleware,
   validateJWTMiddleware,
@@ -148,6 +148,12 @@ router.get(
 router.put(
   "/batches/:batchId/courses/:courseId/tests/:testId/responses/:responseId/evaluate",
   evaluateTestResponseById,
+);
+
+
+router.get(
+  "/batches/:batchId/courses/:courseId/tests/:testId/questions",
+  getQuestions,
 );
 
 router.get(
