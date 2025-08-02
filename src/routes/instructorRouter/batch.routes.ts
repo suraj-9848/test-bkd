@@ -2,15 +2,23 @@ import { Router, Request, Response } from "express";
 import { authMiddleware } from "../../middleware/authMiddleware";
 import { instructorMiddleware } from "../../middleware/instructorMiddleware";
 import { viewAsMiddleware } from "../../middleware/viewAsMiddleware";
+
 import {
   createTest,
   createTestsBulk,
-} from "../../controllers/instructorControllers/test.controller";
+  createQuestion,
+  getQuestions,
+  updateQuestion,
+  deleteQuestion,
+  publishTest,
+} from "../../controllers/instructorControllers/testManagement.controller";
+
 import {
   authDebugMiddleware,
   validateJWTMiddleware,
   validateDayContentMiddleware,
 } from "../../middleware/authDebugMiddleware";
+
 import {
   addDayContent,
   getDayContent,
@@ -20,7 +28,19 @@ import {
   markDayAsCompleted,
 } from "../../controllers/moduleControllers/dayContentControllers";
 
-import { getTestAnalytics } from "../../controllers/instructorControllers/test.controller";
+import {
+  getTestAnalytics,
+  fetchTestById,
+  updateTest,
+  deleteTest,
+  fetchTestsInCourse,
+  teststatustoPublish,
+  evaluateTestSubmission,
+  getSubmissionCount,
+  evaluateTestResponseById,
+  getTestResponses,
+} from "../../controllers/instructorControllers/test.controller";
+
 import {
   createBatch,
   deleteBatch,
@@ -40,6 +60,7 @@ import {
   getStudentsWithBatches,
   getUserBatches,
 } from "../../controllers/instructorControllers/batch.controller";
+
 import {
   getSubmissionsForEvaluation,
   getSubmissionForEvaluation,
@@ -47,6 +68,7 @@ import {
   bulkEvaluateResponses,
   getEvaluationStatistics,
 } from "../../controllers/instructorControllers/evaluation.controller";
+
 import {
   createCourse,
   fetchCourse,
@@ -55,21 +77,7 @@ import {
   fetchAllCoursesinBatch,
   assignCourseToStudent,
 } from "../../controllers/courseCrudControllers/courseController";
-import {
-  fetchTestById,
-  updateTest,
-  deleteTest,
-  fetchTestsInCourse,
-  createQuestion,
-  getQuestions,
-  updateQuestion,
-  deleteQuestion,
-  teststatustoPublish,
-  evaluateTestSubmission,
-  getSubmissionCount,
-  evaluateTestResponseById,
-  getTestResponses,
-} from "../../controllers/instructorControllers/test.controller";
+
 import {
   createMCQ,
   deleteMCQ,
@@ -77,6 +85,7 @@ import {
   getMCQ,
   updateMCQ,
 } from "../../controllers/moduleControllers/moduleMCQControllers";
+
 import {
   createModule,
   deleteModule,
@@ -84,6 +93,7 @@ import {
   getSingleModule,
   updateModule,
 } from "../../controllers/moduleControllers/moduleController";
+
 import {
   fetchCourseProgress,
   fetchSessionProgress,
@@ -93,6 +103,7 @@ const router = Router();
 
 router.use(authMiddleware, viewAsMiddleware, instructorMiddleware);
 
+// Batch routes
 router.post("/batches", createBatch);
 router.get("/batches", fetchAllBatches);
 router.get("/batches/:id", fetchBatch);
@@ -104,9 +115,10 @@ router.post("/batches/:batchId/assign-students", assignMultipleStudentsToBatch);
 router.get("/batches/:batchId/students", fetchBatchStudents);
 router.get(
   "/batches/:batchId/courses/:courseId/students/:studentId/scores",
-  getStudentCourseScores,
+  getStudentCourseScores
 );
 
+// Course routes
 router.post("/batches/:batchId/courses", createCourse);
 router.get("/batches/:batchId/courses", fetchAllCoursesinBatch);
 router.get("/batches/:batchId/courses/:id", fetchCourse);
@@ -115,9 +127,10 @@ router.delete("/batches/:batchId/courses/:id", deleteCourse);
 router.put("/batches/:batchId/courses/:courseId/public", updateCourse);
 router.post(
   "/batches/:batchId/courses/:courseId/assign-student",
-  assignCourseToStudent,
+  assignCourseToStudent
 );
 
+// 🔥 FIXED: Test routes using correct controller functions
 router.post("/batches/:batchId/courses/:courseId/tests", createTest);
 router.post("/batches/:batchId/courses/bulk/tests", createTestsBulk);
 router.get("/batches/:batchId/courses/:courseId/tests", fetchTestsInCourse);
@@ -125,133 +138,137 @@ router.get("/batches/:batchId/courses/:courseId/tests/:testId", fetchTestById);
 router.put("/batches/:batchId/courses/:courseId/tests/:testId", updateTest);
 router.delete("/batches/:batchId/courses/:courseId/tests/:testId", deleteTest);
 
+// 🔥 FIXED: Test publishing using correct controller function
 router.patch(
   "/batches/:batchId/courses/:courseId/tests/:testId/publish",
-  teststatustoPublish,
+  publishTest // 🔥 FIXED: Use publishTest from testManagement controller
 );
+
+// Test evaluation routes (using test.controller)
 router.post(
   "/batches/:batchId/courses/:courseId/tests/:testId/evaluate",
-  evaluateTestSubmission,
+  evaluateTestSubmission
 );
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/submission-count",
-  getSubmissionCount,
+  getSubmissionCount
 );
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/submissions",
-  getSubmissionsForEvaluation,
+  getSubmissionsForEvaluation
 );
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/responses",
-  getTestResponses,
+  getTestResponses
 );
 router.put(
   "/batches/:batchId/courses/:courseId/tests/:testId/responses/:responseId/evaluate",
-  evaluateTestResponseById,
+  evaluateTestResponseById
 );
 
-
+// 🔥 FIXED: Question management routes using correct controller functions
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/questions",
-  getQuestions,
-);
-
-router.get(
-  "/batches/:batchId/courses/:courseId/tests/:testId/questions",
-  getQuestions,
+  getQuestions // 🔥 FIXED: Use getQuestions from testManagement controller
 );
 router.post(
   "/batches/:batchId/courses/:courseId/tests/:testId/questions",
-  createQuestion,
-);
-router.delete(
-  "/batches/:batchId/courses/:courseId/tests/:testId/questions/:questionId",
-  deleteQuestion,
+  createQuestion // 🔥 FIXED: Use createQuestion from testManagement controller
 );
 router.put(
   "/batches/:batchId/courses/:courseId/tests/:testId/questions/:questionId",
-  updateQuestion,
+  updateQuestion // 🔥 FIXED: Use updateQuestion from testManagement controller
 );
-router.get(
-  "/batches/:batchId/courses/:courseId/tests/:testId/analytics",
-  getTestAnalytics,
+router.delete(
+  "/batches/:batchId/courses/:courseId/tests/:testId/questions/:questionId",
+  deleteQuestion // 🔥 FIXED: Use deleteQuestion from testManagement controller
 );
 
+router.get(
+  "/batches/:batchId/courses/:courseId/tests/:testId/analytics",
+  getTestAnalytics
+);
+
+// Module routes
 router.post("/batches/:batchId/courses/:courseId/modules", createModule);
 router.get("/batches/:batchId/courses/:courseId/modules", getAllModules);
 router.get(
   "/batches/:batchId/courses/:courseId/modules/:moduleId",
-  getSingleModule,
+  getSingleModule
 );
 router.put(
   "/batches/:batchId/courses/:courseId/modules/:moduleId",
-  updateModule,
+  updateModule
 );
 router.delete(
   "/batches/:batchId/courses/:courseId/modules/:moduleId",
-  deleteModule,
+  deleteModule
 );
 
+// Day content routes
 router.post(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content",
-  addDayContent,
+  addDayContent
 );
 router.get(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content",
-  getDayContent,
+  getDayContent
 );
 router.put(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId",
-  updateDayContent,
+  updateDayContent
 );
 router.delete(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId",
-  deleteDayContent,
+  deleteDayContent
 );
 router.patch(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId/complete",
-  markDayAsCompleted,
+  markDayAsCompleted
 );
 
+// MCQ routes
 router.post(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/mcq",
-  createMCQ,
+  createMCQ
 );
 router.get("/batches/:batchId/courses/:courseId/modules/:moduleId/mcq", getMCQ);
 router.get(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/mcq/:mcqId",
-  getMCQById,
+  getMCQById
 );
 router.put(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/mcq/:mcqId",
-  updateMCQ,
+  updateMCQ
 );
 router.delete(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/mcq/:mcqId",
-  deleteMCQ,
+  deleteMCQ
 );
 
+// Evaluation routes
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/submissions",
-  getSubmissionsForEvaluation,
+  getSubmissionsForEvaluation
 );
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/submissions/:submissionId",
-  getSubmissionForEvaluation,
+  getSubmissionForEvaluation
 );
 router.post(
   "/batches/:batchId/courses/:courseId/tests/:testId/submissions/:submissionId/evaluate",
-  evaluateResponse,
+  evaluateResponse
 );
 router.post(
   "/batches/:batchId/courses/:courseId/tests/:testId/submissions/bulk-evaluate",
-  bulkEvaluateResponses,
+  bulkEvaluateResponses
 );
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/evaluation-statistics",
-  getEvaluationStatistics,
+  getEvaluationStatistics
 );
 
+// Progress routes
 router.get("/batches/:batchId/courses/:courseId/progress", fetchCourseProgress);
 router.get("/sessions/:sessionId/progress", fetchSessionProgress);
 router.get("/students-with-batches", getStudentsWithBatches);
@@ -260,19 +277,16 @@ router.get("/users/:userId/batches", getUserBatches);
 
 router.post(
   "/:batchId/assign-multiple-enhanced",
-  assignMultipleStudentsToBatchEnhanced,
+  assignMultipleStudentsToBatchEnhanced
 );
 
 router.delete("/:batchId/remove-students", removeMultipleStudentsFromBatch);
-
 router.delete("/:batchId/remove-student", removeBatchFromStudent);
-
 router.get("/:batchId/students", getBatchStudents);
-
 router.get("/:batchId/students/:studentId/check", checkStudentBatchAssignment);
-
 router.post("/transfer-student", transferStudentBetweenBatches);
 
+// Bulk assignment route
 router.post("/bulk-assign", async (req: Request, res: Response) => {
   try {
     const { assignments } = req.body;
@@ -302,7 +316,7 @@ router.post("/bulk-assign", async (req: Request, res: Response) => {
 
         const result = await assignMultipleStudentsToBatchEnhanced(
           mockReq,
-          mockRes,
+          mockRes
         );
 
         results.push({
@@ -335,18 +349,16 @@ router.post("/bulk-assign", async (req: Request, res: Response) => {
   }
 });
 
+// Additional enhanced routes
 router.get("/students-with-batches", getStudentsWithBatches);
-
 router.get("/users/:userId/batches", getUserBatches);
-
 router.post(
   "/batches/:batchId/assign-multiple-enhanced",
-  assignMultipleStudentsToBatchEnhanced,
+  assignMultipleStudentsToBatchEnhanced
 );
-
 router.delete(
   "/batches/:batchId/remove-students",
-  removeMultipleStudentsFromBatch,
+  removeMultipleStudentsFromBatch
 );
 router.delete("/batches/:batchId/remove-student", removeBatchFromStudent);
 
@@ -367,12 +379,12 @@ router.post(
           params: { batchId: fromBatchId },
           body: { userId: studentId },
         } as any,
-        res as any,
+        res as any
       );
 
       await assignBatchToStudent(
         { params: { batchId: toBatchId }, body: { userId: studentId } } as any,
-        res as any,
+        res as any
       );
 
       return res.status(200).json({
@@ -385,51 +397,51 @@ router.post(
       console.error("Transfer error:", err);
       return res.status(500).json({ message: "Transfer failed" });
     }
-  },
+  }
 );
 
+// Day content routes with enhanced debugging
 router.use(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content*",
-  authDebugMiddleware,
+  authDebugMiddleware
 );
 
-// Day Content routes with enhanced debugging and validation
 router.post(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content",
   validateJWTMiddleware,
   validateDayContentMiddleware,
-  addDayContent,
+  addDayContent
 );
 
 router.get(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content",
   validateJWTMiddleware,
-  getDayContent,
+  getDayContent
 );
 
 router.get(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId",
   validateJWTMiddleware,
-  getSingleDayContent,
+  getSingleDayContent
 );
 
 router.put(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId",
   validateJWTMiddleware,
   validateDayContentMiddleware,
-  updateDayContent,
+  updateDayContent
 );
 
 router.delete(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId",
   validateJWTMiddleware,
-  deleteDayContent,
+  deleteDayContent
 );
 
 router.patch(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId/complete",
   validateJWTMiddleware,
-  markDayAsCompleted,
+  markDayAsCompleted
 );
 
 router.put("/courses/:id", updateCourse);

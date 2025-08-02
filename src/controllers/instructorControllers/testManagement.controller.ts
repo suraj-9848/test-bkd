@@ -12,14 +12,182 @@ import {
 } from "../../lib/dbLib/sqlUtils";
 import { redisClient } from "../../db/connect";
 import { getLoggerByName } from "../../utils/logger";
+import sanitizeHtml from "sanitize-html";
 
 const logger = getLoggerByName("Test Management");
 
-import sanitizeHtml from "sanitize-html";
+// Helper function to sanitize HTML content
+const sanitizeQuestionText = (text: string): string => {
+  return sanitizeHtml(text, {
+    allowedTags: [
+      "p", "strong", "em", "ul", "ol", "li", "code", "pre", "span", "div", "br",
+      "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "u", "s", "i", "b",
+    ],
+    allowedAttributes: {
+      "*": ["class", "style", "spellcheck", "data-*"],
+    },
+    allowedStyles: {
+      "*": {
+        color: [/^.*$/],
+        "background-color": [/^.*$/],
+        "font-weight": [/^.*$/],
+        "font-style": [/^.*$/],
+        "text-decoration": [/^.*$/],
+        "font-size": [/^.*$/],
+        "font-family": [/^.*$/],
+        "text-align": [/^.*$/],
+        "white-space": [/^.*$/],
+      },
+    },
+    allowVulnerableTags: false,
+  }).trim();
+};
+
+// Create a new test (supports both single and multiple courses)
+export const createTest = async (req: Request, res: Response) => {
+  try {
+    console.log("=== CREATE TEST REQUEST ===");
+    console.log("Request body:", req.body);
+    console.log("Request params:", req.params);
+    
+    // Accept either courseId from params or courseIds from body (array)
+    let courseIds: string[] = [];
+    if (req.body.courseIds && Array.isArray(req.body.courseIds)) {
+      courseIds = req.body.courseIds;
+    } else if (req.params.courseId) {
+      courseIds = [req.params.courseId];
+    } else if (req.query.courseId) {
+      courseIds = [req.query.courseId as string];
+    }
+
+    console.log("Extracted courseIds:", courseIds);
+
+    const {
+      title,
+      description,
+      maxMarks,
+      passingMarks,
+      durationInMinutes,
+      startDate,
+      endDate,
+      shuffleQuestions,
+      showResults,
+      showCorrectAnswers,
+      maxAttempts,
+    } = req.body;
+
+    // Validate required fields
+    if (
+      !title ||
+      !courseIds.length ||
+      !maxMarks ||
+      !durationInMinutes ||
+      !startDate ||
+      !endDate
+    ) {
+      console.log("Validation failed - missing required fields");
+      return res.status(400).json({ 
+        error: "Missing required fields",
+        required: ["title", "courseIds", "maxMarks", "durationInMinutes", "startDate", "endDate"],
+        received: { title, courseIds, maxMarks, durationInMinutes, startDate, endDate }
+      });
+    }
+
+    // Validate dates
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(endDate);
+    if (
+      isNaN(startDateObj.getTime()) ||
+      isNaN(endDateObj.getTime()) ||
+      startDateObj >= endDateObj
+    ) {
+      console.log("Date validation failed");
+      return res.status(400).json({ error: "Invalid start or end time" });
+    }
+
+    // Validate maxAttempts
+    const validMaxAttempts = maxAttempts && maxAttempts > 0 ? maxAttempts : 1;
+
+    // Create a test for each courseId
+    const createdTests: Test[] = [];
+    for (const courseId of courseIds) {
+      console.log(`Creating test for course: ${courseId}`);
+      
+      const course = await getSingleRecord<Course, any>(
+        Course,
+        { where: { id: courseId } },
+        `course:${courseId}`,
+        false, // Get entity instance, not plain object
+      );
+      
+      if (!course) {
+        console.log(`Course not found: ${courseId}`);
+        continue;
+      }
+
+      const test = new Test();
+      test.title = title;
+      test.description = description || "";
+      test.maxMarks = maxMarks;
+      test.passingMarks = passingMarks || 0;
+      test.durationInMinutes = durationInMinutes;
+      test.startDate = startDateObj;
+      test.endDate = endDateObj;
+      test.shuffleQuestions = shuffleQuestions || false;
+      test.showResults = showResults !== undefined ? showResults : true;
+      test.showCorrectAnswers = showCorrectAnswers || false;
+      test.maxAttempts = validMaxAttempts;
+      test.status = TestStatus.DRAFT;
+      test.course = course;
+      test.createdAt = new Date();
+      test.lastUpdated = new Date();
+
+      console.log("Test object before save:", {
+        title: test.title,
+        courseId: course.id,
+        status: test.status,
+        maxAttempts: test.maxAttempts
+      });
+
+      const savedTest = await createRecord(Test.getRepository(), test) as Test;
+      console.log("Test saved successfully:", savedTest.id);
+      createdTests.push(savedTest);
+    }
+
+    if (!createdTests.length) {
+      console.log("No valid courses found for test creation");
+      return res
+        .status(404)
+        .json({ error: "No valid courses found for test creation" });
+    }
+
+    console.log(`Successfully created ${createdTests.length} test(s)`);
+    
+    return res.status(201).json({
+      success: true,
+      message: `Test(s) created successfully in ${createdTests.length} course(s)`,
+      tests: createdTests,
+    });
+  } catch (error: any) {
+    logger.error("Error creating test:", error);
+    console.error("Detailed error:", error);
+    return res.status(500).json({ 
+      error: "Failed to create test",
+      details: error.message 
+    });
+  }
+};
+
+// Bulk create tests in multiple courses (alias for createTest)
+export const createTestsBulk = (req: Request, res: Response) => {
+  return createTest(req, res);
+};
+
+// 🔥 FIXED: Create a single question for a test
 export const createQuestion = async (req: Request, res: Response) => {
   try {
     const { testId } = req.params;
-    const { question_text, type, marks, options, expectedWordCount } = req.body;
+    const { question_text, type, marks, options, expectedWordCount, codeLanguage } = req.body;
 
     console.log("🔥 FIXED - Creating question for test:", {
       testId,
@@ -46,49 +214,7 @@ export const createQuestion = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Marks must be greater than zero" });
     }
 
-    const sanitizedQuestionText = sanitizeHtml(question_text, {
-      allowedTags: [
-        "p",
-        "strong",
-        "em",
-        "ul",
-        "ol",
-        "li",
-        "code",
-        "pre",
-        "span",
-        "div",
-        "br",
-        "blockquote",
-        "h1",
-        "h2",
-        "h3",
-        "h4",
-        "h5",
-        "h6",
-        "u",
-        "s",
-        "i",
-        "b",
-      ],
-      allowedAttributes: {
-        "*": ["class", "style", "spellcheck", "data-*"],
-      },
-      allowedStyles: {
-        "*": {
-          color: [/^.*$/],
-          "background-color": [/^.*$/],
-          "font-weight": [/^.*$/],
-          "font-style": [/^.*$/],
-          "text-decoration": [/^.*$/],
-          "font-size": [/^.*$/],
-          "font-family": [/^.*$/],
-          "text-align": [/^.*$/],
-          "white-space": [/^.*$/],
-        },
-      },
-      allowVulnerableTags: false,
-    }).trim();
+    const sanitizedQuestionText = sanitizeQuestionText(question_text);
 
     if (!sanitizedQuestionText) {
       return res.status(400).json({
@@ -108,7 +234,7 @@ export const createQuestion = async (req: Request, res: Response) => {
       Test,
       { where: { id: testId } },
       `test_${testId}`,
-      true
+      false // Get entity instance
     );
 
     if (!test) {
@@ -133,10 +259,14 @@ export const createQuestion = async (req: Request, res: Response) => {
       question.expectedWordCount = expectedWordCount;
     }
 
-    const savedQuestion = (await createRecord(
+    if (codeLanguage && type === "CODE") {
+      question.codeLanguage = codeLanguage;
+    }
+
+    const savedQuestion = await createRecord(
       Question.getRepository(),
       question
-    )) as Question;
+    ) as Question;
 
     console.log("🔥 FIXED - Question saved with HTML:", {
       questionId: savedQuestion.id,
@@ -195,20 +325,24 @@ export const createQuestion = async (req: Request, res: Response) => {
     });
 
     return res.status(201).json({
+      success: true,
       message: "Question created successfully",
       question: completeQuestion,
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error("Error creating question:", error);
-    return res.status(500).json({ error: "Failed to create question" });
+    return res.status(500).json({ 
+      error: "Failed to create question",
+      details: error.message 
+    });
   }
 };
 
-// 🔥 REPLACE your existing updateQuestion function with this:
+// 🔥 FIXED: Update an existing question
 export const updateQuestion = async (req: Request, res: Response) => {
   try {
     const { testId, questionId } = req.params;
-    const { question_text, type, marks, options, expectedWordCount } = req.body;
+    const { question_text, type, marks, options, expectedWordCount, codeLanguage } = req.body;
 
     console.log("🔥 FIXED - Updating question:", {
       testId,
@@ -225,7 +359,7 @@ export const updateQuestion = async (req: Request, res: Response) => {
         relations: ["test", "options"],
       },
       `question_${questionId}`,
-      true
+      false // Get entity instance
     );
 
     if (!question) {
@@ -240,49 +374,7 @@ export const updateQuestion = async (req: Request, res: Response) => {
     }
 
     if (question_text !== undefined) {
-      const sanitizedQuestionText = sanitizeHtml(question_text, {
-        allowedTags: [
-          "p",
-          "strong",
-          "em",
-          "ul",
-          "ol",
-          "li",
-          "code",
-          "pre",
-          "span",
-          "div",
-          "br",
-          "blockquote",
-          "h1",
-          "h2",
-          "h3",
-          "h4",
-          "h5",
-          "h6",
-          "u",
-          "s",
-          "i",
-          "b",
-        ],
-        allowedAttributes: {
-          "*": ["class", "style", "spellcheck", "data-*"],
-        },
-        allowedStyles: {
-          "*": {
-            color: [/^.*$/],
-            "background-color": [/^.*$/],
-            "font-weight": [/^.*$/],
-            "font-style": [/^.*$/],
-            "text-decoration": [/^.*$/],
-            "font-size": [/^.*$/],
-            "font-family": [/^.*$/],
-            "text-align": [/^.*$/],
-            "white-space": [/^.*$/],
-          },
-        },
-        allowVulnerableTags: false,
-      }).trim();
+      const sanitizedQuestionText = sanitizeQuestionText(question_text);
 
       if (!sanitizedQuestionText) {
         return res.status(400).json({
@@ -304,25 +396,22 @@ export const updateQuestion = async (req: Request, res: Response) => {
       question.type = type as QuestionType;
     }
 
-    if (
-      expectedWordCount !== undefined &&
-      (type === "DESCRIPTIVE" || type === "CODE")
-    ) {
+    if (expectedWordCount !== undefined && (type === "DESCRIPTIVE" || type === "CODE")) {
       question.expectedWordCount = expectedWordCount;
+    }
+
+    if (codeLanguage !== undefined && type === "CODE") {
+      question.codeLanguage = codeLanguage;
     }
 
     await question.save();
 
     // Update options if provided and question is MCQ
-    if (
-      options &&
-      Array.isArray(options) &&
-      question.type === QuestionType.MCQ
-    ) {
+    if (options && Array.isArray(options) && question.type === QuestionType.MCQ) {
       // Delete existing options
       if (question.options && question.options.length > 0) {
         await Promise.all(
-          question.options.map((option) =>
+          question.options.map((option: any) =>
             deleteRecords(QuizOptions, { id: option.id })
           )
         );
@@ -386,19 +475,25 @@ export const updateQuestion = async (req: Request, res: Response) => {
     });
 
     return res.status(200).json({
+      success: true,
       message: "Question updated successfully",
       question: updatedQuestion,
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error("Error updating question:", error);
-    return res.status(500).json({ error: "Failed to update question" });
+    return res.status(500).json({ 
+      error: "Failed to update question",
+      details: error.message 
+    });
   }
 };
 
-// 🔥 REPLACE your existing getQuestions function with this:
+// 🔥 FIXED: Get all questions for a test
 export const getQuestions = async (req: Request, res: Response) => {
   try {
     const { testId } = req.params;
+
+    console.log("🔥 FIXED - Getting questions for test:", testId);
 
     const test = await getSingleRecord<Test, any>(
       Test,
@@ -407,7 +502,7 @@ export const getQuestions = async (req: Request, res: Response) => {
         relations: ["questions", "questions.options"],
       },
       `test_${testId}_detailed`,
-      true
+      false // Get entity instance
     );
 
     if (!test) {
@@ -415,7 +510,7 @@ export const getQuestions = async (req: Request, res: Response) => {
     }
 
     const questionsWithHtml =
-      test.questions?.map((question) => {
+      test.questions?.map((question: Question) => {
         console.log("🔥 FIXED - Retrieving question:", {
           questionId: question.id,
           text_length: question.question_text?.length,
@@ -436,116 +531,89 @@ export const getQuestions = async (req: Request, res: Response) => {
     });
 
     return res.status(200).json({
+      success: true,
       message: "Questions retrieved successfully",
-      data: { questions: questionsWithHtml }, // Note: your API expects data.questions based on frontend
+      data: { questions: questionsWithHtml },
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error("Error retrieving questions:", error);
-    return res.status(500).json({ error: "Failed to retrieve questions" });
+    return res.status(500).json({ 
+      error: "Failed to retrieve questions",
+      details: error.message 
+    });
   }
 };
 
-
-
-export const addQuestions = async (req: Request, res: Response) => {
+// 🔥 FIXED: Delete a question from a test
+export const deleteQuestion = async (req: Request, res: Response) => {
   try {
-    const { testId } = req.params;
-    const { questions } = req.body;
+    const { testId, questionId } = req.params;
 
-    if (!questions || !Array.isArray(questions) || questions.length === 0) {
-      return res.status(400).json({ error: "Invalid questions data" });
-    }
+    console.log("🔥 FIXED - Deleting question:", { testId, questionId });
 
-    const test = await getSingleRecord<Test, any>(
-      Test,
-      { where: { id: testId } },
-      `test_${testId}`,
-      true,
+    const question = await getSingleRecord<Question, any>(
+      Question,
+      {
+        where: { id: questionId, test: { id: testId } },
+        relations: ["test"],
+      },
+      `question_${questionId}`,
+      false,
     );
 
-    if (!test) {
-      return res.status(404).json({ error: "Test not found" });
+    if (!question) {
+      return res.status(404).json({ error: "Question not found" });
     }
 
-    // Prevent updates for tests that have started
-    if (test.status !== TestStatus.DRAFT) {
+    // Prevent deletion for tests that have started
+    if (question.test.status !== TestStatus.DRAFT) {
       return res
         .status(400)
-        .json({ error: "Cannot add questions to a published test" });
+        .json({ error: "Cannot delete questions from a published test" });
     }
 
-    const createdQuestions = [];
-
-    // Create questions and options
-    for (const q of questions) {
-      const { question_text, type, marks, options, expectedWordCount } = q;
-
-      const question = new Question();
-      question.question_text = question_text;
-      question.type =
-        type === QuestionType.DESCRIPTIVE
-          ? QuestionType.DESCRIPTIVE
-          : QuestionType.MCQ;
-      question.marks = marks || 1;
-      question.test = test;
-
-      if (type === QuestionType.DESCRIPTIVE && expectedWordCount) {
-        question.expectedWordCount = expectedWordCount;
-      }
-
-      const savedQuestion = (await createRecord(
-        Question.getRepository(),
-        question,
-      )) as Question;
-
-      // Add options for MCQ questions
-      if (type === QuestionType.MCQ && options && Array.isArray(options)) {
-        for (const opt of options) {
-          const { text, correct } = opt;
-
-          const option = new QuizOptions();
-          option.text = text;
-          option.correct = correct || false;
-          option.question = savedQuestion;
-
-          await createRecord(QuizOptions.getRepository(), option);
-        }
-      }
-
-      createdQuestions.push(savedQuestion);
-    }
+    // Delete associated options first
+    await deleteRecords(QuizOptions, { question: { id: questionId } });
+    
+    // Delete the question
+    await deleteRecords(Question, { id: questionId });
 
     // Update test lastUpdated timestamp
-    test.lastUpdated = new Date();
-    await test.save();
+    question.test.lastUpdated = new Date();
+    await question.test.save();
 
     // Clear cache
+    await redisClient.del(`question_${questionId}`);
     await redisClient.del(`test_${testId}_detailed`);
 
-    return res.status(201).json({
-      message: "Questions added successfully",
-      questions: createdQuestions,
+    return res.status(200).json({
+      success: true,
+      message: "Question deleted successfully",
     });
-  } catch (error) {
-    logger.error("Error adding questions:", error);
-    return res.status(500).json({ error: "Failed to add questions" });
+  } catch (error: any) {
+    logger.error("Error deleting question:", error);
+    return res.status(500).json({ 
+      error: "Failed to delete question",
+      details: error.message 
+    });
   }
 };
 
-
-
+// 🔥 FIXED: Publish a test
 export const publishTest = async (req: Request, res: Response) => {
   try {
     const { testId } = req.params;
+
+    console.log("🔥 FIXED - Publishing test:", testId);
 
     const test = await getSingleRecord<Test, any>(
       Test,
       {
         where: { id: testId },
-        relations: ["questions", "questions.options"],
+        relations: ["questions", "questions.options", "course"],
       },
       `test_${testId}_detailed`,
-      true,
+      false,
     );
 
     if (!test) {
@@ -573,7 +641,7 @@ export const publishTest = async (req: Request, res: Response) => {
           });
         }
 
-        const hasCorrectOption = question.options.some((opt) => opt.correct);
+        const hasCorrectOption = question.options.some((opt: any) => opt.correct);
         if (!hasCorrectOption) {
           return res.status(400).json({
             error: `MCQ question "${question.question_text}" must have at least one correct option`,
@@ -590,7 +658,9 @@ export const publishTest = async (req: Request, res: Response) => {
     // Clear and update cache
     await redisClient.del(`test_${testId}`);
     await redisClient.del(`test_${testId}_detailed`);
-    await redisClient.del(`tests_by_course_${test.course.id}`);
+    if (test.course?.id) {
+      await redisClient.del(`tests_by_course_${test.course.id}`);
+    }
 
     // Cache test data for faster access during exam
     await redisClient.set(
@@ -613,7 +683,7 @@ export const publishTest = async (req: Request, res: Response) => {
     ); // Cache for 24 hours
 
     // Cache questions without correct answers for students
-    const questionsForStudents = test.questions.map((q) => ({
+    const questionsForStudents = test.questions.map((q: Question) => ({
       id: q.id,
       question_text: q.question_text,
       type: q.type,
@@ -621,11 +691,11 @@ export const publishTest = async (req: Request, res: Response) => {
       expectedWordCount: q.expectedWordCount,
       options:
         q.type === QuestionType.MCQ
-          ? q.options.map((opt) => ({
+          ? q.options?.map((opt: any) => ({
               id: opt.id,
               text: opt.text,
               // Don't include correct answer flag
-            }))
+            })) || []
           : [],
     }));
 
@@ -636,6 +706,7 @@ export const publishTest = async (req: Request, res: Response) => {
     );
 
     return res.status(200).json({
+      success: true,
       message: "Test published successfully",
       test: {
         id: test.id,
@@ -644,9 +715,121 @@ export const publishTest = async (req: Request, res: Response) => {
         endDate: test.endDate,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error("Error publishing test:", error);
-    return res.status(500).json({ error: "Failed to publish test" });
+    return res.status(500).json({ 
+      error: "Failed to publish test",
+      details: error.message 
+    });
+  }
+};
+
+// Add multiple questions to a test (bulk operation)
+export const addQuestions = async (req: Request, res: Response) => {
+  try {
+    const { testId } = req.params;
+    const { questions } = req.body;
+
+    console.log("=== ADD QUESTIONS REQUEST ===");
+    console.log("Test ID:", testId);
+    console.log("Questions data:", questions);
+
+    // Validate input
+    if (!questions || !Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({ error: "Questions array is required" });
+    }
+
+    // Fetch Test entity
+    const test = await getSingleRecord<Test, any>(
+      Test,
+      { where: { id: testId } },
+      `test_${testId}`,
+      false, // Get entity instance
+    );
+
+    if (!test) {
+      return res.status(404).json({ error: "Test not found" });
+    }
+
+    if (test.status !== TestStatus.DRAFT) {
+      return res
+        .status(400)
+        .json({ error: "Cannot add questions to a published test" });
+    }
+
+    const createdQuestions: Question[] = [];
+
+    for (const questionData of questions) {
+      const {
+        question_text,
+        type,
+        marks,
+        options,
+        expectedWordCount,
+        codeLanguage,
+      } = questionData;
+
+      // Validate required fields
+      if (!question_text || !type || marks === undefined) {
+        return res.status(400).json({
+          error: "Missing required fields in question: question_text, type, marks",
+        });
+      }
+
+      const question = new Question();
+      question.question_text = sanitizeQuestionText(question_text);
+      question.type = type === "DESCRIPTIVE" ? QuestionType.DESCRIPTIVE : 
+                     type === "CODE" ? QuestionType.CODE : QuestionType.MCQ;
+      question.marks = marks || 1;
+      question.test = test;
+
+      if ((type === "DESCRIPTIVE" || type === "CODE") && expectedWordCount) {
+        question.expectedWordCount = expectedWordCount;
+      }
+
+      if (codeLanguage && type === "CODE") {
+        question.codeLanguage = codeLanguage;
+      }
+
+      const savedQuestion = await createRecord(Question.getRepository(), question) as Question;
+
+      // Add options for MCQ questions
+      if (type === "MCQ" && options && Array.isArray(options)) {
+        for (const opt of options) {
+          const { text, correct } = opt;
+          
+          if (!text) continue; // Skip empty options
+
+          const option = new QuizOptions();
+          option.text = text;
+          option.correct = correct || false;
+          option.question = savedQuestion;
+
+          await createRecord(QuizOptions.getRepository(), option);
+        }
+      }
+
+      createdQuestions.push(savedQuestion);
+    }
+
+    // Update test lastUpdated timestamp
+    test.lastUpdated = new Date();
+    await test.save();
+
+    // Clear cache
+    await redisClient.del(`test_${testId}_detailed`);
+
+    return res.status(201).json({
+      success: true,
+      message: "Questions added successfully",
+      questions: createdQuestions,
+    });
+  } catch (error: any) {
+    logger.error("Error adding questions:", error);
+    return res.status(500).json({ 
+      error: "Failed to add questions",
+      details: error.message 
+    });
   }
 };
 
@@ -677,7 +860,7 @@ export const getTestResults = async (req: Request, res: Response) => {
     }
 
     // Process results
-    const results = attempts.map((attempt) => ({
+    const results = attempts.map((attempt: TestAttempt) => ({
       attemptId: attempt.id,
       student: {
         id: attempt.student.id,
@@ -704,8 +887,11 @@ export const getTestResults = async (req: Request, res: Response) => {
       message: "Test results retrieved successfully",
       results,
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error("Error fetching test results:", error);
-    return res.status(500).json({ error: "Failed to fetch test results" });
+    return res.status(500).json({ 
+      error: "Failed to fetch test results",
+      details: error.message 
+    });
   }
 };
