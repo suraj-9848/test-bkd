@@ -52,7 +52,7 @@ router.get("/tests/:testId/results", getStudentTestResults);
 
 // Course routes
 router.get("/courses", getStudentCourses);
-router.get("/courses/public", getStudentPublicCourses);
+// router.get("/courses/public", getStudentPublicCourses);
 router.get("/courses/:courseId", getStudentCourseById);
 router.get("/courses/:courseId/modules", getStudentCourseModules);
 

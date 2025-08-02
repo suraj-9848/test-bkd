@@ -9,7 +9,7 @@ import { DayContent } from "../../db/mysqlModels/DayContent";
 import { AppDataSource } from "../../db/connect";
 import s3Service from "../../utils/s3Service";
 
-const logger = getLoggerByName("Course Controller");
+// const logger = getLoggerByName("Course Controller");
 
 // Helper function for image upload
 async function uploadImage(
@@ -30,7 +30,7 @@ import {
   getSingleRecord,
   getAllRecordsWithFilter,
 } from "../../lib/dbLib/sqlUtils";
-import { getLoggerByName } from "../../utils/logger";
+// import { getLoggerByName } from "../../utils/logger";
 
 interface DayData {
   dayNumber: number;
@@ -118,22 +118,22 @@ export const createCourse = async (req: Request, res: Response) => {
         "trainer-logos",
       );
       if (logo) {
-        logger.info("✅ S3 image uploaded for course logo:", logo);
+        // logger.info("✅ S3 image uploaded for course logo:", logo);
       } else {
-        logger.info("⚠️ S3 image upload failed for course logo.");
+        // logger.info("⚠️ S3 image upload failed for course logo.");
       }
       if (trainer_avatar) {
-        logger.info("✅ S3 image uploaded for trainer avatar:", trainer_avatar);
+        // logger.info("✅ S3 image uploaded for trainer avatar:", trainer_avatar);
       } else {
-        logger.info("⚠️ S3 image upload failed for trainer avatar.");
+        // logger.info("⚠️ S3 image upload failed for trainer avatar.");
       }
     } else if (req.file) {
       if (req.file.fieldname === "logo") {
         logo = await uploadImage(req.file, "course-logo", "course-logos");
         if (logo) {
-          logger.info("✅ S3 image uploaded for course logo:", logo);
+          // logger.info("✅ S3 image uploaded for course logo:", logo);
         } else {
-          logger.info("⚠️ S3 image upload failed for course logo.");
+          // logger.info("⚠️ S3 image upload failed for course logo.");
         }
       } else if (req.file.fieldname === "trainer_avatar") {
         trainer_avatar = await uploadImage(
@@ -142,12 +142,12 @@ export const createCourse = async (req: Request, res: Response) => {
           "trainer-logos",
         );
         if (trainer_avatar) {
-          logger.info(
-            "✅ S3 image uploaded for trainer avatar:",
-            trainer_avatar,
-          );
+          // logger.info(
+          //   "✅ S3 image uploaded for trainer avatar:",
+          //   trainer_avatar,
+          // );
         } else {
-          logger.info("⚠️ S3 image upload failed for trainer avatar.");
+          // logger.info("⚠️ S3 image upload failed for trainer avatar.");
         }
       }
     }
