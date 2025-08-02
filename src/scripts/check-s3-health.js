@@ -12,7 +12,7 @@ async function checkS3Health() {
       !process.env.AWS_REGION ||
       !process.env.AWS_S3_BUCKET_NAME
     ) {
-      console.error("❌ Missing AWS environment variables");
+      console.error(" Missing AWS environment variables");
       console.log("Please set the following environment variables:");
       console.log("  - AWS_ACCESS_KEY_ID");
       console.log("  - AWS_SECRET_ACCESS_KEY");
@@ -25,12 +25,12 @@ async function checkS3Health() {
     // This is a lightweight operation to verify connectivity
     await s3Service.testConnection();
 
-    console.log("✅ S3 connection successful");
+    console.log(" S3 connection successful");
     console.log(`Connected to bucket: ${process.env.AWS_S3_BUCKET_NAME}`);
     console.log(`Region: ${process.env.AWS_REGION}`);
     return true;
   } catch (error) {
-    console.error("❌ S3 connection failed:", error.message);
+    console.error(" S3 connection failed:", error.message);
     console.log("Please check your AWS credentials and permissions.");
     return false;
   }

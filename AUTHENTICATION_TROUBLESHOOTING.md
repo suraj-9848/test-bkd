@@ -11,7 +11,7 @@ Use the new debug information in the SignIn component to identify issues:
 
 ## Common Issues & Solutions
 
-### ❌ Backend Connection Failed (ECONNREFUSED)
+###  Backend Connection Failed (ECONNREFUSED)
 
 **Problem**: Cannot connect to `http://localhost:3000`
 
@@ -28,7 +28,7 @@ lsof -i :3000
 cat .env | grep -E "(GOOGLE_CLIENT_ID|JWT_SECRET|CORS_ORIGIN)"
 ```
 
-### ❌ Admin Login Returns 403 Forbidden
+###  Admin Login Returns 403 Forbidden
 
 **Problem**: `Access denied. Admin account not found.`
 
@@ -46,7 +46,7 @@ node scripts/create-admin-user.js your-email@gmail.com "Your Name"
 # UPDATE users SET userRole = 'admin' WHERE email = 'your-email@gmail.com';
 ```
 
-### ❌ Google Token Validation Failed
+###  Google Token Validation Failed
 
 **Problem**: `Invalid Google token` or authentication errors
 
@@ -118,20 +118,20 @@ node scripts/create-admin-user.js your-email@gmail.com "Your Name"
 
 ### Backend (.env)
 ```env
-✅ JWT_SECRET=long-random-string
-✅ GOOGLE_CLIENT_ID=*.apps.googleusercontent.com
-✅ GOOGLE_CLIENT_SECRET=secret
-✅ CORS_ORIGIN=http://localhost:3001,http://localhost:3002
-✅ MYSQL_DEV_DATABASE_URL=mysql://user:pass@localhost:3306/db
+ JWT_SECRET=long-random-string
+ GOOGLE_CLIENT_ID=*.apps.googleusercontent.com
+ GOOGLE_CLIENT_SECRET=secret
+ CORS_ORIGIN=http://localhost:3001,http://localhost:3002
+ MYSQL_DEV_DATABASE_URL=mysql://user:pass@localhost:3306/db
 ```
 
 ### Frontend (.env.local)
 ```env
-✅ NEXTAUTH_SECRET=your-secret
-✅ NEXTAUTH_URL=http://localhost:3001
-✅ GOOGLE_CLIENT_ID=same-as-backend
-✅ GOOGLE_CLIENT_SECRET=same-as-backend
-✅ NEXT_PUBLIC_BACKEND_BASE_URL=http://localhost:3000
+ NEXTAUTH_SECRET=your-secret
+ NEXTAUTH_URL=http://localhost:3001
+ GOOGLE_CLIENT_ID=same-as-backend
+ GOOGLE_CLIENT_SECRET=same-as-backend
+ NEXT_PUBLIC_BACKEND_BASE_URL=http://localhost:3000
 ```
 
 ## Database Setup

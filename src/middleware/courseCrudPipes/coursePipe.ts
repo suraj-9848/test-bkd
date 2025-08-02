@@ -48,6 +48,6 @@ export function validateCourseBody(
       .json({ message: "End date must be after start date" });
   }
 
-  console.log("✅ Course validation passed");
+  console.log(" Course validation passed");
   next();
 }

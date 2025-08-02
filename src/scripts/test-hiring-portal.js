@@ -192,17 +192,17 @@ async function runTests() {
     console.log("\n1. Login Tests:");
     try {
       adminToken = await login("admin@gmail.com", "Password@123");
-      console.log("✅ Admin login successful");
+      console.log(" Admin login successful");
     } catch (error) {
-      console.error("❌ Admin login failed:", error.message);
+      console.error(" Admin login failed:", error.message);
       return;
     }
 
     try {
       studentToken = await login("test@gmail.com", "Password@123");
-      console.log("✅ Student login successful");
+      console.log(" Student login successful");
     } catch (error) {
-      console.error("❌ Student login failed:", error.message);
+      console.error(" Student login failed:", error.message);
       return;
     }
 
@@ -210,9 +210,9 @@ async function runTests() {
     console.log("\n2. Job Creation Test:");
     try {
       jobId = await createJob(adminToken);
-      console.log("✅ Job creation successful");
+      console.log(" Job creation successful");
     } catch (error) {
-      console.error("❌ Job creation failed:", error.message);
+      console.error(" Job creation failed:", error.message);
       // Continue with other tests even if job creation fails
     }
 
@@ -220,18 +220,18 @@ async function runTests() {
     console.log("\n3. Get All Jobs Test:");
     try {
       const adminJobs = await getAllJobs(adminToken, true);
-      console.log(`✅ Retrieved ${adminJobs.length} jobs as admin`);
+      console.log(` Retrieved ${adminJobs.length} jobs as admin`);
     } catch (error) {
-      console.error("❌ Failed to get jobs as admin:", error.message);
+      console.error(" Failed to get jobs as admin:", error.message);
     }
 
     // Test getting open jobs
     console.log("\n4. Get Open Jobs Test:");
     try {
       const studentJobs = await getAllJobs(studentToken, false);
-      console.log(`✅ Retrieved ${studentJobs.length} open jobs as student`);
+      console.log(` Retrieved ${studentJobs.length} open jobs as student`);
     } catch (error) {
-      console.error("❌ Failed to get open jobs as student:", error.message);
+      console.error(" Failed to get open jobs as student:", error.message);
     }
 
     // Test getting job by ID
@@ -239,12 +239,12 @@ async function runTests() {
     try {
       if (jobId) {
         const job = await getJobById(adminToken, jobId);
-        console.log(`✅ Successfully retrieved job: ${job.title}`);
+        console.log(` Successfully retrieved job: ${job.title}`);
       } else {
         console.log("⚠️ Skipping job details test - no job ID available");
       }
     } catch (error) {
-      console.error("❌ Failed to get job details:", error.message);
+      console.error(" Failed to get job details:", error.message);
     }
 
     // Test job update
@@ -256,12 +256,12 @@ async function runTests() {
           description: "Updated job description with more details",
           location: "Hybrid - San Francisco",
         });
-        console.log(`✅ Successfully updated job to: ${updatedJob.title}`);
+        console.log(` Successfully updated job to: ${updatedJob.title}`);
       } else {
         console.log("⚠️ Skipping job update test - no job ID available");
       }
     } catch (error) {
-      console.error("❌ Failed to update job:", error.message);
+      console.error(" Failed to update job:", error.message);
     }
 
     // Test job application
@@ -285,13 +285,13 @@ async function runTests() {
           sampleResumePath,
         );
         console.log(
-          `✅ Successfully applied for job, application ID: ${applicationId}`,
+          ` Successfully applied for job, application ID: ${applicationId}`,
         );
       } else {
         console.log("⚠️ Skipping job application test - no job ID available");
       }
     } catch (error) {
-      console.error("❌ Failed to apply for job:", error.message);
+      console.error(" Failed to apply for job:", error.message);
     }
 
     // Test getting user applications
@@ -299,10 +299,10 @@ async function runTests() {
     try {
       const applications = await getUserApplications(studentToken);
       console.log(
-        `✅ Successfully retrieved ${applications.length} user applications`,
+        ` Successfully retrieved ${applications.length} user applications`,
       );
     } catch (error) {
-      console.error("❌ Failed to get user applications:", error.message);
+      console.error(" Failed to get user applications:", error.message);
     }
 
     // Test updating application status
@@ -314,21 +314,17 @@ async function runTests() {
           applicationId,
           "under_review",
         );
-        console.log(
-          "✅ Successfully updated application status to under_review",
-        );
+        console.log(" Successfully updated application status to under_review");
 
         await updateApplicationStatus(adminToken, applicationId, "shortlisted");
-        console.log(
-          "✅ Successfully updated application status to shortlisted",
-        );
+        console.log(" Successfully updated application status to shortlisted");
       } else {
         console.log(
           "⚠️ Skipping application status update test - no application ID available",
         );
       }
     } catch (error) {
-      console.error("❌ Failed to update application status:", error.message);
+      console.error(" Failed to update application status:", error.message);
     }
 
     console.log("\n=== ALL TESTS COMPLETED ===");

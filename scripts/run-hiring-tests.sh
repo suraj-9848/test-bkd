@@ -39,7 +39,7 @@ node src/scripts/test-hiring-portal.js
 
 # Check if the test was successful
 if [ $? -eq 0 ]; then
-  echo "✅ Tests completed successfully!"
+  echo " Tests completed successfully!"
 else
-  echo "❌ Tests failed. Check the logs above for details."
+  echo " Tests failed. Check the logs above for details."
 fi

@@ -11,6 +11,7 @@ import {
   bulkEvaluateResponses,
   getEvaluationStatistics,
 } from "../../controllers/instructorControllers/evaluation.controller";
+import { deleteQuestion } from "../../controllers/instructorControllers/test.controller";
 
 const router = Router();
 
@@ -24,10 +25,7 @@ router.put(
   "/tests/:testId/questions/:questionId",
   TestManagementController.updateQuestion,
 );
-router.delete(
-  "/tests/:testId/questions/:questionId",
-  TestManagementController.deleteQuestion,
-);
+router.delete("/tests/:testId/questions/:questionId", deleteQuestion);
 
 // Test publishing and results
 router.put("/tests/:testId/publish", TestManagementController.publishTest);

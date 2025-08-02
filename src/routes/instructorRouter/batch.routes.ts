@@ -1,12 +1,45 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { authMiddleware } from "../../middleware/authMiddleware";
 import { instructorMiddleware } from "../../middleware/instructorMiddleware";
 import { viewAsMiddleware } from "../../middleware/viewAsMiddleware";
+
 import {
   createTest,
   createTestsBulk,
+  createQuestion,
+  getQuestions,
+  updateQuestion,
+  deleteQuestion,
+  publishTest,
 } from "../../controllers/instructorControllers/testManagement.controller";
-import { getTestAnalytics } from "../../controllers/instructorControllers/test.controller";
+
+import {
+  authDebugMiddleware,
+  validateJWTMiddleware,
+  validateDayContentMiddleware,
+} from "../../middleware/authDebugMiddleware";
+
+import {
+  addDayContent,
+  getDayContent,
+  getSingleDayContent,
+  updateDayContent,
+  deleteDayContent,
+  markDayAsCompleted,
+} from "../../controllers/moduleControllers/dayContentControllers";
+
+import {
+  getTestAnalytics,
+  fetchTestById,
+  updateTest,
+  deleteTest,
+  fetchTestsInCourse,
+  evaluateTestSubmission,
+  getSubmissionCount,
+  evaluateTestResponseById,
+  getTestResponses,
+} from "../../controllers/instructorControllers/test.controller";
+
 import {
   createBatch,
   deleteBatch,
@@ -17,7 +50,16 @@ import {
   assignMultipleStudentsToBatch,
   fetchBatchStudents,
   getStudentCourseScores,
+  removeMultipleStudentsFromBatch,
+  removeBatchFromStudent,
+  getBatchStudents,
+  checkStudentBatchAssignment,
+  transferStudentBetweenBatches,
+  assignMultipleStudentsToBatchEnhanced,
+  getStudentsWithBatches,
+  getUserBatches,
 } from "../../controllers/instructorControllers/batch.controller";
+
 import {
   getSubmissionsForEvaluation,
   getSubmissionForEvaluation,
@@ -25,6 +67,7 @@ import {
   bulkEvaluateResponses,
   getEvaluationStatistics,
 } from "../../controllers/instructorControllers/evaluation.controller";
+
 import {
   createCourse,
   fetchCourse,
@@ -33,21 +76,7 @@ import {
   fetchAllCoursesinBatch,
   assignCourseToStudent,
 } from "../../controllers/courseCrudControllers/courseController";
-import {
-  fetchTestById,
-  updateTest,
-  deleteTest,
-  fetchTestsInCourse,
-  createQuestion,
-  getQuestions,
-  updateQuestion,
-  deleteQuestion,
-  teststatustoPublish,
-  evaluateTestSubmission,
-  getSubmissionCount,
-  evaluateTestResponseById,
-  getTestResponses,
-} from "../../controllers/instructorControllers/test.controller";
+
 import {
   createMCQ,
   deleteMCQ,
@@ -55,13 +84,7 @@ import {
   getMCQ,
   updateMCQ,
 } from "../../controllers/moduleControllers/moduleMCQControllers";
-import {
-  addDayContent,
-  deleteDayContent,
-  getDayContent,
-  markDayAsCompleted,
-  updateDayContent,
-} from "../../controllers/moduleControllers/dayContentControllers";
+
 import {
   createModule,
   deleteModule,
@@ -69,6 +92,7 @@ import {
   getSingleModule,
   updateModule,
 } from "../../controllers/moduleControllers/moduleController";
+
 import {
   fetchCourseProgress,
   fetchSessionProgress,
@@ -76,7 +100,6 @@ import {
 
 const router = Router();
 
-// Apply middleware chain: auth -> viewAs -> instructor
 router.use(authMiddleware, viewAsMiddleware, instructorMiddleware);
 
 // Batch routes
@@ -88,14 +111,13 @@ router.delete("/batches/:id", deleteBatch);
 router.post("/batches/:batchId/assign-student", assignBatchToStudent);
 router.post("/batches/:batchId/assign-students", assignMultipleStudentsToBatch);
 
-// Analytics routes for batches
 router.get("/batches/:batchId/students", fetchBatchStudents);
 router.get(
   "/batches/:batchId/courses/:courseId/students/:studentId/scores",
   getStudentCourseScores,
 );
 
-// Course routes (nested under batch)
+// Course routes
 router.post("/batches/:batchId/courses", createCourse);
 router.get("/batches/:batchId/courses", fetchAllCoursesinBatch);
 router.get("/batches/:batchId/courses/:id", fetchCourse);
@@ -107,17 +129,18 @@ router.post(
   assignCourseToStudent,
 );
 
-// Test routes (nested under batch and course)
 router.post("/batches/:batchId/courses/:courseId/tests", createTest);
 router.post("/batches/:batchId/courses/bulk/tests", createTestsBulk);
 router.get("/batches/:batchId/courses/:courseId/tests", fetchTestsInCourse);
 router.get("/batches/:batchId/courses/:courseId/tests/:testId", fetchTestById);
 router.put("/batches/:batchId/courses/:courseId/tests/:testId", updateTest);
 router.delete("/batches/:batchId/courses/:courseId/tests/:testId", deleteTest);
+
 router.patch(
   "/batches/:batchId/courses/:courseId/tests/:testId/publish",
-  teststatustoPublish,
+  publishTest,
 );
+
 router.post(
   "/batches/:batchId/courses/:courseId/tests/:testId/evaluate",
   evaluateTestSubmission,
@@ -139,29 +162,30 @@ router.put(
   evaluateTestResponseById,
 );
 
-// Test Routes of Questions in test
+// Question management routes using correct controller functions
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/questions",
-  getQuestions,
+  getQuestions, // Use getQuestions from testManagement controller
 );
 router.post(
   "/batches/:batchId/courses/:courseId/tests/:testId/questions",
-  createQuestion,
-);
-router.delete(
-  "/batches/:batchId/courses/:courseId/tests/:testId/questions/:questionId",
-  deleteQuestion,
+  createQuestion, // Use createQuestion from testManagement controller
 );
 router.put(
   "/batches/:batchId/courses/:courseId/tests/:testId/questions/:questionId",
-  updateQuestion,
+  updateQuestion, // Use updateQuestion from testManagement controller
 );
+router.delete(
+  "/batches/:batchId/courses/:courseId/tests/:testId/questions/:questionId",
+  deleteQuestion, // Use deleteQuestion from testManagement controller
+);
+
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/analytics",
   getTestAnalytics,
 );
 
-// Module routes (nested under batch and course)
+// Module routes
 router.post("/batches/:batchId/courses/:courseId/modules", createModule);
 router.get("/batches/:batchId/courses/:courseId/modules", getAllModules);
 router.get(
@@ -177,7 +201,7 @@ router.delete(
   deleteModule,
 );
 
-// Day Content routes (nested under batch, course, and module)
+// Day content routes
 router.post(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content",
   addDayContent,
@@ -199,7 +223,7 @@ router.patch(
   markDayAsCompleted,
 );
 
-// MCQ routes (nested under batch, course, and module)
+// MCQ routes
 router.post(
   "/batches/:batchId/courses/:courseId/modules/:moduleId/mcq",
   createMCQ,
@@ -240,11 +264,182 @@ router.get(
   getEvaluationStatistics,
 );
 
-// Progress tracking routes
+// Progress routes
 router.get("/batches/:batchId/courses/:courseId/progress", fetchCourseProgress);
 router.get("/sessions/:sessionId/progress", fetchSessionProgress);
+router.get("/students-with-batches", getStudentsWithBatches);
 
-// Direct course update route (for batch assignments)
+router.get("/users/:userId/batches", getUserBatches);
+
+router.post(
+  "/:batchId/assign-multiple-enhanced",
+  assignMultipleStudentsToBatchEnhanced,
+);
+
+router.delete("/:batchId/remove-students", removeMultipleStudentsFromBatch);
+router.delete("/:batchId/remove-student", removeBatchFromStudent);
+router.get("/:batchId/students", getBatchStudents);
+router.get("/:batchId/students/:studentId/check", checkStudentBatchAssignment);
+router.post("/transfer-student", transferStudentBetweenBatches);
+
+// Bulk assignment route
+router.post("/bulk-assign", async (req: Request, res: Response) => {
+  try {
+    const { assignments } = req.body;
+
+    if (!Array.isArray(assignments) || assignments.length === 0) {
+      return res.status(400).json({
+        message: "assignments array is required and cannot be empty",
+      });
+    }
+
+    const results = [];
+    const errors = [];
+
+    for (const assignment of assignments) {
+      const { batchId, studentIds } = assignment;
+
+      try {
+        const mockReq = {
+          params: { batchId },
+          body: { userIds: studentIds },
+        } as any;
+        const mockRes = {
+          status: (code: number) => ({
+            json: (data: any) => ({ statusCode: code, data }),
+          }),
+        } as any;
+
+        const result = await assignMultipleStudentsToBatchEnhanced(
+          mockReq,
+          mockRes,
+        );
+
+        results.push({
+          batchId,
+          studentIds,
+          success: true,
+          result,
+        });
+      } catch (error) {
+        errors.push({
+          batchId,
+          studentIds,
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+
+    return res.status(200).json({
+      message: `Bulk assignment completed: ${results.length} successful, ${errors.length} failed`,
+      results,
+      errors: errors.length > 0 ? errors : undefined,
+      totalAssignments: assignments.length,
+      successCount: results.length,
+      errorCount: errors.length,
+    });
+  } catch (err) {
+    console.error("Error in bulk assignment:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// Additional enhanced routes
+router.get("/students-with-batches", getStudentsWithBatches);
+router.get("/users/:userId/batches", getUserBatches);
+router.post(
+  "/batches/:batchId/assign-multiple-enhanced",
+  assignMultipleStudentsToBatchEnhanced,
+);
+router.delete(
+  "/batches/:batchId/remove-students",
+  removeMultipleStudentsFromBatch,
+);
+router.delete("/batches/:batchId/remove-student", removeBatchFromStudent);
+
+router.post(
+  "/batches/transfer-student",
+  async (req: Request, res: Response) => {
+    try {
+      const { studentId, fromBatchId, toBatchId } = req.body;
+
+      if (!studentId || !fromBatchId || !toBatchId) {
+        return res.status(400).json({
+          message: "studentId, fromBatchId, and toBatchId are required",
+        });
+      }
+
+      await removeBatchFromStudent(
+        {
+          params: { batchId: fromBatchId },
+          body: { userId: studentId },
+        } as any,
+        res as any,
+      );
+
+      await assignBatchToStudent(
+        { params: { batchId: toBatchId }, body: { userId: studentId } } as any,
+        res as any,
+      );
+
+      return res.status(200).json({
+        message: "Student transferred successfully",
+        studentId,
+        fromBatchId,
+        toBatchId,
+      });
+    } catch (err) {
+      console.error("Transfer error:", err);
+      return res.status(500).json({ message: "Transfer failed" });
+    }
+  },
+);
+
+// Day content routes with enhanced debugging
+router.use(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content*",
+  authDebugMiddleware,
+);
+
+router.post(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content",
+  validateJWTMiddleware,
+  validateDayContentMiddleware,
+  addDayContent,
+);
+
+router.get(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content",
+  validateJWTMiddleware,
+  getDayContent,
+);
+
+router.get(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId",
+  validateJWTMiddleware,
+  getSingleDayContent,
+);
+
+router.put(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId",
+  validateJWTMiddleware,
+  validateDayContentMiddleware,
+  updateDayContent,
+);
+
+router.delete(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId",
+  validateJWTMiddleware,
+  deleteDayContent,
+);
+
+router.patch(
+  "/batches/:batchId/courses/:courseId/modules/:moduleId/day-content/:dayId/complete",
+  validateJWTMiddleware,
+  markDayAsCompleted,
+);
+
 router.put("/courses/:id", updateCourse);
 
 export const instructorRouter = router;

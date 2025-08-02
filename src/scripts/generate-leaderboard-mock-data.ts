@@ -67,7 +67,7 @@ async function main() {
     if (!course) {
       course = courseRepo.create(courseData);
       await courseRepo.save(course);
-      console.log(`✅ Created course: ${course.title} (ID: ${course.id})`);
+      console.log(` Created course: ${course.title} (ID: ${course.id})`);
     } else {
       console.log(`ℹ️ Course already exists: ${course.title}`);
     }
@@ -86,7 +86,7 @@ async function main() {
       courses: createdCourses, // Link all courses to this batch
     });
     await batchRepo.save(batch);
-    console.log(`✅ Created batch: ${batch.name} (ID: ${batch.id})`);
+    console.log(` Created batch: ${batch.name} (ID: ${batch.id})`);
   } else {
     console.log(`ℹ️ Batch already exists: ${batch.name}`);
   }
@@ -112,7 +112,7 @@ async function main() {
           isLocked: false, // Make modules unlocked so they're accessible
         });
         await moduleRepo.save(module);
-        console.log(`  ✅ Created module: ${module.title} (ID: ${module.id})`);
+        console.log(`   Created module: ${module.title} (ID: ${module.id})`);
       } else {
         console.log(`  ℹ️ Module already exists: ${module.title}`);
       }
@@ -183,7 +183,7 @@ async function main() {
   }
 
   console.log(
-    "✅ Sample courses, modules, batch, and leaderboard data created successfully!",
+    " Sample courses, modules, batch, and leaderboard data created successfully!",
   );
   console.log(`📚 Created ${createdCourses.length} courses`);
   console.log(`📖 Created ${createdCourses.length * 4} modules (4 per course)`);

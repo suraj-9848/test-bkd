@@ -125,7 +125,7 @@ export const updateJob = async (req: Request, res: Response) => {
       skills,
       eligibleBranches,
       status,
-      location, // ✅ included here
+      location, //  included here
     } = req.body;
 
     if (!jobId) {
@@ -161,7 +161,7 @@ export const updateJob = async (req: Request, res: Response) => {
       if (title !== undefined) updateData.title = title;
       if (companyName !== undefined) updateData.companyName = companyName;
       if (description !== undefined) updateData.description = description;
-      if (location !== undefined) updateData.location = location; // ✅ new line
+      if (location !== undefined) updateData.location = location; //  new line
       if (skills !== undefined)
         updateData.skills = Array.isArray(skills) ? skills : [skills];
       if (eligibleBranches !== undefined)

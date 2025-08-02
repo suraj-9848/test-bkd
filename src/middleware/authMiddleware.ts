@@ -349,7 +349,7 @@ export const studentAuthMiddleware = async (
       originalRole === UserRole.ADMIN && effectiveRole === UserRole.STUDENT;
 
     if (!isStudentAccess && !isAdminViewingAsStudent) {
-      console.log("❌ Student access denied:", {
+      console.log(" Student access denied:", {
         userId: req.user.id,
         originalRole,
         effectiveRole,
@@ -374,7 +374,7 @@ export const studentAuthMiddleware = async (
       });
     });
 
-    console.log("✅ Student access granted:", {
+    console.log(" Student access granted:", {
       userId: req.user.id,
       originalRole,
       effectiveRole,
@@ -383,7 +383,7 @@ export const studentAuthMiddleware = async (
 
     next();
   } catch (error) {
-    console.error("❌ Error in studentAuthMiddleware:", error);
+    console.error("Error in studentAuthMiddleware:", error);
     return res.status(500).json({
       error: "Internal authentication error",
       details: error.message,

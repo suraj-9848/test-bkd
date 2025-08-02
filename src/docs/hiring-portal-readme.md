@@ -105,7 +105,7 @@ For more detailed information, refer to these guides:
 
 The current implementation has a few items pending completion:
 
-1. ✅ Organization ID validation is now mandatory for job creation
+1.  Organization ID validation is now mandatory for job creation
 2. ⏳ Complete comprehensive testing of all implemented functionalities
 3. 🔄 Potential enhancements to consider:
    - Search functionality for jobs by skills or keywords

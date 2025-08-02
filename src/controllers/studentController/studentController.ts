@@ -1577,7 +1577,7 @@ export const getGlobalTestLeaderboard = async (req, res) => {
       data: leaderboard,
     });
   } catch (error) {
-    console.error("❌ Error fetching leaderboard:", error);
+    console.error(" Error fetching leaderboard:", error);
     res.status(500).json({
       message: "Error fetching leaderboard",
       error: error.message,

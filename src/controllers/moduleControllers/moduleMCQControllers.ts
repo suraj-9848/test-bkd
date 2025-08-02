@@ -206,7 +206,7 @@ const validateMCQQuestions = (questions: MCQQuestion[]): boolean => {
   });
 };
 
-// ✅ Create MCQ with Quill support
+//  Create MCQ with Quill support
 export const createMCQ = async (req: Request, res: Response) => {
   const { moduleId } = req.params;
   const { questions, passingScore } = req.body;
@@ -305,7 +305,7 @@ export const createMCQ = async (req: Request, res: Response) => {
   }
 };
 
-// ✅ Get MCQ by ID with Quill support
+//  Get MCQ by ID with Quill support
 export const getMCQById = async (req: Request, res: Response) => {
   const { mcqId } = req.params;
 
@@ -334,7 +334,7 @@ export const getMCQById = async (req: Request, res: Response) => {
   }
 };
 
-// ✅ Update MCQ with Quill support
+//  Update MCQ with Quill support
 export const updateMCQ = async (req: Request, res: Response) => {
   const { mcqId } = req.params;
   const { questions, passingScore } = req.body;
@@ -347,7 +347,7 @@ export const updateMCQ = async (req: Request, res: Response) => {
 
   try {
     if (!mcqId) {
-      console.log("❌ [UPDATE MCQ] No MCQ ID provided");
+      console.log(" [UPDATE MCQ] No MCQ ID provided");
       return res.status(400).json({ message: "MCQ ID is required" });
     }
 
@@ -357,11 +357,11 @@ export const updateMCQ = async (req: Request, res: Response) => {
     });
 
     if (!existingMCQ) {
-      console.log("❌ [UPDATE MCQ] MCQ not found with ID:", mcqId);
+      console.log(" [UPDATE MCQ] MCQ not found with ID:", mcqId);
       return res.status(404).json({ message: "MCQ not found" });
     }
 
-    console.log("✅ [UPDATE MCQ] Found existing MCQ:", existingMCQ.id);
+    console.log(" [UPDATE MCQ] Found existing MCQ:", existingMCQ.id);
 
     // Check if any students have already attempted this MCQ
     const existingResponses = await getAllRecordsWithFilter(
@@ -456,7 +456,7 @@ export const updateMCQ = async (req: Request, res: Response) => {
   }
 };
 
-// ✅ Delete MCQ
+//  Delete MCQ
 export const deleteMCQ = async (req: Request, res: Response) => {
   const { mcqId } = req.params;
 
@@ -466,7 +466,7 @@ export const deleteMCQ = async (req: Request, res: Response) => {
 
   try {
     if (!mcqId) {
-      console.log("❌ [DELETE MCQ] No MCQ ID provided");
+      console.log(" [DELETE MCQ] No MCQ ID provided");
       return res.status(400).json({ message: "MCQ ID is required" });
     }
 
@@ -476,11 +476,11 @@ export const deleteMCQ = async (req: Request, res: Response) => {
     });
 
     if (!existingMCQ) {
-      console.log("❌ [DELETE MCQ] MCQ not found with ID:", mcqId);
+      console.log(" [DELETE MCQ] MCQ not found with ID:", mcqId);
       return res.status(404).json({ message: "MCQ not found" });
     }
 
-    console.log("✅ [DELETE MCQ] Found MCQ to delete:", existingMCQ.id);
+    console.log(" [DELETE MCQ] Found MCQ to delete:", existingMCQ.id);
 
     // Check if any students have already attempted this MCQ
     const existingResponses = await getAllRecordsWithFilter(
@@ -509,7 +509,7 @@ export const deleteMCQ = async (req: Request, res: Response) => {
   }
 };
 
-// ✅ Get MCQ by Module ID with Quill support (Fixed relation)
+//  Get MCQ by Module ID with Quill support (Fixed relation)
 export const getMCQ = async (req: Request, res: Response) => {
   const { courseId, moduleId } = req.params;
 
@@ -528,12 +528,12 @@ export const getMCQ = async (req: Request, res: Response) => {
     });
 
     if (!moduleData) {
-      console.log(`❌ [GET MCQ] Module not found with ID: ${moduleId}`);
+      console.log(` [GET MCQ] Module not found with ID: ${moduleId}`);
       return res.status(404).json({ message: "Module not found" });
     }
 
     console.log(
-      `✅ [GET MCQ] Module found: ${moduleData.id} - ${moduleData.title}`,
+      ` [GET MCQ] Module found: ${moduleData.id} - ${moduleData.title}`,
     );
 
     // Get MCQ for this module (fixed relation name)
@@ -550,7 +550,7 @@ export const getMCQ = async (req: Request, res: Response) => {
     }
 
     console.log(
-      `✅ [GET MCQ] MCQ found for module: ${moduleId}, MCQ ID: ${mcq.id}`,
+      ` [GET MCQ] MCQ found for module: ${moduleId}, MCQ ID: ${mcq.id}`,
     );
 
     res.status(200).json({
@@ -564,14 +564,14 @@ export const getMCQ = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error(
-      `❌ [GET MCQ] Error fetching MCQ for module ${moduleId}:`,
+      ` [GET MCQ] Error fetching MCQ for module ${moduleId}:`,
       error,
     );
     res.status(500).json({ message: "Error fetching MCQ" });
   }
 };
 
-// ✅ Get MCQ for student (without correct answers)
+//  Get MCQ for student (without correct answers)
 export const getMCQForStudent = async (req: Request, res: Response) => {
   const { moduleId } = req.params;
   const userId = req.user?.id;

@@ -12,7 +12,7 @@ async function createAdminUser() {
   try {
     console.log('🔄 Initializing database connection...');
     await AppDataSource.initialize();
-    console.log('✅ Database connected successfully');
+    console.log(' Database connected successfully');
 
     const userRepository = AppDataSource.getRepository(User);
 
@@ -31,7 +31,7 @@ async function createAdminUser() {
       console.log('👤 User already exists, updating role to ADMIN...');
       existingUser.userRole = UserRole.ADMIN;
       await userRepository.save(existingUser);
-      console.log('✅ User role updated to ADMIN successfully');
+      console.log(' User role updated to ADMIN successfully');
     } else {
       console.log('➕ Creating new admin user...');
       const newUser = userRepository.create({
@@ -42,7 +42,7 @@ async function createAdminUser() {
       });
 
       await userRepository.save(newUser);
-      console.log('✅ New admin user created successfully');
+      console.log(' New admin user created successfully');
     }
 
     console.log('🎉 Admin user setup complete!');
@@ -52,7 +52,7 @@ async function createAdminUser() {
     console.log('🔐 You can now login with this Google account as an admin');
 
   } catch (error) {
-    console.error('❌ Error creating admin user:', error.message);
+    console.error(' Error creating admin user:', error.message);
     console.error('Stack trace:', error.stack);
   } finally {
     if (AppDataSource.isInitialized) {

@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import { config } from "../config";
 import "reflect-metadata";
 import { DataSource } from "typeorm";
@@ -8,39 +7,76 @@ import { getLogger } from "../utils/logger";
 
 const logger = getLogger();
 
-// const connectionString = config.MONGO_DB_CONNECTION_STRING
-
-// export const connectMongoDB = async () => {
-
-//         await mongoose.connect(connectionString);
-//         logger.info("MongoDB connected...");
-//     // } catch (err) {
-//         // logger.error("Failed to connect MongoDB", err);
-//         // process.exit(1); // Exit if DB connection fails
-
-// };
-
-export const disconnect = function () {
-  logger.info("Got call to disconnect DB");
-  mongoose.disconnect();
-};
-
 export const AppDataSource = new DataSource(MysqlConfig);
 
-// REDIS CLIENT
+// IMPROVED REDIS CLIENT WITH PROPER ERROR HANDLING
 export const redisClient = createClient({
   url: config.REDIS_URL,
+  socket: {
+    reconnectStrategy: (retries) => {
+      if (retries > 20) {
+        logger.error("Too many Redis reconnection attempts, giving up");
+        return false;
+      }
+      return Math.min(retries * 50, 500);
+    },
+  },
 });
 
-// REDIS CLIENT EVENTS
-redisClient.on("error", log("REDIS ERROR "));
-redisClient.on("end", log("REDIS END"));
-redisClient.on("ready", log("REDIS READY"));
-redisClient.on("reconnecting", log("REDIS TRYING TO RECONNECT"));
-redisClient.on("connect", log("REDIS CONNECTED"));
+// ENHANCED REDIS CLIENT EVENTS
+redisClient.on("error", (err) => {
+  logger.error("REDIS ERROR:", err);
+});
+redisClient.on("end", () => {
+  logger.info("REDIS CONNECTION ENDED");
+});
+redisClient.on("ready", () => {
+  logger.info("REDIS READY");
+});
+redisClient.on("reconnecting", () => {
+  logger.info("REDIS RECONNECTING");
+});
+redisClient.on("connect", () => {
+  logger.info("REDIS CONNECTED");
+});
 
-function log(type: string) {
-  return function () {
-    logger.info(type);
-  };
-}
+// IMPROVED DATABASE CONNECTION INITIALIZATION
+export const initializeConnections = async (): Promise<void> => {
+  try {
+    // Initialize TypeORM connection
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+      logger.info("TypeORM DataSource has been initialized!");
+    }
+
+    // Initialize Redis connection
+    if (!redisClient.isOpen) {
+      await redisClient.connect();
+      logger.info("Redis client connected!");
+    }
+  } catch (error) {
+    logger.error("Error during Data Source initialization:", error);
+    throw error;
+  }
+};
+
+// GRACEFUL SHUTDOWN
+export const closeConnections = async (): Promise<void> => {
+  try {
+    if (AppDataSource.isInitialized) {
+      await AppDataSource.destroy();
+      logger.info("TypeORM connection closed");
+    }
+
+    if (redisClient.isOpen) {
+      await redisClient.quit();
+      logger.info("Redis connection closed");
+    }
+  } catch (error) {
+    logger.error("Error closing connections:", error);
+  }
+};
+
+// Handle process termination
+process.on("SIGTERM", closeConnections);
+process.on("SIGINT", closeConnections);

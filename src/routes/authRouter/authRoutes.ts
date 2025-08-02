@@ -38,19 +38,19 @@ const getOrCreateDefaultOrg = async (): Promise<Org> => {
     });
 
     if (!defaultOrg) {
-      logger.info("🏢 Creating default organization...");
+      logger.info("Creating default organization...");
       defaultOrg = orgRepository.create({
-        name: "Nirudhyog Default",
-        description: "Default organization for new users",
+        name: "Nirudhyog",
+        description: "organization for new users",
         address: null,
       });
       defaultOrg = await orgRepository.save(defaultOrg);
-      logger.info(`✅ Default organization created with ID: ${defaultOrg.id}`);
+      logger.info(` Default organization created with ID: ${defaultOrg.id}`);
     }
 
     return defaultOrg;
   } catch (error) {
-    logger.error("❌ Error getting/creating default organization:", error);
+    logger.error(" Error getting/creating default organization:", error);
     throw error;
   }
 };
@@ -110,18 +110,18 @@ router.post("/exchange", async (req: Request, res: Response) => {
 
     const payload = ticket.getPayload();
     if (!payload) {
-      logger.error("❌ Invalid Google token payload");
+      logger.error(" Invalid Google token payload");
       return res.status(400).json({ error: "Invalid Google token payload" });
     }
 
     const { email, name, picture } = payload;
 
     if (!email) {
-      logger.error("❌ Email not provided by Google");
+      logger.error(" Email not provided by Google");
       return res.status(400).json({ error: "Email not provided by Google" });
     }
 
-    logger.info(`✅ Google verification successful for email: ${email}`);
+    logger.info(` Google verification successful for email: ${email}`);
 
     // Step 2: Check if user exists
     logger.info(`🔍 Step 2: Checking if user exists for email: ${email}`);
@@ -133,7 +133,7 @@ router.post("/exchange", async (req: Request, res: Response) => {
         `📊 Database query result: ${user ? "User found" : "No user found"}`,
       );
     } catch (dbError) {
-      logger.error("❌ Database error while checking user:", dbError);
+      logger.error(" Database error while checking user:", dbError);
       throw new Error(
         `Database query failed: ${dbError instanceof Error ? dbError.message : "Unknown error"}`,
       );
@@ -169,7 +169,7 @@ router.post("/exchange", async (req: Request, res: Response) => {
         user = await userRepository.save(newUser);
 
         logger.info(
-          `✅ New student user created successfully with ID: ${user.id}`,
+          ` New student user created successfully with ID: ${user.id}`,
         );
         logger.info(`👤 Created user details:`, {
           id: user.id,
@@ -179,7 +179,7 @@ router.post("/exchange", async (req: Request, res: Response) => {
           org_id: user.org_id,
         });
       } catch (createError) {
-        logger.error("❌ Error creating new user:", createError);
+        logger.error(" Error creating new user:", createError);
 
         // Log detailed error information
         if (createError instanceof Error) {
@@ -203,7 +203,7 @@ router.post("/exchange", async (req: Request, res: Response) => {
         );
       }
     } else {
-      logger.info(`✅ Existing user found with ID: ${user.id}`);
+      logger.info(` Existing user found with ID: ${user.id}`);
 
       // Ensure user is a student for this endpoint
       if (user.userRole !== UserRole.STUDENT) {
@@ -215,7 +215,7 @@ router.post("/exchange", async (req: Request, res: Response) => {
             "This login is for students only. Please use the admin portal if you have admin access.",
         });
       }
-      logger.info(`✅ Existing student user logged in: ${user.id}`);
+      logger.info(` Existing student user logged in: ${user.id}`);
     }
 
     // Step 4: Generate tokens
@@ -226,9 +226,9 @@ router.post("/exchange", async (req: Request, res: Response) => {
       const tokens = await createTokensAndSave(user);
       accessToken = tokens.accessToken;
       refreshToken = tokens.refreshToken;
-      logger.info("✅ Tokens generated successfully");
+      logger.info(" Tokens generated successfully");
     } catch (tokenError) {
-      logger.error("❌ Error generating tokens:", tokenError);
+      logger.error(" Error generating tokens:", tokenError);
       throw new Error(
         `Token generation failed: ${tokenError instanceof Error ? tokenError.message : "Unknown error"}`,
       );
@@ -238,9 +238,9 @@ router.post("/exchange", async (req: Request, res: Response) => {
     logger.info("🍪 Step 5: Setting authentication cookies...");
     try {
       setAuthCookies(res, accessToken, refreshToken);
-      logger.info("✅ Authentication cookies set successfully");
+      logger.info(" Authentication cookies set successfully");
     } catch (cookieError) {
-      logger.error("❌ Error setting cookies:", cookieError);
+      logger.error(" Error setting cookies:", cookieError);
       // Don't fail here, cookies are optional
     }
 

@@ -324,7 +324,7 @@ export const fetchCourse = async (req: Request, res: Response) => {
     const courseId = req.params.courseId || req.params.id;
 
     if (!courseId) {
-      console.log("❌ [FETCH COURSE] No course ID provided");
+      console.log(" [FETCH COURSE] No course ID provided");
       return res.status(400).json({ message: "Course ID is required" });
     }
 
@@ -350,11 +350,11 @@ export const fetchCourse = async (req: Request, res: Response) => {
     );
 
     if (!course) {
-      console.log("❌ [FETCH COURSE] Course not found with ID:", courseId);
+      console.log(" [FETCH COURSE] Course not found with ID:", courseId);
       return res.status(404).json({ message: "Course not found" });
     }
 
-    console.log("✅ [FETCH COURSE] Course found:", {
+    console.log(" [FETCH COURSE] Course found:", {
       id: course.id,
       title: course.title,
       modulesCount: course.modules?.length || 0,
@@ -365,7 +365,7 @@ export const fetchCourse = async (req: Request, res: Response) => {
       course,
     });
   } catch (err) {
-    console.error("❌ [FETCH COURSE] Fetch course error:", err);
+    console.error(" [FETCH COURSE] Fetch course error:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -473,7 +473,7 @@ export const fetchAllCoursesForInstructor = async (
     console.log("📚 [INSTRUCTOR COURSES] Fetching all courses for instructor");
     const user = req.user;
     if (!user) {
-      console.log("❌ [INSTRUCTOR COURSES] User not authenticated");
+      console.log(" [INSTRUCTOR COURSES] User not authenticated");
       return res.status(401).json({ message: "User not authenticated" });
     }
 
@@ -496,10 +496,7 @@ export const fetchAllCoursesForInstructor = async (
       10 * 60,
     ); // Cache for 10 minutes
 
-    console.log(
-      "✅ [INSTRUCTOR COURSES] Fetched courses count:",
-      courses.length,
-    );
+    console.log(" [INSTRUCTOR COURSES] Fetched courses count:", courses.length);
     console.log(
       "📋 [INSTRUCTOR COURSES] Course titles:",
       courses.map((c) => c.title),
@@ -510,10 +507,7 @@ export const fetchAllCoursesForInstructor = async (
       courses,
     });
   } catch (err) {
-    console.error(
-      "❌ [INSTRUCTOR COURSES] Fetch instructor courses error:",
-      err,
-    );
+    console.error(" [INSTRUCTOR COURSES] Fetch instructor courses error:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
