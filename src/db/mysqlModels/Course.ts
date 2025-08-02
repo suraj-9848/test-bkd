@@ -52,6 +52,48 @@ export class Course extends BaseEntity {
   @Column()
   instructor_name: string;
 
+  @Column({ type: "text", nullable: true })
+  overview: string;
+
+  @Column({ nullable: true })
+  trainer_name: string;
+
+  @Column({ type: "text", nullable: true })
+  trainer_bio: string;
+
+  @Column({ nullable: true })
+  trainer_avatar: string;
+
+  @Column({ nullable: true })
+  trainer_linkedin: string;
+
+  @Column({ type: "float", nullable: true })
+  price: number;
+
+  @Column({ nullable: true })
+  duration: string;
+
+  @Column({ nullable: true })
+  image: string;
+
+  @Column("simple-array", { nullable: true })
+  features: string[];
+
+  @Column("simple-array", { nullable: true })
+  curriculum: string[];
+
+  @Column("simple-array", { nullable: true })
+  prerequisites: string[];
+
+  @Column("simple-array", { nullable: true })
+  tags: string[];
+
+  @Column({ nullable: true })
+  mode: string;
+
+  @Column("simple-array", { nullable: true })
+  what_you_will_learn: string[];
+
   @OneToMany(() => UserCourse, (uc) => uc.course, { cascade: true })
   userCourses: UserCourse[];
 

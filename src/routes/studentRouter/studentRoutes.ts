@@ -25,10 +25,17 @@ import {
   getStudentBatches,
   getStudentDashboardStats,
   getMCQRetakeStatus,
+  getStudentPublicCourses,
+  OptionalStudentAuthMiddleware,
 } from "../../controllers/studentController/studentController";
 
 const router = express.Router();
 
+router.get(
+  "/courses/public",
+  OptionalStudentAuthMiddleware, // Use the optional middleware
+  getStudentPublicCourses,
+);
 // Apply middlewares in order:
 // 1. View-as middleware (handles admin "view as student" functionality)
 // 2. Student auth middleware (validates student access)
@@ -45,6 +52,7 @@ router.get("/tests/:testId/results", getStudentTestResults);
 
 // Course routes
 router.get("/courses", getStudentCourses);
+router.get("/courses/public", getStudentPublicCourses);
 router.get("/courses/:courseId", getStudentCourseById);
 router.get("/courses/:courseId/modules", getStudentCourseModules);
 

@@ -8,6 +8,7 @@ import sessionProgressRoutes from "./routes/sessionRouter/sessionprogressRoutes"
 import path from "path";
 import swaggerUi from "swagger-ui-express";
 import { specs } from "./config/swagger";
+import paymentRoutes from "./routes/paymentRoutes";
 
 dotenv.config({
   path: "./.env",
@@ -54,6 +55,7 @@ app.use(
       }
     },
     credentials: true,
+    exposedHeaders: ["x-rtb-fingerprint-id"],
   }),
 );
 
@@ -94,6 +96,7 @@ app.use("/api/student", studentRouter);
 app.use("/api/admin/hiring", hiringAdminRouter);
 app.use("/api/hiring", hiringPublicRouter); // Public routes must come before authenticated routes
 app.use("/api/hiring", hiringUserRouter);
+app.use("/api/payment", paymentRoutes);
 
 app.get("/", (req, res) => {
   res.send("App is running");

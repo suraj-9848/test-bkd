@@ -1,5 +1,7 @@
+import jwt from "jsonwebtoken";
 import { Request, Response } from "express";
 import { In, Not } from "typeorm";
+
 import { Course } from "../../db/mysqlModels/Course";
 import { Module } from "../../db/mysqlModels/Module";
 import { UserCourse } from "../../db/mysqlModels/UserCourse";
@@ -750,26 +752,10 @@ export const getStudentCourses = async (req: Request, res: Response) => {
     ); // Cache for 5 minutes
 
     const assignedCourses = userCourses.map((uc) => uc.course);
-    const assignedCourseIds = assignedCourses.map((course) => course.id);
-
-    // Get all public courses that are not already assigned to this student using utility function
-    const publicCourses = await getAllRecordsWithFilter(
-      Course,
-      {
-        where: {
-          is_public: true,
-          id: Not(In(assignedCourseIds.length > 0 ? assignedCourseIds : [""])),
-        },
-      },
-      `public_courses:excluding:${assignedCourseIds.join(",")}`,
-      true,
-      10 * 60,
-    ); // Cache for 10 minutes
-
-    // Combine assigned courses and public courses
-    const allCourses = [...assignedCourses, ...publicCourses];
+    // Only assigned courses should be shown to the student
+    const allCourses = assignedCourses;
     console.log(
-      `Found ${assignedCourses.length} assigned courses and ${publicCourses.length} public courses for student ${studentId}`,
+      `Found ${assignedCourses.length} assigned courses for student ${studentId}`,
     );
 
     // Enhance each course with module statistics and progress
@@ -1883,3 +1869,81 @@ export const getMCQRetakeStatus = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Error checking MCQ retake status" });
   }
 };
+
+export const getStudentPublicCourses = async (req: Request, res: Response) => {
+  console.log("[DEBUG] getStudentPublicCourses called for user:", req.user?.id);
+  try {
+    const student = req.user as User;
+    let publicCourses: Course[] = [];
+    if (student && student.id) {
+      console.log("[DEBUG] Authenticated student detected:", student.id);
+      // Get all course IDs assigned to the student
+      const userCourses = await getAllRecordsWithFilter(UserCourse, {
+        where: { user: { id: student.id } },
+        relations: ["course"],
+      });
+      const assignedCourseIds = userCourses.map((uc) => uc.course.id);
+      console.log(
+        "[DEBUG] Assigned course IDs for student",
+        student.id,
+        assignedCourseIds,
+      );
+      // Get all public courses NOT assigned to the student
+      publicCourses = await getAllRecordsWithFilter(Course, {
+        where: {
+          is_public: true,
+          id:
+            assignedCourseIds.length > 0
+              ? Not(In(assignedCourseIds))
+              : undefined,
+        },
+      });
+      console.log(
+        "[DEBUG] Public courses query completed for student",
+        student.id,
+      );
+      if (publicCourses && publicCourses.length > 0) {
+        console.log(
+          "[DEBUG] Public courses returned for student",
+          student.id,
+          publicCourses.map((c) => c.id),
+        );
+      } else {
+        console.log(
+          "[DEBUG] No public courses returned for student",
+          student.id,
+        );
+      }
+    } else {
+      // If not authenticated, show all public courses
+      console.log("[DEBUG] Unauthenticated user, returning all public courses");
+      publicCourses = await getAllRecordsWithFilter(Course, {
+        where: { is_public: true },
+      });
+      console.log(
+        "[DEBUG] All public courses returned:",
+        publicCourses.map((c) => c.id),
+      );
+    }
+    return res.json({ courses: publicCourses });
+  } catch (error) {
+    console.error("Error fetching public courses:", error);
+    return res.status(500).json({ message: "Error fetching public courses" });
+  }
+};
+
+export function OptionalStudentAuthMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.split(" ")[1];
+    try {
+      // Use your actual JWT secret here
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      req.user = decoded;
+    } catch {
+      // Invalid token, do not set req.user
+      req.user = undefined;
+    }
+  }
+  next();
+}
