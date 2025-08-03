@@ -1,57 +1,5 @@
-// Test Analytics: Number of students who gave and did not give the test
-import { UserCourse } from "../../db/mysqlModels/UserCourse";
-
-export const getTestAnalytics = async (req: Request, res: Response) => {
-  try {
-    const { courseId, testId } = req.params;
-
-    const userCourses = await UserCourse.find({
-      where: { course: { id: courseId } },
-      relations: ["user"],
-    });
-    const allStudentIds = userCourses.map((uc) => uc.user.id);
-
-    const testSubmissions = await TestSubmission.find({
-      where: { test: { id: testId } },
-      relations: ["user"],
-    });
-    const submittedStudentIds = testSubmissions.map((ts) => ts.user.id);
-
-    const studentsWhoGave = allStudentIds.filter((id) =>
-      submittedStudentIds.includes(id),
-    );
-    const studentsWhoDidNotGive = allStudentIds.filter(
-      (id) => !submittedStudentIds.includes(id),
-    );
-
-    const studentsGave = userCourses
-      .filter((uc) => studentsWhoGave.includes(uc.user.id))
-      .map((uc) => ({
-        id: uc.user.id,
-        username: uc.user.username,
-        email: uc.user.email,
-      }));
-    const studentsNotGave = userCourses
-      .filter((uc) => studentsWhoDidNotGive.includes(uc.user.id))
-      .map((uc) => ({
-        id: uc.user.id,
-        username: uc.user.username,
-        email: uc.user.email,
-      }));
-
-    return res.status(200).json({
-      totalEnrolled: allStudentIds.length,
-      gaveTest: studentsWhoGave.length,
-      didNotGiveTest: studentsWhoDidNotGive.length,
-      studentsGave,
-      studentsNotGave,
-    });
-  } catch (error) {
-    console.error("Error in getTestAnalytics:", error);
-    return res.status(500).json({ error: "Failed to fetch test analytics" });
-  }
-};
 import { Request, Response } from "express";
+import { UserCourse } from "../../db/mysqlModels/UserCourse";
 import { Test, TestStatus } from "../../db/mysqlModels/Test";
 import { Question, QuestionType } from "../../db/mysqlModels/Question";
 import { Course } from "../../db/mysqlModels/Course";
@@ -71,6 +19,181 @@ import { getLoggerByName } from "../../utils/logger";
 import { redisClient } from "../../db/connect";
 
 const logger = getLoggerByName("QuestionController");
+
+export const getTestAnalytics = async (req: Request, res: Response) => {
+  try {
+    const { courseId, testId } = req.params;
+
+    // Get all enrolled students
+    const userCourses = await getAllRecordsWithFilter(UserCourse, {
+      where: { course: { id: courseId } },
+      relations: ["user"],
+    });
+    const allStudentIds = userCourses.map((uc) => uc.user.id);
+
+    // Get all submissions for the test
+    const testSubmissions = await getAllRecordsWithFilter(TestSubmission, {
+      where: { test: { id: testId } },
+      relations: [
+        "user",
+        "responses",
+        "responses.question",
+        "responses.question.options",
+      ],
+      order: { submittedAt: "ASC" },
+    });
+    const submittedStudentIds = testSubmissions.map((ts) => ts.user.id);
+
+    // Students who submitted and who did not
+    const studentsWhoGave = allStudentIds.filter((id) =>
+      submittedStudentIds.includes(id),
+    );
+    const studentsWhoDidNotGive = allStudentIds.filter(
+      (id) => !submittedStudentIds.includes(id),
+    );
+
+    // Map for quick lookup
+    const userMap = new Map(userCourses.map((uc) => [uc.user.id, uc.user]));
+
+    const testObj = await getSingleRecord<Test, any>(
+      Test,
+      { where: { id: testId } },
+      `test:${testId}`,
+    );
+    const passingMarks = testObj?.passingMarks || 0;
+
+    // Prepare analytics for students who submitted
+    const studentsGave = testSubmissions.map((submission) => {
+      // Count correct, wrong, and not attempted MCQ questions
+      let correctCount = 0;
+      let wrongCount = 0;
+      let notAttemptedCount = 0;
+      if (submission.responses && Array.isArray(submission.responses)) {
+        for (const response of submission.responses) {
+          if (response.question && response.question.type === "MCQ") {
+            const options = response.question.options || [];
+            const correctOptions = options.filter((opt) => opt.correct);
+            let answer = response.answer;
+            // Try to parse answer if it's a JSON string (array/object)
+            if (typeof answer === "string") {
+              try {
+                const parsed = JSON.parse(answer);
+                answer = parsed;
+              } catch {
+                // ignore JSON parse errors
+              }
+            }
+            // If answer is not given
+            if (answer == null || answer === "") {
+              notAttemptedCount++;
+              continue;
+            }
+            // If answer is array (multi-select)
+            if (Array.isArray(answer)) {
+              // Compare selected option IDs with correct option IDs
+              const selectedIds = answer.map((a) => String(a));
+              const correctIds = correctOptions.map((opt) => String(opt.id));
+              if (
+                selectedIds.length === correctIds.length &&
+                correctIds.every((id) => selectedIds.includes(id))
+              ) {
+                correctCount++;
+              } else {
+                wrongCount++;
+              }
+              continue;
+            }
+            // If answer is option ID (string or number)
+            const answerStr = String(answer);
+            if (options.some((opt) => String(opt.id) === answerStr)) {
+              // Is this option correct?
+              if (correctOptions.some((opt) => String(opt.id) === answerStr)) {
+                correctCount++;
+              } else {
+                wrongCount++;
+              }
+              continue;
+            }
+            // If answer is text, compare with correct option text
+            if (correctOptions.some((opt) => opt.text === answer)) {
+              correctCount++;
+            } else {
+              wrongCount++;
+            }
+          }
+        }
+      }
+      return {
+        id: submission.user.id,
+        username: submission.user.username,
+        email: submission.user.email,
+        submittedAt: submission.submittedAt,
+        Score: submission.mcqScore || 0,
+        passingMarks: passingMarks <= submission.mcqScore ? "Passed" : "Failed",
+        correctQuestions: correctCount,
+        wrongQuestions: wrongCount,
+        notAttemptedQuestions: notAttemptedCount,
+      };
+    });
+
+    // Prepare analytics for students who did not submit
+    const studentsNotGave = studentsWhoDidNotGive.map((id) => {
+      const user = userMap.get(id) as {
+        id: string;
+        username?: string;
+        email?: string;
+      };
+      return {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+      };
+    });
+
+    // Aggregate stats
+    let totalMcqScore = 0;
+    let earliestSubmission = null;
+    let latestSubmission = null;
+
+    for (const submission of testSubmissions) {
+      totalMcqScore += submission.mcqScore || 0;
+      if (!earliestSubmission || submission.submittedAt < earliestSubmission) {
+        earliestSubmission = submission.submittedAt;
+      }
+      if (!latestSubmission || submission.submittedAt > latestSubmission) {
+        latestSubmission = submission.submittedAt;
+      }
+    }
+
+    const totalAvgScore = studentsGave.length
+      ? totalMcqScore / studentsGave.length
+      : 0;
+
+    // Calculate total possible marks by summing marks of all questions in the test
+    const allQuestions = await Question.find({
+      where: { test: { id: testId } },
+    });
+    const totalPossibleMarks = allQuestions.reduce(
+      (sum, q) => sum + (q.marks || 0),
+      0,
+    );
+
+    return res.status(200).json({
+      totalEnrolled: allStudentIds.length,
+      gaveTest: studentsWhoGave.length,
+      didNotGiveTest: studentsWhoDidNotGive.length,
+      studentsGave,
+      studentsNotGave,
+      totalAvgScore,
+      earliestSubmission,
+      latestSubmission,
+      totalPossibleMarks,
+    });
+  } catch (error) {
+    console.error("Error in getTestAnalytics:", error);
+    return res.status(500).json({ error: "Failed to fetch test analytics" });
+  }
+};
 
 export const fetchTestsInCourse = async (req: Request, res: Response) => {
   const { courseId } = req.params;
