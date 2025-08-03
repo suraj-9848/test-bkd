@@ -22,7 +22,10 @@ export const getSubmissionsForEvaluation = async (
     const { status } = req.query;
 
     // Validate test exists
-    const test = await getSingleRecord(Test, {
+    const test = await getSingleRecord<
+      Test,
+      { where: { id: string }; relations?: string[] }
+    >(Test, {
       where: { id: testId },
       relations: ["questions"],
     });
@@ -47,7 +50,10 @@ export const getSubmissionsForEvaluation = async (
     }
 
     // Get all submissions for this test
-    const submissions = await getAllRecordsWithFilter(TestSubmission, {
+    const submissions = await getAllRecordsWithFilter<
+      TestSubmission,
+      { where: any; relations?: string[]; order?: any }
+    >(TestSubmission, {
       where: whereCondition,
       relations: ["user", "responses", "responses.question"],
       order: { submittedAt: "DESC" },
@@ -460,7 +466,10 @@ export const getEvaluationStatistics = async (req: Request, res: Response) => {
     const { testId } = req.params;
 
     // Get test details
-    const test = await getSingleRecord(Test, {
+    const test = await getSingleRecord<
+      Test,
+      { where: { id: string }; relations?: string[] }
+    >(Test, {
       where: { id: testId },
       relations: ["questions"],
     });

@@ -9,6 +9,10 @@ import path from "path";
 import swaggerUi from "swagger-ui-express";
 import { specs } from "./config/swagger";
 import paymentRoutes from "./routes/paymentRoutes";
+import studentProSubscriptionRoutes from "./routes/studentProSubscriptionRoutes";
+import { getAvailablePlans } from "./controllers/studentControllers/proSubscriptionController";
+import adminProSubscriptionRoutes from "./routes/adminProSubscriptionRoutes";
+import webhookRoutes from "./routes/webhookRoutes";
 
 dotenv.config({
   path: "./.env",
@@ -17,6 +21,7 @@ import { config } from "./config";
 import { AppDataSource } from "./db/connect";
 import authRouter from "./routes/authRouter/authRoutes";
 import { getLogger } from "./utils/logger";
+import recruiterRouter from "./routes/recruiterRouter/recruiterRoutes";
 
 const logger = getLogger();
 const app = express();
@@ -92,14 +97,25 @@ app.use("/api/instructor", instructorRouter);
 app.use("/api/instructor", courseRouter); // Direct course routes
 app.use("/api/admin", adminRouter);
 app.use("/api/auth", authRouter);
+app.use("/api/recruiter", recruiterRouter);
 app.use("/api/student", studentRouter);
-app.use("/api/admin/hiring", hiringAdminRouter);
-app.use("/api/hiring", hiringPublicRouter); // Public routes must come before authenticated routes
-app.use("/api/hiring", hiringUserRouter);
-app.use("/api/payment", paymentRoutes);
+app.use("/api/hiring/admin", hiringAdminRouter);
+app.use("/api/hiring/user", hiringUserRouter);
+app.use("/api/hiring/public", hiringPublicRouter);
+app.use("/api/payments", paymentRoutes);
+app.use("/api/webhooks", webhookRoutes);
 
-app.get("/", (req, res) => {
-  res.send("App is running");
+// Public route for getting plans
+app.get("/api/public/pro-plans", getAvailablePlans);
+
+// Student subscription routes
+app.use("/api/student/pro-subscriptions", studentProSubscriptionRoutes);
+
+// Admin subscription management routes
+app.use("/api/admin/pro-subscriptions", adminProSubscriptionRoutes);
+
+app.get("/", (req: Request, res: Response) => {
+  res.send("Hello, World!");
 });
 
 app.get("/ping", (req, res) => {

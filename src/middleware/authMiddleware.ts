@@ -281,13 +281,27 @@ export const adminAuthMiddleware = async (
  */
 export const requireRole = (allowedRoles: UserRole[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
+    console.log(
+      `[AUTH] requireRole: Checking user for roles: ${allowedRoles.join(", ")}`,
+    );
+    console.log(`[AUTH] requireRole: User object on request:`, req.user);
+
     if (!req.user) {
       return res.status(401).json({
         error: "Authentication required",
       });
     }
 
-    if (!allowedRoles.includes(req.user.userRole as UserRole)) {
+    // Convert to lowercase for case-insensitive comparison
+    const userRoleLower = req.user.userRole.toLowerCase();
+    const allowedRolesLower = allowedRoles.map((role) => role.toLowerCase());
+
+    console.log(`[AUTH] User role (lowercase): ${userRoleLower}`);
+    console.log(
+      `[AUTH] Allowed roles (lowercase): ${allowedRolesLower.join(", ")}`,
+    );
+
+    if (!allowedRolesLower.includes(userRoleLower)) {
       return res.status(403).json({
         error: `Access denied. Required roles: ${allowedRoles.join(", ")}`,
         userRole: req.user.userRole,

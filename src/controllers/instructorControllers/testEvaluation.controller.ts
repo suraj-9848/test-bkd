@@ -17,7 +17,7 @@ export const getTestAttempts = async (req: Request, res: Response) => {
     const { testId } = req.params;
 
     // Check if test exists
-    const test = await getSingleRecord<Test, any>(
+    const test = await getSingleRecord<Test, { where: { id: string } }>(
       Test,
       { where: { id: testId } },
       `test_${testId}_basic`,
@@ -29,7 +29,10 @@ export const getTestAttempts = async (req: Request, res: Response) => {
     }
 
     // Get all attempts for this test
-    const attempts = await getAllRecordsWithFilter<TestAttempt, any>(
+    const attempts = await getAllRecordsWithFilter<
+      TestAttempt,
+      { where: { test: { id: string } }; relations?: string[] }
+    >(
       TestAttempt,
       {
         where: { test: { id: testId } },
@@ -70,7 +73,10 @@ export const getAttemptForGrading = async (req: Request, res: Response) => {
   try {
     const { attemptId } = req.params;
 
-    const attempt = await getSingleRecord<TestAttempt, any>(TestAttempt, {
+    const attempt = await getSingleRecord<
+      TestAttempt,
+      { where: { id: string }; relations?: string[] }
+    >(TestAttempt, {
       where: { id: attemptId },
       relations: ["test", "student", "answers", "answers.question"],
     });
@@ -154,7 +160,10 @@ export const gradeDescriptiveAnswers = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid evaluation data" });
     }
 
-    const attempt = await getSingleRecord<TestAttempt, any>(TestAttempt, {
+    const attempt = await getSingleRecord<
+      TestAttempt,
+      { where: { id: string }; relations?: string[] }
+    >(TestAttempt, {
       where: { id: attemptId },
       relations: ["test", "answers", "answers.question"],
     });
@@ -239,7 +248,10 @@ export const finalizeGrading = async (req: Request, res: Response) => {
   try {
     const { attemptId } = req.params;
 
-    const attempt = await getSingleRecord<TestAttempt, any>(TestAttempt, {
+    const attempt = await getSingleRecord<
+      TestAttempt,
+      { where: { id: string }; relations?: string[] }
+    >(TestAttempt, {
       where: { id: attemptId },
       relations: ["test", "answers"],
     });
@@ -312,7 +324,10 @@ export const getEvaluationStats = async (req: Request, res: Response) => {
       return res.status(200).json(JSON.parse(cachedStats));
     }
 
-    const test = await getSingleRecord<Test, any>(Test, {
+    const test = await getSingleRecord<
+      Test,
+      { where: { id: string }; relations?: string[] }
+    >(Test, {
       where: { id: testId },
       relations: ["questions"],
     });
@@ -321,10 +336,12 @@ export const getEvaluationStats = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Test not found" });
     }
 
-    const attempts = await getAllRecordsWithFilter<TestAttempt, any>(
+    const attempts = await getAllRecordsWithFilter<
       TestAttempt,
-      { where: { test: { id: testId } } },
-    );
+      { where: { test: { id: string } }; relations?: string[] }
+    >(TestAttempt, {
+      where: { test: { id: testId } },
+    });
 
     // Calculate statistics
     const totalAttempts = attempts.length;
@@ -398,16 +415,19 @@ export const getEvaluationStats = async (req: Request, res: Response) => {
 // Helper function to update leaderboard in Redis
 const updateTestLeaderboard = async (testId: string): Promise<void> => {
   try {
-    const attempts = await getAllRecordsWithFilter<TestAttempt, any>(
+    const attempts = await getAllRecordsWithFilter<
       TestAttempt,
       {
-        where: {
-          test: { id: testId },
-          status: AttemptStatus.EVALUATED,
-        },
-        relations: ["student"],
+        where: { test: { id: string }; status: AttemptStatus };
+        relations?: string[];
+      }
+    >(TestAttempt, {
+      where: {
+        test: { id: testId },
+        status: AttemptStatus.EVALUATED,
       },
-    );
+      relations: ["student"],
+    });
 
     if (!attempts || attempts.length === 0) {
       return;

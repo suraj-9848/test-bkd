@@ -16,7 +16,7 @@ export class ModuleMCQ extends BaseEntity {
   module: Module;
 
   @Column("json")
-  questions: any;
+  questions: Record<string, unknown>; // was any
 
   @Column({ default: 70 })
   passingScore: number;

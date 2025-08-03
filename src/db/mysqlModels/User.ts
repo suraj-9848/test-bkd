@@ -13,6 +13,7 @@ import { Org } from "./Org";
 import { JobApplication } from "./JobApplication";
 import { TestSubmission } from "./TestSubmission";
 import { RefreshToken } from "./RefreshToken";
+import { ProSubscription } from "./ProSubscription";
 
 export enum UserRole {
   STUDENT = "student",
@@ -51,6 +52,13 @@ export class User extends BaseEntity {
   })
   userRole: UserRole;
 
+  // Pro subscription fields for efficient tracking
+  @Column({ default: false })
+  isProUser: boolean;
+
+  @Column({ type: "datetime", nullable: true })
+  proExpiresAt: Date;
+
   @OneToMany(() => UserCourse, (uc) => uc.user)
   userCourses: UserCourse[];
 
@@ -59,6 +67,9 @@ export class User extends BaseEntity {
 
   @OneToMany(() => JobApplication, (application) => application.user)
   jobApplications: JobApplication[];
+
+  @OneToMany(() => ProSubscription, (subscription) => subscription.user)
+  proSubscriptions: ProSubscription[];
 
   @ManyToOne(() => Org, (org) => org.users)
   @OneToMany(() => TestSubmission, (submission) => submission.user)

@@ -549,7 +549,6 @@ export const getStudentTestResults = async (req: Request, res: Response) => {
         submittedAt: submission.submittedAt,
         totalScore: submission.totalScore,
         maxMarks: submission.test.maxMarks, // Frontend expects maxMarks not maxScore
-        maxScore: submission.test.maxMarks,
         passingMarks: submission.test.passingMarks,
         percentage:
           submission.totalScore !== null

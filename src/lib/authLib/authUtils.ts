@@ -113,7 +113,7 @@ export const userProtectWithDB = async (
       throw new Error("Invalid token payload structure");
     }
 
-    const user = await getSingleRecord<User, any>(
+    const user = await getSingleRecord<User, { where: { id: string } }>(
       User,
       { where: { id: decoded.id } },
       `user_id_${decoded.id}`,

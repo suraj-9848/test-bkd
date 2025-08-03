@@ -14,7 +14,7 @@ const logger = getLoggerByName("Progress Ctrl");
 export const fetchCourseProgress = async (req: Request, res: Response) => {
   const { batchId, courseId } = req.params;
   try {
-    const batch = await getSingleRecord<Batch, any>(
+    const batch = await getSingleRecord<Batch, { where: { id: string } }>(
       Batch,
       { where: { id: batchId } },
       `batch_${batchId}`,
@@ -27,7 +27,7 @@ export const fetchCourseProgress = async (req: Request, res: Response) => {
 
     const progressList = await getAllRecordsWithFilter<
       StudentCourseProgress,
-      any
+      { where: { session_id: string } }
     >(
       StudentCourseProgress,
       { where: { session_id: courseId } },
@@ -36,18 +36,21 @@ export const fetchCourseProgress = async (req: Request, res: Response) => {
       60,
     );
 
-    const students = await getAllRecordsWithFilter<User, any>(
+    const students = await getAllRecordsWithFilter<
+      User,
+      { where: { batch_id: string } }
+    >(
       User,
       {
-        where: (qb) => qb.where("FIND_IN_SET(:batchId, batch_id)", { batchId }),
+        where: { batch_id: batchId },
       },
       `batch_${batchId}_students`,
       false,
     );
 
-    const report = (students as User[]).map((stu: any) => {
+    const report = (students as User[]).map((stu) => {
       const p = (progressList as StudentCourseProgress[]).find(
-        (r) => r.student_id === stu.id,
+        (r) => String(r.student_id) === String(stu.id),
       );
       return {
         studentId: stu.id,

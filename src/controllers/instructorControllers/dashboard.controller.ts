@@ -93,7 +93,7 @@ export const getInstructorDashboardStats = async (
       error: "Failed to fetch dashboard statistics",
       details:
         process.env.NODE_ENV === "development"
-          ? err?.message
+          ? (err as Error)?.message
           : "Internal server error",
     });
   }

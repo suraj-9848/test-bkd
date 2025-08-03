@@ -239,7 +239,7 @@ export const createMCQ = async (req: Request, res: Response) => {
 
     const newMCQ = ModuleMCQ.create({
       module: moduleRecord,
-      questions: normalizedQuestions,
+      questions: normalizedQuestions as unknown as Record<string, unknown>,
       passingScore,
     });
 

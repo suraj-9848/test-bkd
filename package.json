@@ -16,7 +16,9 @@
     "test": "vitest run",
     "test:hiring": "./scripts/run-hiring-tests.sh",
     "ci-test": "pnpm test || echo 'No tests found. Skipping test phase.'",
-    "seed:courses": "ts-node src/scripts/generate-leaderboard-mock-data.ts"
+    "seed:courses": "ts-node src/scripts/generate-leaderboard-mock-data.ts",
+    "setup:pro": "ts-node src/scripts/setupProSubscription.ts",
+    "expire:subscriptions": "ts-node src/scripts/expireSubscriptions.ts"
   },
   "author": "",
   "license": "ISC",

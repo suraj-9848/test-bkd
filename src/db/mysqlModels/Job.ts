@@ -2,16 +2,16 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
-  ManyToOne,
   BaseEntity,
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  ManyToOne,
   JoinColumn,
 } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
-import { Org } from "./Org";
 import { JobApplication } from "./JobApplication";
+import { Org } from "./Org";
 
 export enum JobStatus {
   OPEN = "open",
@@ -42,6 +42,12 @@ export class Job extends BaseEntity {
   @Column("simple-array")
   eligibleBranches: string[];
 
+  @Column({ nullable: true })
+  applyLink: string;
+
+  @Column({ type: "int", nullable: true })
+  salary: number;
+
   @Column({
     type: "enum",
     enum: JobStatus,
@@ -49,15 +55,12 @@ export class Job extends BaseEntity {
   })
   status: JobStatus;
 
-  @Column("uuid")
-  org_id: string;
+  @OneToMany(() => JobApplication, (application) => application.job)
+  applications: JobApplication[];
 
   @ManyToOne(() => Org, (org) => org.jobs)
   @JoinColumn({ name: "org_id" })
   organization: Org;
-
-  @OneToMany(() => JobApplication, (application) => application.job)
-  applications: JobApplication[];
 
   @CreateDateColumn()
   createdAt: Date;

@@ -48,7 +48,10 @@ export const getAvailableTests = async (req: Request, res: Response) => {
     }
 
     // Find tests for courses in student's batches that are published and active
-    const tests = await getAllRecordsWithFilter<Test, any>(Test, {
+    const tests = await getAllRecordsWithFilter<
+      Test,
+      { where: any; relations?: string[] }
+    >(Test, {
       where: {
         status: TestStatus.PUBLISHED,
         startDate: { $lte: now },

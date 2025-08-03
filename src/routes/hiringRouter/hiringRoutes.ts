@@ -5,6 +5,11 @@ import {
   validateJobBody,
   validateApplicationBody,
 } from "../../middleware/hiringMiddleware";
+import {
+  checkJobEarlyAccess,
+  filterJobsByProAccess,
+  optionalAuthMiddleware,
+} from "../../middleware/earlyAccessMiddleware";
 import multer from "multer";
 
 import {
@@ -44,18 +49,30 @@ const upload = multer({
   },
 });
 
-// Public routes - no authentication required
+// Public routes - with Pro access filtering
 hiringPublicRouter.get("/test", (req, res) => {
   return res.status(200).json({
     message: "Public test route works!",
     success: true,
   });
 });
-hiringPublicRouter.get("/jobs", getOpenJobs);
-hiringPublicRouter.get("/jobs/:jobId", getJobById);
+hiringPublicRouter.get(
+  "/jobs",
+  optionalAuthMiddleware,
+  filterJobsByProAccess,
+  getOpenJobs,
+);
+hiringPublicRouter.get(
+  "/jobs/:jobId",
+  optionalAuthMiddleware,
+  checkJobEarlyAccess,
+  getJobById,
+);
 hiringPublicRouter.post(
   "/jobs/:jobId/apply",
   upload.single("resume"),
+  optionalAuthMiddleware,
+  checkJobEarlyAccess,
   validateApplicationBody,
   applyForJob,
 );

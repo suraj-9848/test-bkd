@@ -235,7 +235,7 @@ export const fetchAllBatches = async (req: Request, res: Response) => {
 export const fetchBatch = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const batch = await getSingleRecord<Batch, any>(
+    const batch = await getSingleRecord<Batch, { where: { id: string } }>(
       Batch,
       { where: { id } },
       `batch_${id}`,

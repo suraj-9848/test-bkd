@@ -204,7 +204,7 @@ export const fetchTestsInCourse = async (req: Request, res: Response) => {
   }
 
   try {
-    const course = await getSingleRecord<Course, any>(
+    const course = await getSingleRecord<Course, { where: { id: string } }>(
       Course,
       { where: { id: courseId } },
       `course:${courseId}`,
@@ -242,10 +242,14 @@ export const fetchTestById = async (req: Request, res: Response) => {
   }
 
   try {
-    const test = await getSingleRecord<Test, any>(
+    const test = await getSingleRecord<
+      Test,
+      { where: { id: string }; relations?: string[] }
+    >(
       Test,
       { where: { id: testId }, relations: ["course", "questions"] },
-      `test:${testId}`,
+      `test_${testId}_basic`,
+      true,
     );
 
     if (!test) {
@@ -294,7 +298,7 @@ export const createTest = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid start or end time" });
     }
 
-    const course = await getSingleRecord<Course, any>(
+    const course = await getSingleRecord<Course, { where: { id: string } }>(
       Course,
       { where: { id: courseId } },
       `course_${courseId}`,
@@ -374,7 +378,7 @@ export const createTestsBulk = async (req: Request, res: Response) => {
 
     for (const courseId of courseIds) {
       try {
-        const course = await getSingleRecord<Course, any>(
+        const course = await getSingleRecord<Course, { where: { id: string } }>(
           Course,
           { where: { id: courseId } },
           `course_${courseId}`,
@@ -528,7 +532,9 @@ export const deleteTest = async (req: Request, res: Response) => {
         if (question.options && question.options.length > 0) {
           await QuizOptions.createQueryBuilder()
             .delete()
-            .where("questionId = :questionId", { questionId: question.id })
+            .where("questionId = :questionId", {
+              questionId: question.id,
+            })
             .execute();
         }
       }
@@ -565,11 +571,10 @@ export const teststatustoPublish = async (req: Request, res: Response) => {
   }
 
   try {
-    const test = await getSingleRecord<Test, any>(
+    const test = await getSingleRecord<
       Test,
-      { where: { id: testId }, relations: ["course"] },
-      `test:${testId}`,
-    );
+      { where: { id: string }; relations?: string[] }
+    >(Test, { where: { id: testId }, relations: ["course"] }, `test:${testId}`);
 
     if (!test) {
       return res.status(404).json({ error: "Test not found" });
@@ -622,14 +627,14 @@ export const deleteQuestion = async (req: Request, res: Response) => {
 
     if (question.test.status === TestStatus.ACTIVE) {
       {
-        return res
-          .status(400)
-          .json({ error: "Cannot delete questions from a published test" });
+        return res.status(400).json({
+          error: "Cannot delete questions from a published test",
+        });
       }
     } else if (question.test.status === TestStatus.COMPLETED) {
-      return res
-        .status(400)
-        .json({ error: "Cannot delete questions from a completed test" });
+      return res.status(400).json({
+        error: "Cannot delete questions from a completed test",
+      });
     }
 
     await deleteRecords(Question, { id: questionId });
@@ -772,9 +777,9 @@ export const evaluateTestSubmission = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error evaluating submission:", error);
-    res
-      .status(500)
-      .json({ message: error.message || "Error evaluating submission" });
+    res.status(500).json({
+      message: error.message || "Error evaluating submission",
+    });
   }
 };
 
@@ -859,9 +864,9 @@ export const evaluateTestResponseById = async (req: Request, res: Response) => {
     }
 
     if (response.submission.test.id !== testId) {
-      return res
-        .status(400)
-        .json({ message: "Response does not belong to the specified test" });
+      return res.status(400).json({
+        message: "Response does not belong to the specified test",
+      });
     }
 
     if (score > response.question.marks) {

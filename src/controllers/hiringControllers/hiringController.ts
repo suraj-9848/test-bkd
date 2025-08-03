@@ -10,6 +10,7 @@ import {
   getAllRecordsWithFilter,
   updateRecords,
   deleteRecords,
+  createRecord,
 } from "../../lib/dbLib/sqlUtils";
 import s3Service from "../../utils/s3Service";
 
@@ -50,8 +51,9 @@ export const createJob = async (req: Request, res: Response) => {
     }
 
     // Validate organization exists
+    let organization;
     try {
-      const organization = await getSingleRecord(Org, {
+      organization = await getSingleRecord(Org, {
         where: { id: org_id },
       });
       if (!organization) {
@@ -87,15 +89,15 @@ export const createJob = async (req: Request, res: Response) => {
       skills: skillsArray,
       eligibleBranches: branchesArray,
       status: JobStatus.OPEN,
-      org_id,
-      location, // Include location here
+      organization, // Use Org entity, not org_id
+      location,
     });
 
-    await job.save();
+    const savedJob = (await createRecord(Job, job)) as Job;
 
     // Fetch job with organization details
     const createdJob = await getSingleRecord(Job, {
-      where: { id: job.id },
+      where: { id: savedJob.id },
       relations: ["organization"],
     });
 
@@ -481,18 +483,71 @@ export const updateApplicationStatus = async (req: Request, res: Response) => {
 // Get all open jobs (student/user view)
 export const getOpenJobs = async (req: Request, res: Response) => {
   try {
+    const isProStudent = req.isProStudent || false;
+
     const jobs = await getAllRecordsWithFilter(Job, {
       where: { status: JobStatus.OPEN },
       order: { createdAt: "DESC" },
       relations: ["organization"],
     });
 
-    return res.status(200).json({
-      message: "Open jobs fetched successfully",
-      count: jobs.length,
-      jobs,
-      success: true,
+    // Filter jobs based on Pro access and early access period
+    const filteredJobs = jobs.filter((job) => {
+      const jobCreatedAt = new Date(job.createdAt);
+      const now = new Date();
+      const earlyAccessPeriodEnd = new Date(
+        jobCreatedAt.getTime() + 24 * 60 * 60 * 1000,
+      ); // 24 hours
+      const isInEarlyAccessPeriod = now < earlyAccessPeriodEnd;
+
+      // If not in early access period, show to everyone
+      if (!isInEarlyAccessPeriod) {
+        return true;
+      }
+
+      // If in early access period, only show to Pro students
+      return isProStudent;
     });
+
+    // Add early access information to jobs
+    const jobsWithAccessInfo = filteredJobs.map((job) => {
+      const jobCreatedAt = new Date(job.createdAt);
+      const now = new Date();
+      const earlyAccessPeriodEnd = new Date(
+        jobCreatedAt.getTime() + 24 * 60 * 60 * 1000,
+      ); // 24 hours
+      const isInEarlyAccessPeriod = now < earlyAccessPeriodEnd;
+
+      return {
+        ...job,
+        earlyAccess: {
+          isInEarlyAccessPeriod,
+          earlyAccessUntil: isInEarlyAccessPeriod
+            ? earlyAccessPeriodEnd.toISOString()
+            : null,
+          userHasAccess: !isInEarlyAccessPeriod || isProStudent,
+        },
+      };
+    });
+
+    // Add access summary for non-Pro users
+    const hiddenJobsCount = jobs.length - filteredJobs.length;
+    const responseData: any = {
+      message: "Open jobs fetched successfully",
+      count: filteredJobs.length,
+      jobs: jobsWithAccessInfo,
+      success: true,
+    };
+
+    if (hiddenJobsCount > 0 && !isProStudent) {
+      responseData.earlyAccessInfo = {
+        hiddenJobsCount,
+        message: `${hiddenJobsCount} job(s) are currently in early access period. Upgrade to Pro to see them immediately!`,
+        upgradeUrl: "/pro/subscribe",
+      };
+    }
+
+    return res.status(200).json(responseData);
   } catch (error) {
     console.error("Error fetching open jobs:", error);
     return res.status(500).json({
