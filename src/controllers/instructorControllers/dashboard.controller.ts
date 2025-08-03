@@ -3,6 +3,8 @@ import { AppDataSource } from "../../db/connect";
 import { getAllRecordsWithFilter } from "../../lib/dbLib/sqlUtils";
 import { User } from "../../db/mysqlModels/User";
 import { UserRole } from "../../db/mysqlModels/User";
+import { Course } from "../../db/mysqlModels/Course";
+import { Batch } from "../../db/mysqlModels/Batch";
 
 // Get instructor dashboard statistics (system-wide stats for dashboard overview)
 export const getInstructorDashboardStats = async (
@@ -10,91 +12,197 @@ export const getInstructorDashboardStats = async (
   res: Response,
 ) => {
   try {
-    console.log("=== Getting system-wide dashboard stats ===");
-
     const user = req.user;
     if (!user) {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    // Get database connection
-    const queryRunner = AppDataSource.createQueryRunner();
-    await queryRunner.connect();
+    // Get all courses
+    const allCourses = await getAllRecordsWithFilter(
+      Course,
+      {
+        select: ["id", "title", "instructor_name", "duration", "mode"],
+        relations: ["batches", "userCourses", "userCourses.user"],
+      },
+      `dashboard_courses`,
+      true,
+      5 * 60,
+    );
 
-    try {
-      // Get total courses across all instructors
-      const coursesResult = await queryRunner.query(`
-        SELECT COUNT(*) as count 
-        FROM course
-      `);
-      const totalCourses = parseInt(coursesResult[0]?.count || "0");
-
-      // Get total batches across all instructors
-      const batchesResult = await queryRunner.query(`
-        SELECT COUNT(*) as count 
-        FROM batch
-      `);
-      const totalBatches = parseInt(batchesResult[0]?.count || "0");
-
-      // Get total students across all courses
-      const studentsResult = await queryRunner.query(`
-        SELECT COUNT(DISTINCT uc.userId) as count
-        FROM user_course uc
-      `);
-      const totalStudents = parseInt(studentsResult[0]?.count || "0");
-
-      // Get average completion across all courses
-      const completionResult = await queryRunner.query(`
-        SELECT AVG(uc.completed * 100) as avg_completion
-        FROM user_course uc
-      `);
-      const averageProgress = Math.round(
-        parseFloat(completionResult[0]?.avg_completion || "0"),
+    // Get all batches, then filter those that have at least one course in allCourses
+    let allBatches = [];
+    if (allCourses.length > 0) {
+      const allBatchesRaw = await getAllRecordsWithFilter(
+        Batch,
+        {
+          select: ["id", "name"],
+          relations: ["courses"],
+        },
+        `dashboard_batches`,
+        true,
+        5 * 60,
       );
-
-      // Get recent activity (last 30 days) across all courses
-      const recentActivityResult = await queryRunner.query(`
-        SELECT COUNT(*) as count
-        FROM user_course uc
-        WHERE uc.assignedAt >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-      `);
-      const recentActivity = parseInt(recentActivityResult[0]?.count || "0");
-
-      // Get public vs private courses across all instructors
-      const publicCoursesResult = await queryRunner.query(`
-        SELECT COUNT(*) as count 
-        FROM course 
-        WHERE is_public = 1
-      `);
-      const publicCourses = parseInt(publicCoursesResult[0]?.count || "0");
-
-      const stats = {
-        totalCourses,
-        totalBatches,
-        totalStudents,
-        averageProgress,
-        recentActivity,
-        publicCourses,
-        privateCourses: totalCourses - publicCourses,
-      };
-
-      console.log(
-        "=== System-wide dashboard stats:",
-        JSON.stringify(stats, null, 2),
+      const courseIds = allCourses.map((c) => c.id);
+      allBatches = allBatchesRaw.filter(
+        (batch) =>
+          batch.courses && batch.courses.some((c) => courseIds.includes(c.id)),
       );
-
-      return res.json({ stats });
-    } finally {
-      await queryRunner.release();
     }
+
+    // Get all students with userRole STUDENT, then filter those enrolled in any course
+    let allStudents = [];
+    if (allCourses.length > 0) {
+      const allStudentsRaw = await getAllRecordsWithFilter(
+        User,
+        {
+          where: {
+            userRole: UserRole.STUDENT,
+          },
+          select: ["id", "username", "email"],
+          relations: ["userCourses", "userCourses.course"],
+        },
+        `dashboard_students`,
+        true,
+        5 * 60,
+      );
+      const courseIds = allCourses.map((c) => c.id);
+      allStudents = allStudentsRaw.filter(
+        (student) =>
+          student.userCourses &&
+          student.userCourses.some(
+            (uc) => uc.course && courseIds.includes(uc.course.id),
+          ),
+      );
+    }
+
+    // Enrich courses with batch, student info, and analytics
+    const courses = allCourses.map((course) => {
+      // Get students for this course
+      const courseStudents = course.userCourses
+        ? course.userCourses.filter((uc) => uc.user && uc.user.id)
+        : [];
+
+      // Completion rate: % of students who completed the course
+      const completedCount = courseStudents.filter(
+        (uc) => uc.completed === true,
+      ).length;
+      const completionRate =
+        courseStudents.length > 0
+          ? Math.round((completedCount / courseStudents.length) * 100)
+          : 0;
+
+      // Average progress
+      const avgProgress =
+        courseStudents.length > 0
+          ? Math.round(
+              courseStudents.reduce((sum, uc) => sum + (uc.progress || 0), 0) /
+                courseStudents.length,
+            )
+          : 0;
+
+      // Top 3 students by progress
+      const topStudents = courseStudents
+        .filter((uc) => uc.user)
+        .sort((a, b) => (b.progress || 0) - (a.progress || 0))
+        .slice(0, 3)
+        .map((uc) => ({
+          id: uc.user.id,
+          username: uc.user.username,
+          email: uc.user.email,
+          progress: uc.progress || 0,
+          completed: uc.completed || false,
+        }));
+
+      return {
+        id: course.id,
+        title: course.title,
+        instructor: course.instructor_name,
+        duration: course.duration,
+        mode: course.mode,
+        batches: course.batches
+          ? course.batches.map((b) => ({ id: b.id, name: b.name }))
+          : [],
+        students: courseStudents
+          .map((uc) => (uc.user && uc.user.id ? uc.user.id : null))
+          .filter((id) => id !== null),
+        completionRate,
+        averageProgress: avgProgress,
+        topStudents,
+      };
+    });
+
+    // Enrich batches with course info
+    const batches = allBatches.map((batch) => ({
+      id: batch.id,
+      name: batch.name,
+      courses: batch.courses
+        ? batch.courses.map((c) => ({ id: c.id, title: c.title }))
+        : [],
+    }));
+
+    // Enrich students with course info
+    const students = allStudents.map((student) => ({
+      id: student.id,
+      username: student.username,
+      email: student.email,
+      courses: student.userCourses
+        ? student.userCourses
+            .filter((uc) => uc.course)
+            .map((uc) => ({
+              id: uc.course.id,
+              title: uc.course.title,
+              progress: uc.progress || 0,
+              completed: uc.completed || false,
+            }))
+        : [],
+    }));
+
+    // --- Basic Analytics ---
+    // Average students per course
+    const averageStudentsPerCourse =
+      courses.length > 0
+        ? Math.round(
+            courses.reduce((sum, c) => sum + c.students.length, 0) /
+              courses.length,
+          )
+        : 0;
+
+    // Students per course for graphing
+    const studentsPerCourse = courses.map((course) => ({
+      courseId: course.id,
+      title: course.title,
+      studentCount: course.students.length,
+    }));
+
+    // Students per batch for graphing
+    const studentsPerBatch = batches.map((batch) => {
+      // Find all students in courses belonging to this batch
+      const batchCourseIds = batch.courses.map((c) => c.id);
+      const batchStudentIds = courses
+        .filter((course) => batchCourseIds.includes(course.id))
+        .flatMap((course) => course.students);
+      // Unique student count
+      const uniqueStudentCount = Array.from(new Set(batchStudentIds)).length;
+      return {
+        batchId: batch.id,
+        name: batch.name,
+        studentCount: uniqueStudentCount,
+      };
+    });
+
+    const stats = {
+      totalCourses: courses.length,
+      totalBatches: batches.length,
+      totalStudents: students.length,
+      averageStudentsPerCourse,
+      studentsPerCourse,
+      studentsPerBatch,
+    };
+
+    return res.json({ stats });
   } catch (err: any) {
-    console.error("=== Error getting dashboard stats:", err);
     return res.status(500).json({
-      error: "Failed to fetch dashboard statistics",
-      details:
-        process.env.NODE_ENV === "development"
-          ? (err as Error)?.message
-          : "Internal server error",
+      error: err,
     });
   }
 };

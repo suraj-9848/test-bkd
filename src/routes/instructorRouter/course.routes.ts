@@ -56,7 +56,7 @@ const courseRouter = express.Router();
 courseRouter.use(authMiddleware, viewAsMiddleware, instructorMiddleware);
 
 // Dashboard stats route
-courseRouter.get("/dashboard-stats", getInstructorDashboardStats);
+courseRouter.get("/dashboard/analytics", getInstructorDashboardStats);
 
 // Student management routes
 courseRouter.get("/students", getAllStudentsForAssignment);
