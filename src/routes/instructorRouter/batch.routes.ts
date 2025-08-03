@@ -129,6 +129,7 @@ router.post(
   assignCourseToStudent,
 );
 
+//  FIXED: Test routes using correct controller functions
 router.post("/batches/:batchId/courses/:courseId/tests", createTest);
 router.post("/batches/:batchId/courses/bulk/tests", createTestsBulk);
 router.get("/batches/:batchId/courses/:courseId/tests", fetchTestsInCourse);
@@ -136,11 +137,13 @@ router.get("/batches/:batchId/courses/:courseId/tests/:testId", fetchTestById);
 router.put("/batches/:batchId/courses/:courseId/tests/:testId", updateTest);
 router.delete("/batches/:batchId/courses/:courseId/tests/:testId", deleteTest);
 
+//  FIXED: Test publishing using correct controller function
 router.patch(
   "/batches/:batchId/courses/:courseId/tests/:testId/publish",
-  publishTest,
+  publishTest, //  FIXED: Use publishTest from testManagement controller
 );
 
+// Test evaluation routes (using test.controller)
 router.post(
   "/batches/:batchId/courses/:courseId/tests/:testId/evaluate",
   evaluateTestSubmission,
@@ -162,22 +165,22 @@ router.put(
   evaluateTestResponseById,
 );
 
-// Question management routes using correct controller functions
+//  FIXED: Question management routes using correct controller functions
 router.get(
   "/batches/:batchId/courses/:courseId/tests/:testId/questions",
-  getQuestions, // Use getQuestions from testManagement controller
+  getQuestions, //  FIXED: Use getQuestions from testManagement controller
 );
 router.post(
   "/batches/:batchId/courses/:courseId/tests/:testId/questions",
-  createQuestion, // Use createQuestion from testManagement controller
+  createQuestion, //  FIXED: Use createQuestion from testManagement controller
 );
 router.put(
   "/batches/:batchId/courses/:courseId/tests/:testId/questions/:questionId",
-  updateQuestion, // Use updateQuestion from testManagement controller
+  updateQuestion, //  FIXED: Use updateQuestion from testManagement controller
 );
 router.delete(
   "/batches/:batchId/courses/:courseId/tests/:testId/questions/:questionId",
-  deleteQuestion, // Use deleteQuestion from testManagement controller
+  deleteQuestion, //  FIXED: Use deleteQuestion from testManagement controller
 );
 
 router.get(
@@ -276,8 +279,6 @@ router.post(
   assignMultipleStudentsToBatchEnhanced,
 );
 
-router.delete("/:batchId/remove-students", removeMultipleStudentsFromBatch);
-router.delete("/:batchId/remove-student", removeBatchFromStudent);
 router.get("/:batchId/students", getBatchStudents);
 router.get("/:batchId/students/:studentId/check", checkStudentBatchAssignment);
 router.post("/transfer-student", transferStudentBetweenBatches);
@@ -345,13 +346,6 @@ router.post("/bulk-assign", async (req: Request, res: Response) => {
   }
 });
 
-// Additional enhanced routes
-router.get("/students-with-batches", getStudentsWithBatches);
-router.get("/users/:userId/batches", getUserBatches);
-router.post(
-  "/batches/:batchId/assign-multiple-enhanced",
-  assignMultipleStudentsToBatchEnhanced,
-);
 router.delete(
   "/batches/:batchId/remove-students",
   removeMultipleStudentsFromBatch,

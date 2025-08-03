@@ -815,7 +815,7 @@ export const fetchBatchStudents = async (req: Request, res: Response) => {
 
     const students = Array.from(studentMap.values());
 
-    console.log(` Found ${students.length} students in batch ${batchId}`);
+    console.log(`✅ Found ${students.length} students in batch ${batchId}`);
 
     return res.status(200).json({
       message: "Batch students fetched successfully",
@@ -872,7 +872,9 @@ export const getStudentCourseScores = async (req: Request, res: Response) => {
           ) / 10
         : 0;
 
-    console.log(` Found ${scores.length} test scores for student ${studentId}`);
+    console.log(
+      `✅ Found ${scores.length} test scores for student ${studentId}`,
+    );
 
     return res.status(200).json({
       message: "Student scores fetched successfully",
@@ -1261,86 +1263,6 @@ export const getUserBatches = async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error("Error fetching user batches:", err);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-// Bulk assignment function for multiple batches
-export const bulkAssignStudentsToBatches = async (
-  req: Request,
-  res: Response,
-) => {
-  try {
-    const { assignments } = req.body;
-
-    if (!Array.isArray(assignments) || assignments.length === 0) {
-      return res.status(400).json({
-        message: "assignments array is required and cannot be empty",
-      });
-    }
-
-    const results = [];
-    const errors = [];
-
-    for (const assignment of assignments) {
-      const { batchId, studentIds } = assignment;
-
-      if (!batchId || !Array.isArray(studentIds) || studentIds.length === 0) {
-        errors.push({
-          batchId,
-          studentIds,
-          success: false,
-          error: "Invalid batchId or studentIds array",
-        });
-        continue;
-      }
-
-      try {
-        // Create a proper request object
-        const mockReq = {
-          params: { batchId },
-          body: { userIds: studentIds },
-        } as any;
-
-        // Create a mock response that captures the result
-        let assignmentResult = null;
-        const mockRes = {
-          status: (code: number) => ({
-            json: (data: any) => {
-              assignmentResult = { statusCode: code, data };
-              return { statusCode: code, data };
-            },
-          }),
-        } as any;
-
-        await assignMultipleStudentsToBatchEnhanced(mockReq, mockRes);
-
-        results.push({
-          batchId,
-          studentIds,
-          success: true,
-          result: assignmentResult,
-        });
-      } catch (error) {
-        errors.push({
-          batchId,
-          studentIds,
-          success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
-        });
-      }
-    }
-
-    return res.status(200).json({
-      message: `Bulk assignment completed: ${results.length} successful, ${errors.length} failed`,
-      results,
-      errors: errors.length > 0 ? errors : undefined,
-      totalAssignments: assignments.length,
-      successCount: results.length,
-      errorCount: errors.length,
-    });
-  } catch (err) {
-    console.error("Error in bulk assignment:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
