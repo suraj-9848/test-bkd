@@ -23,6 +23,7 @@ import {
   getMCQ,
   getMCQById,
   getMCQRetakeStatus,
+  addQuestionToMCQ,
 } from "../../controllers/moduleControllers/moduleMCQControllers";
 
 import {
@@ -80,6 +81,10 @@ courseRouter.delete("/modules/:moduleId", deleteModule);
 
 // MCQ routes
 courseRouter.post("/courses/:courseId/modules/:moduleId/mcq", createMCQ);
+courseRouter.post(
+  "/courses/:courseId/modules/:moduleId/mcq/questions",
+  addQuestionToMCQ,
+);
 courseRouter.get("/courses/:courseId/modules/:moduleId/mcq", getMCQ);
 courseRouter.get("/courses/:courseId/modules/:moduleId/mcq/:mcqId", getMCQById);
 courseRouter.put("/courses/:courseId/modules/:moduleId/mcq/:mcqId", updateMCQ);

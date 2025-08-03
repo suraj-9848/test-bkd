@@ -812,15 +812,6 @@ export const getStudentCourses = async (req: Request, res: Response) => {
               ? Math.round((completedModules / totalModules) * 100)
               : 0;
 
-          // Calculate duration in days (inclusive)
-          let duration = null;
-          if (course.start_date && course.end_date) {
-            const start = new Date(course.start_date);
-            const end = new Date(course.end_date);
-            const diffTime = end.getTime() - start.getTime();
-            duration = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-          }
-
           // Determine course status
           let status: "active" | "completed" | "not-started" = "not-started";
           if (completedModules === totalModules && totalModules > 0) {
@@ -834,7 +825,6 @@ export const getStudentCourses = async (req: Request, res: Response) => {
             totalModules,
             completedModules,
             progress,
-            duration,
             status,
           };
         } catch (error) {
@@ -848,7 +838,6 @@ export const getStudentCourses = async (req: Request, res: Response) => {
             totalModules: 0,
             completedModules: 0,
             progress: 0,
-            duration: null,
             status: "not-started" as const,
           };
         }
@@ -965,7 +954,6 @@ export const getStudentCourseById = async (req: Request, res: Response) => {
         } else if (completedDays > 0 || mcqAttempted) {
           status = "in-progress";
         }
-        const duration = days.length;
 
         return {
           ...module,
@@ -976,7 +964,6 @@ export const getStudentCourseById = async (req: Request, res: Response) => {
           mcqScore,
           moduleFullyCompleted,
           status,
-          duration,
         };
       }),
     );
@@ -991,22 +978,12 @@ export const getStudentCourseById = async (req: Request, res: Response) => {
         ? Math.round((completedModules / totalModules) * 100)
         : 0;
 
-    // Calculate duration in days (inclusive)
-    let duration = null;
-    if (course.start_date && course.end_date) {
-      const start = new Date(course.start_date);
-      const end = new Date(course.end_date);
-      const diffTime = end.getTime() - start.getTime();
-      duration = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    }
-
     res.status(200).json({
       ...course,
       modules: modulesWithDetails,
       totalModules,
       completedModules,
       progress,
-      duration,
     });
   } catch (error) {
     console.error("Error fetching course:", error);
@@ -1071,7 +1048,6 @@ export const getStudentModuleById = async (req: Request, res: Response) => {
       mcqScore,
       minimumPassMarks,
       moduleFullyCompleted,
-      duration: daysWithCompletion.length,
     });
   } catch (error) {
     console.error("Error fetching module:", error);
@@ -1082,20 +1058,11 @@ export const getStudentModuleById = async (req: Request, res: Response) => {
 // GET /student/day-contents/:dayId
 export const getStudentDayContentById = async (req: Request, res: Response) => {
   const { dayId } = req.params;
-  const student = req.user as User;
 
   try {
     const day = await getSingleRecord(DayContent, { where: { id: dayId } });
     if (!day) {
       return res.status(404).json({ message: "Day content not found" });
-    }
-
-    const module = await getSingleRecord(Module, {
-      where: { id: day.module.id },
-    });
-    const isUnlocked = await isModuleUnlocked(student, module);
-    if (!isUnlocked) {
-      return res.status(403).json({ message: "Module is locked" });
     }
 
     res.status(200).json(day);
@@ -1152,11 +1119,6 @@ export const getStudentModuleMCQ = async (req: Request, res: Response) => {
     const module = await getSingleRecord(Module, { where: { id: moduleId } });
     if (!module) {
       return res.status(404).json({ message: "Module not found" });
-    }
-
-    const isUnlocked = await isModuleUnlocked(student, module);
-    if (!isUnlocked) {
-      return res.status(403).json({ message: "Module is locked" });
     }
 
     const allDaysCompleted = await areAllDaysCompleted(student.id, module);
@@ -1221,12 +1183,14 @@ export const submitMCQResponses = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "MCQ not found for this module" });
     }
 
-    // Check if MCQ has already been attempted
     const existingResponse = await getSingleRecord(ModuleMCQResponses, {
       where: { moduleMCQ: { id: mcq.id }, user: { id: student.id } },
     });
+
     if (existingResponse) {
-      return res.status(403).json({ message: "MCQ already attempted" });
+      console.log(
+        `Student ${student.id} is retaking MCQ for module ${moduleId}. Previous attempt found.`,
+      );
     }
 
     const correctAnswers = await getAllRecordsWithFilter(ModuleMCQAnswer, {
@@ -1270,7 +1234,14 @@ export const submitMCQResponses = async (req: Request, res: Response) => {
       await createRecord(ModuleMCQResponses, newResponse);
     }
 
-    res.status(200).json({ score: percentage, passed });
+    res.status(200).json({
+      score: percentage,
+      passed,
+      canRetake: true,
+      message: passed
+        ? `Congratulations! You scored ${percentage.toFixed(1)}%. You can retake to improve your score.`
+        : `You scored ${percentage.toFixed(1)}%. You need ${mcq.passingScore}% to pass. You can retake this MCQ.`,
+    });
   } catch (error) {
     console.error("Error submitting MCQ responses:", error);
     res.status(500).json({ message: "Error submitting MCQ responses" });
@@ -1402,11 +1373,6 @@ export const getModuleCompletionStatus = async (
       return res.status(404).json({ message: "Module not found" });
     }
 
-    const isUnlocked = await isModuleUnlocked(student, module);
-    if (!isUnlocked) {
-      return res.status(403).json({ message: "Module is locked" });
-    }
-
     const allDaysCompleted = await areAllDaysCompleted(student.id, module);
 
     const mcq = await getSingleRecord(ModuleMCQ, {
@@ -1438,7 +1404,7 @@ export const getModuleCompletionStatus = async (
       }
     }
 
-    const moduleFullyCompleted = allDaysCompleted && mcqAttempted;
+    const moduleFullyCompleted = allDaysCompleted && (mcq ? mcqPassed : true);
 
     res.status(200).json({
       moduleId,
@@ -1829,6 +1795,7 @@ export const getMCQRetakeStatus = async (req: Request, res: Response) => {
         hasAttempted: false,
         hasPassed: false,
         score: null,
+        passingScore: mcq.passingScore,
         message: "You can take this MCQ",
       });
     }
@@ -1853,14 +1820,14 @@ export const getMCQRetakeStatus = async (req: Request, res: Response) => {
     const passed = percentage >= mcq.passingScore;
 
     return res.status(200).json({
-      canTake: false,
-      canRetake: !passed,
+      canTake: true,
+      canRetake: true,
       hasAttempted: true,
       hasPassed: passed,
       score: percentage,
       passingScore: mcq.passingScore,
       message: passed
-        ? "You have already passed this MCQ"
+        ? `You scored ${percentage.toFixed(1)}%. You can retake to improve your score!`
         : "You can retake this MCQ to improve your score",
     });
   } catch (error) {

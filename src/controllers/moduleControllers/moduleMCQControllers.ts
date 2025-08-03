@@ -11,7 +11,22 @@ import {
   updateRecords,
   deleteRecords,
   getAllRecordsWithFilter,
+  createEntityInstance,
 } from "../../lib/dbLib/sqlUtils";
+import { getLoggerByName } from "../../utils/logger";
+
+const logger = getLoggerByName("ModuleMCQController");
+
+// Helper function to safely handle questions type conversion
+const getQuestionsAsArray = (
+  questions: Record<string, unknown> | any,
+): MCQQuestion[] => {
+  if (Array.isArray(questions)) {
+    return questions as MCQQuestion[];
+  }
+  // If it's an object but not an array, try to convert it or return empty array
+  return [];
+};
 interface QuillDelta {
   ops: Array<{
     insert: string | object;
@@ -96,9 +111,24 @@ const normalizeMCQQuestions = (questions: any[]): MCQQuestion[] => {
       let correctAnswerId: string;
       if (typeof question.correctAnswer === "number") {
         correctAnswerId = normalizedOptions[question.correctAnswer]?.id || "";
+      } else if (question.correctAnswer) {
+        correctAnswerId = question.correctAnswer;
+      } else if (question.correct_option) {
+        // Handle admin interface format - find the option ID that matches the correct_option text
+        const correctOption = normalizedOptions.find(
+          (opt) => opt.text.ops[0]?.insert === question.correct_option,
+        );
+        correctAnswerId = correctOption?.id || "";
+      } else if (typeof question.correct_option_index === "number") {
+        // Handle admin interface format with index
+        correctAnswerId =
+          normalizedOptions[question.correct_option_index]?.id || "";
       } else {
-        correctAnswerId = question.correctAnswer || "";
+        correctAnswerId = "";
       }
+
+      // Get question text from either 'question' or 'question_text' (admin interface)
+      const questionText = question.question_text || question.question || "";
 
       normalizedQuestion = {
         id: questionId,
@@ -107,7 +137,7 @@ const normalizeMCQQuestions = (questions: any[]): MCQQuestion[] => {
           typeof question.question === "object" &&
           question.question.ops
             ? question.question
-            : stringToQuillDelta(question.question || ""),
+            : stringToQuillDelta(questionText),
         options: normalizedOptions,
         correctAnswer: correctAnswerId,
         explanation: question.explanation
@@ -205,7 +235,7 @@ export const createMCQ = async (req: Request, res: Response) => {
     }
 
     const normalizedQuestions = normalizeMCQQuestions(questions);
-    console.log(
+    logger.info(
       "Normalized questions:",
       JSON.stringify(normalizedQuestions, null, 2),
     );
@@ -230,14 +260,50 @@ export const createMCQ = async (req: Request, res: Response) => {
     const existingMCQ = await getSingleRecord(ModuleMCQ, {
       where: { module: { id: moduleId } },
     });
+
     if (existingMCQ) {
-      return res.status(400).json({
-        message:
-          "An MCQ test already exists for this module. Use update to modify it.",
+      const currentQuestions = getQuestionsAsArray(existingMCQ.questions);
+
+      const updatedQuestions = [...currentQuestions, ...normalizedQuestions];
+
+      // Update the MCQ with new questions and passing score
+      await updateRecords(
+        ModuleMCQ,
+        { id: existingMCQ.id },
+        {
+          questions: updatedQuestions as unknown as Record<string, unknown>,
+          passingScore,
+        },
+        false,
+      );
+
+      // Get the updated MCQ
+      const updatedMCQ = await getSingleRecord(ModuleMCQ, {
+        where: { id: existingMCQ.id },
+      });
+
+      for (let index = 0; index < normalizedQuestions.length; index++) {
+        const question = normalizedQuestions[index];
+        const answer = createEntityInstance(ModuleMCQAnswer, {
+          moduleMCQ: updatedMCQ,
+          questionId: question.id || `q_${Date.now()}_${index}`,
+          correctAnswer: question.correctAnswer,
+        });
+        await createRecord(ModuleMCQAnswer, answer);
+      }
+
+      return res.status(200).json({
+        message: "Questions added to existing MCQ successfully",
+        mcq: {
+          id: updatedMCQ.id,
+          passingScore: updatedMCQ.passingScore,
+          questions: updatedQuestions,
+          totalQuestions: updatedQuestions.length,
+        },
       });
     }
 
-    const newMCQ = ModuleMCQ.create({
+    const newMCQ = createEntityInstance(ModuleMCQ, {
       module: moduleRecord,
       questions: normalizedQuestions as unknown as Record<string, unknown>,
       passingScore,
@@ -246,7 +312,7 @@ export const createMCQ = async (req: Request, res: Response) => {
     const savedMCQ = (await createRecord(ModuleMCQ, newMCQ)) as ModuleMCQ;
     for (let index = 0; index < normalizedQuestions.length; index++) {
       const question = normalizedQuestions[index];
-      const answer = ModuleMCQAnswer.create({
+      const answer = createEntityInstance(ModuleMCQAnswer, {
         moduleMCQ: savedMCQ,
         questionId: question.id || `q_${index}`,
         correctAnswer: question.correctAnswer,
@@ -263,7 +329,7 @@ export const createMCQ = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("Error creating MCQ:", error);
+    logger.error("Error creating MCQ:", error);
     res.status(500).json({ message: "Error creating MCQ" });
   }
 };
@@ -291,7 +357,7 @@ export const getMCQById = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching MCQ:", error);
+    logger.error("Error fetching MCQ:", error);
     res.status(500).json({ message: "Error fetching MCQ" });
   }
 };
@@ -323,20 +389,20 @@ export const updateMCQ = async (req: Request, res: Response) => {
     );
 
     if (existingResponses.length > 0) {
-      console.log(
+      logger.warn(
         `[UPDATE MCQ] Warning: ${existingResponses.length} student responses exist for this MCQ`,
       );
-      console.log("[UPDATE MCQ] Allowing update for development purposes");
+      logger.info("[UPDATE MCQ] Allowing update for development purposes");
     }
 
     let normalizedQuestions: MCQQuestion[] | undefined;
     if (questions) {
-      console.log(
+      logger.info(
         "Updating MCQ with raw questions:",
         JSON.stringify(questions, null, 2),
       );
       normalizedQuestions = normalizeMCQQuestions(questions);
-      console.log(
+      logger.info(
         "Normalized questions for update:",
         JSON.stringify(normalizedQuestions, null, 2),
       );
@@ -373,7 +439,7 @@ export const updateMCQ = async (req: Request, res: Response) => {
 
       for (let index = 0; index < normalizedQuestions.length; index++) {
         const question = normalizedQuestions[index];
-        const answer = ModuleMCQAnswer.create({
+        const answer = createEntityInstance(ModuleMCQAnswer, {
           moduleMCQ: existingMCQ,
           questionId: question.id || `q_${index}`,
           correctAnswer: question.correctAnswer,
@@ -395,7 +461,7 @@ export const updateMCQ = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("Error updating MCQ:", error);
+    logger.error("Error updating MCQ:", error);
     res.status(500).json({ message: "Error updating MCQ" });
   }
 };
@@ -438,7 +504,7 @@ export const deleteMCQ = async (req: Request, res: Response) => {
 
     res.status(200).json({ message: "MCQ deleted successfully" });
   } catch (error) {
-    console.error("Error deleting MCQ:", error);
+    logger.error("Error deleting MCQ:", error);
     res.status(500).json({ message: "Error deleting MCQ" });
   }
 };
@@ -475,7 +541,7 @@ export const getMCQ = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error(`  Error fetching MCQ for module ${moduleId}:`, error);
+    logger.error(`Error fetching MCQ for module ${moduleId}:`, error);
     res.status(500).json({ message: "Error fetching MCQ" });
   }
 };
@@ -550,15 +616,17 @@ export const getMCQForStudent = async (req: Request, res: Response) => {
     }
 
     // Remove correct answers from questions for student view
-    const questionsForStudent = mcq.questions.map((question: MCQQuestion) => ({
-      id: question.id,
-      question: question.question,
-      options: question.options.map((option) => ({
-        id: option.id,
-        text: option.text,
-      })),
-      explanation: question.explanation,
-    }));
+    const questionsForStudent = getQuestionsAsArray(mcq.questions).map(
+      (question: MCQQuestion) => ({
+        id: question.id,
+        question: question.question,
+        options: question.options.map((option) => ({
+          id: option.id,
+          text: option.text,
+        })),
+        explanation: question.explanation,
+      }),
+    );
 
     res.status(200).json({
       id: mcq.id,
@@ -567,7 +635,7 @@ export const getMCQForStudent = async (req: Request, res: Response) => {
       attempted: false,
     });
   } catch (error) {
-    console.error("Error fetching MCQ for student:", error);
+    logger.error("Error fetching MCQ for student:", error);
     res.status(500).json({ message: "Error fetching MCQ" });
   }
 };
@@ -650,7 +718,151 @@ export const getMCQRetakeStatus = async (req: Request, res: Response) => {
         : "You can retake this MCQ to improve your score",
     });
   } catch (error) {
-    console.error("Error checking MCQ retake status:", error);
+    logger.error("Error checking MCQ retake status:", error);
     res.status(500).json({ message: "Error checking MCQ retake status" });
+  }
+};
+
+// POST /instructor/courses/:courseId/modules/:moduleId/mcq/questions
+export const addQuestionToMCQ = async (req: Request, res: Response) => {
+  const { moduleId } = req.params;
+  const {
+    question,
+    options,
+    correctAnswer,
+    explanation,
+    difficulty,
+    passingScore,
+  } = req.body;
+
+  try {
+    logger.info("Adding single question to MCQ for module:", moduleId);
+    logger.debug("Question data:", { question, options, correctAnswer });
+
+    // Validate input
+    if (
+      !question ||
+      !options ||
+      !Array.isArray(options) ||
+      options.length < 2
+    ) {
+      return res.status(400).json({
+        message: "Question text and at least 2 options are required",
+      });
+    }
+
+    if (
+      correctAnswer === undefined ||
+      correctAnswer < 0 ||
+      correctAnswer >= options.length
+    ) {
+      return res.status(400).json({
+        message: "Valid correct answer index is required",
+      });
+    }
+
+    // Check if the module exists
+    const moduleRecord = await getSingleRecord(Module, {
+      where: { id: moduleId },
+    });
+    if (!moduleRecord) {
+      return res.status(404).json({ message: "Module not found" });
+    }
+
+    // Create single question object
+    const newQuestion = {
+      id: `q_${Date.now()}`,
+      question:
+        typeof question === "string" ? stringToQuillDelta(question) : question,
+      options: options.map((opt: string, index: number) => ({
+        id: `opt_${Date.now()}_${index}`,
+        text: typeof opt === "string" ? stringToQuillDelta(opt) : opt,
+      })),
+      correctAnswer: `opt_${Date.now()}_${correctAnswer}`,
+      explanation: explanation
+        ? typeof explanation === "string"
+          ? stringToQuillDelta(explanation)
+          : explanation
+        : undefined,
+      difficulty: difficulty || "medium",
+    };
+
+    // Check if an MCQ already exists for this module
+    const mcqRecord = await getSingleRecord(ModuleMCQ, {
+      where: { module: { id: moduleId } },
+    });
+
+    if (mcqRecord) {
+      // Add question to existing MCQ
+      const currentQuestions = getQuestionsAsArray(mcqRecord.questions);
+      const updatedQuestions = [...currentQuestions, newQuestion];
+
+      const updateData: any = {
+        questions: updatedQuestions as unknown as Record<string, unknown>,
+      };
+
+      if (
+        passingScore !== undefined &&
+        passingScore >= 0 &&
+        passingScore <= 100
+      ) {
+        updateData.passingScore = passingScore;
+      }
+
+      await updateRecords(ModuleMCQ, { id: mcqRecord.id }, updateData, false);
+
+      // Get the updated MCQ
+      const updatedMCQ = await getSingleRecord(ModuleMCQ, {
+        where: { id: mcqRecord.id },
+      });
+
+      // Create answer record
+      const answer = createEntityInstance(ModuleMCQAnswer, {
+        moduleMCQ: updatedMCQ,
+        questionId: newQuestion.id,
+        correctAnswer: newQuestion.correctAnswer,
+      });
+      await createRecord(ModuleMCQAnswer, answer);
+
+      return res.status(200).json({
+        message: "Question added to existing MCQ successfully",
+        mcq: {
+          id: updatedMCQ.id,
+          passingScore: updatedMCQ.passingScore,
+          totalQuestions: getQuestionsAsArray(updatedMCQ.questions).length,
+          newQuestionId: newQuestion.id,
+        },
+      });
+    } else {
+      // Create new MCQ with first question
+      const newMCQ = createEntityInstance(ModuleMCQ, {
+        module: moduleRecord,
+        questions: [newQuestion] as unknown as Record<string, unknown>,
+        passingScore: passingScore || 70,
+      });
+
+      const savedMCQ = (await createRecord(ModuleMCQ, newMCQ)) as ModuleMCQ;
+
+      // Create answer record
+      const answer = createEntityInstance(ModuleMCQAnswer, {
+        moduleMCQ: savedMCQ,
+        questionId: newQuestion.id,
+        correctAnswer: newQuestion.correctAnswer,
+      });
+      await createRecord(ModuleMCQAnswer, answer);
+
+      return res.status(201).json({
+        message: "MCQ created with first question successfully",
+        mcq: {
+          id: savedMCQ.id,
+          passingScore: savedMCQ.passingScore,
+          totalQuestions: 1,
+          newQuestionId: newQuestion.id,
+        },
+      });
+    }
+  } catch (error) {
+    logger.error("Error adding question to MCQ:", error);
+    res.status(500).json({ message: "Error adding question to MCQ" });
   }
 };

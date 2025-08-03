@@ -299,3 +299,23 @@ export async function getFillteredRecordsWithPaginationNew<T>(
     throw err;
   }
 }
+
+/**
+ * Creates a new entity instance without saving it to the database
+ * @param model - The entity model/class
+ * @param data - The data to populate the entity with
+ * @returns A new entity instance
+ */
+export function createEntityInstance<T extends BaseEntity>(
+  model: new () => T,
+  data: Partial<T>,
+): T {
+  try {
+    const entity = new model();
+    Object.assign(entity, data);
+    return entity;
+  } catch (err) {
+    logger.error("ERROR in createEntityInstance", err);
+    throw err;
+  }
+}
