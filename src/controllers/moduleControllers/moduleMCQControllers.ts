@@ -51,8 +51,8 @@ const isValidQuillDelta = (delta: any): delta is QuillDelta => {
   return (
     delta &&
     typeof delta === "object" &&
-    Array.isArray(delta.ops) &&
-    delta.ops.every(
+    Array.isArray((delta as QuillDelta).ops) &&
+    (delta as QuillDelta).ops.every(
       (op: any) =>
         typeof op === "object" &&
         (op.insert !== undefined ||
@@ -525,7 +525,6 @@ export const getMCQ = async (req: Request, res: Response) => {
     // Get MCQ for this module (fixed relation name)
     const mcq = await getSingleRecord(ModuleMCQ, {
       where: { module: { id: moduleId } },
-      relations: ["module"],
     });
 
     if (!mcq) {
@@ -612,7 +611,9 @@ export const getMCQForStudent = async (req: Request, res: Response) => {
 
       // If failed, allow retake but inform them
       // Note: We'll delete the old response to allow fresh attempt
-      await deleteRecords(ModuleMCQResponses, { id: existingResponse.id });
+      await deleteRecords(ModuleMCQResponses, {
+        id: existingResponse.id,
+      });
     }
 
     // Remove correct answers from questions for student view
