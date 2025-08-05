@@ -75,6 +75,7 @@ import {
   deleteCourse,
   fetchAllCoursesinBatch,
   assignCourseToStudent,
+  getCourseAnalytics,
 } from "../../controllers/courseCrudControllers/courseController";
 
 import {
@@ -191,6 +192,9 @@ router.get(
 // Module routes
 router.post("/batches/:batchId/courses/:courseId/modules", createModule);
 router.get("/batches/:batchId/courses/:courseId/modules", getAllModules);
+
+// Course analytics route
+router.get("/batches/:batchId/courses/:courseId/analytics", getCourseAnalytics);
 router.get(
   "/batches/:batchId/courses/:courseId/modules/:moduleId",
   getSingleModule,

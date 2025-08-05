@@ -6,6 +6,10 @@ import { Module } from "../../db/mysqlModels/Module";
 import { User } from "../../db/mysqlModels/User";
 import { UserCourse } from "../../db/mysqlModels/UserCourse";
 import { DayContent } from "../../db/mysqlModels/DayContent";
+import { UserDayCompletion } from "../../db/mysqlModels/UserDayCompletion";
+import { ModuleMCQ } from "../../db/mysqlModels/ModuleMCQ";
+import { ModuleMCQResponses } from "../../db/mysqlModels/ModuleMCQResponses";
+import { ModuleMCQAnswer } from "../../db/mysqlModels/ModuleMCQAnswer";
 import { AppDataSource } from "../../db/connect";
 import s3Service from "../../utils/s3Service";
 
@@ -281,6 +285,344 @@ export const createCourse = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error creating course:", error);
     return res.status(500).json({ message: "Error creating course" });
+  }
+};
+
+export const getCourseAnalytics = async (req: Request, res: Response) => {
+  try {
+    const { courseId } = req.params;
+    if (!courseId)
+      return res.status(400).json({ message: "Course ID is required" });
+
+    // Fetch course with modules, days and MCQs
+    const course = await getSingleRecord(
+      Course,
+      { where: { id: courseId }, relations: ["modules.days", "modules.tests"] },
+      `course_student_analytics_${courseId}`,
+      true,
+      10 * 60,
+    );
+    if (!course) return res.status(404).json({ message: "Course not found" });
+
+    // Fetch all students assigned to this course
+    const assignments = await UserCourse.find({
+      where: { course: { id: courseId } },
+      relations: ["user"],
+    });
+    const students = assignments.map((a) => a.user);
+
+    // Prepare IDs for batch queries
+    const studentIds = students.map((s) => s.id);
+    const moduleIds = (course.modules || []).map((m) => m.id);
+    // Fix: Properly flatten all day IDs from modules
+    const allDayIds = (course.modules || []).flatMap((m) =>
+      Array.isArray(m.days) ? m.days.map((d) => d.id) : [],
+    );
+
+    // Batch fetch all UserDayCompletion for these students and days
+    const allDayCompletions = await UserDayCompletion.find({
+      where: {
+        user: { id: In(studentIds) },
+        completed: true,
+        day: In(allDayIds),
+      },
+      relations: ["user", "day"],
+    });
+
+    // Batch fetch all MCQs for these modules
+    const allMcqs = await getAllRecordsWithFilter(ModuleMCQ, {
+      where: { module: { id: In(moduleIds) } },
+    });
+
+    // Build mcqByModuleId Map with validation
+    const mcqByModuleId = new Map();
+    for (const mcq of allMcqs) {
+      if (mcq.module && mcq.module.id) {
+        mcqByModuleId.set(mcq.module.id, mcq);
+      } else {
+        console.warn(
+          `[MCQ DEBUG] Skipping MCQ with invalid module or module.id:`,
+          mcq,
+        );
+      }
+    }
+
+    const mcqIds = allMcqs.map((mcq) => mcq.id);
+
+    // Batch fetch all MCQ responses for these students and MCQs
+    const allMcqResponses = await getAllRecordsWithFilter(ModuleMCQResponses, {
+      where: { moduleMCQ: { id: In(mcqIds) }, user: { id: In(studentIds) } },
+      relations: ["moduleMCQ", "user"],
+    });
+    // Store all responses for each MCQ+user combination to find maximum score
+    const mcqResponseMap = new Map();
+    for (const r of allMcqResponses) {
+      if (r.moduleMCQ && r.moduleMCQ.id && r.user && r.user.id) {
+        const key = `${r.moduleMCQ.id}_${r.user.id}`;
+        if (!mcqResponseMap.has(key)) {
+          mcqResponseMap.set(key, []);
+        }
+        mcqResponseMap.get(key).push(r);
+      }
+    }
+
+    // Batch fetch all MCQ answers for these MCQs
+    const allMcqAnswers = await getAllRecordsWithFilter(ModuleMCQAnswer, {
+      where: { moduleMCQ: { id: In(mcqIds) } },
+      relations: ["moduleMCQ"],
+      order: { createdAt: "ASC" },
+    });
+    const mcqAnswersMap = new Map();
+    for (const ans of allMcqAnswers) {
+      if (ans.moduleMCQ && ans.moduleMCQ.id) {
+        if (!mcqAnswersMap.has(ans.moduleMCQ.id)) {
+          mcqAnswersMap.set(ans.moduleMCQ.id, []);
+        }
+        mcqAnswersMap.get(ans.moduleMCQ.id).push(ans);
+      }
+    }
+
+    // Debug: Log MCQ data summary
+    console.log(
+      `[Course Analytics] MCQ Summary - Total MCQs: ${allMcqs.length}, Total Answers: ${allMcqAnswers.length}, Total Responses: ${allMcqResponses.length}, Students: ${studentIds.length}`,
+    );
+
+    // Map: studentId+dayId => completion
+    const dayCompletionMap = new Map();
+    for (const dc of allDayCompletions) {
+      if (dc.user && dc.user.id && dc.day && dc.day.id) {
+        dayCompletionMap.set(`${dc.user.id}_${dc.day.id}`, true);
+      } else {
+        console.warn(
+          `[DAY COMPLETION DEBUG] Skipping invalid day completion:`,
+          dc,
+        );
+      }
+    }
+
+    // Calculate pass percentage for each student
+    const totalModules = course.modules?.length || 0;
+
+    // Handle empty course case
+    if (totalModules === 0) {
+      console.log(
+        `[Course Analytics] Warning: Course ${courseId} has no modules`,
+      );
+      const emptyAnalytics = students.map((student) => ({
+        studentId: student.id,
+        studentName: student.username || "",
+        modulesCompleted: 0,
+        totalModules: 0,
+        courseCompleted: true, // Consider empty course as completed
+        passPercentage: 100, // 100% for empty course
+        modules: [],
+      }));
+
+      return res.status(200).json({
+        message: "Course student analytics fetched successfully (empty course)",
+        courseId,
+        courseTitle: course.title,
+        analytics: emptyAnalytics,
+      });
+    }
+
+    const analytics = students.map((student) => {
+      let modulesCompleted = 0;
+      const modules = (course.modules || []).map((module: Module) => {
+        // Day completion
+        const dayIds = Array.isArray(module.days)
+          ? module.days.map((d: DayContent) => d.id)
+          : [];
+        const completedDays = dayIds.filter((dayId) =>
+          dayCompletionMap.get(`${student.id}_${dayId}`),
+        );
+        const allDaysCompleted =
+          completedDays.length === dayIds.length && dayIds.length > 0;
+
+        // MCQ analytics - Use module.tests directly since it's loaded via relations
+        let mcq: ModuleMCQ | null = null;
+        let mcqPercentage: number | null = null;
+        let mcqPassed: boolean = false;
+        let mcqScore: number | null = null;
+        let mcqPassedScore: number | null = null;
+        let mcqTotalQuestions: number | null = null;
+        let mcqAttempted: boolean = false;
+
+        // Use module.tests directly from the loaded relations
+        if (Array.isArray(module.tests) && module.tests.length > 0) {
+          mcq = module.tests[0];
+          const mcqResponses =
+            mcqResponseMap.get(`${mcq.id}_${student.id}`) || [];
+          const correctAnswers = mcqAnswersMap.get(mcq.id) || [];
+
+          // Get total questions - try from answers first, then from MCQ questions JSON
+          mcqTotalQuestions = correctAnswers.length;
+          if (mcqTotalQuestions === 0 && mcq.questions) {
+            // If no answers found, try to count from MCQ questions JSON
+            if (Array.isArray(mcq.questions)) {
+              mcqTotalQuestions = mcq.questions.length;
+            } else if (typeof mcq.questions === "object") {
+              // If questions is an object, count its properties
+              mcqTotalQuestions = Object.keys(mcq.questions).length;
+            }
+          }
+
+          if (mcqResponses.length > 0) {
+            mcqAttempted = true;
+            let maxScore = 0;
+
+            // Find the response with maximum score
+            mcqResponses.forEach((response: any) => {
+              if (Array.isArray(response.responses)) {
+                let score = 0;
+                response.responses.forEach((resp: any) => {
+                  const correct = correctAnswers.find(
+                    (ans: ModuleMCQAnswer) =>
+                      ans.questionId === resp.questionId &&
+                      ans.correctAnswer === resp.answer,
+                  );
+                  if (correct) score++;
+                });
+                if (score > maxScore) {
+                  maxScore = score;
+                }
+              }
+            });
+
+            mcqScore = maxScore;
+            mcqPercentage =
+              mcqTotalQuestions > 0 ? (maxScore / mcqTotalQuestions) * 100 : 0;
+            mcqPassedScore = mcq.passingScore ?? null;
+            mcqPassed =
+              mcqPercentage !== null &&
+              mcqPassedScore !== null &&
+              mcqPercentage >= mcqPassedScore;
+          } else {
+            // MCQ exists but not attempted
+            mcqScore = 0;
+            mcqPercentage = 0;
+            mcqPassedScore = mcq.passingScore ?? null;
+            mcqPassed = false;
+          }
+        } else {
+          // Try to get MCQ from the mcqByModuleId map as fallback
+          const moduleWiseMcq = mcqByModuleId.get(module.id);
+          if (moduleWiseMcq) {
+            mcq = moduleWiseMcq;
+            const mcqResponses =
+              mcqResponseMap.get(`${mcq.id}_${student.id}`) || [];
+            const correctAnswers = mcqAnswersMap.get(mcq.id) || [];
+
+            // Get total questions - try from answers first, then from MCQ questions JSON
+            mcqTotalQuestions = correctAnswers.length;
+            if (mcqTotalQuestions === 0 && mcq.questions) {
+              // If no answers found, try to count from MCQ questions JSON
+              if (Array.isArray(mcq.questions)) {
+                mcqTotalQuestions = mcq.questions.length;
+              } else if (typeof mcq.questions === "object") {
+                // If questions is an object, count its properties
+                mcqTotalQuestions = Object.keys(mcq.questions).length;
+              }
+            }
+
+            if (mcqResponses.length > 0) {
+              mcqAttempted = true;
+              let maxScore = 0;
+
+              // Find the response with maximum score
+              mcqResponses.forEach((response: any) => {
+                if (Array.isArray(response.responses)) {
+                  let score = 0;
+                  response.responses.forEach((resp: any) => {
+                    const correct = correctAnswers.find(
+                      (ans: ModuleMCQAnswer) =>
+                        ans.questionId === resp.questionId &&
+                        ans.correctAnswer === resp.answer,
+                    );
+                    if (correct) score++;
+                  });
+                  if (score > maxScore) {
+                    maxScore = score;
+                  }
+                }
+              });
+
+              mcqScore = maxScore;
+              mcqPercentage =
+                mcqTotalQuestions > 0
+                  ? (maxScore / mcqTotalQuestions) * 100
+                  : 0;
+              mcqPassedScore = mcq.passingScore ?? null;
+              mcqPassed =
+                mcqPercentage !== null &&
+                mcqPassedScore !== null &&
+                mcqPercentage >= mcqPassedScore;
+            } else {
+              // MCQ exists but not attempted
+              mcqScore = 0;
+              mcqPercentage = 0;
+              mcqPassedScore = mcq.passingScore ?? null;
+              mcqPassed = false;
+            }
+          }
+        }
+
+        // Module completion logic:
+        // 1. All days must be completed
+        // 2. If MCQ exists and has been attempted, it must be passed
+        // 3. If MCQ exists but not attempted, module is still complete if days are done
+        const moduleFullyCompleted =
+          allDaysCompleted && (mcq ? (mcqAttempted ? mcqPassed : true) : true);
+        if (moduleFullyCompleted) modulesCompleted++;
+
+        return {
+          moduleId: module.id,
+          moduleTitle: module.title,
+          completedDays: completedDays.length,
+          totalDays: dayIds.length,
+          allDaysCompleted,
+          mcq: mcq
+            ? {
+                id: mcq.id,
+                passingScore: mcq.passingScore,
+                totalQuestions: mcqTotalQuestions,
+                attempted: mcqAttempted,
+                score: mcqScore,
+                percentage: mcqPercentage,
+                passed: mcqPassed,
+              }
+            : null,
+          moduleFullyCompleted,
+        };
+      });
+
+      const courseCompleted =
+        modules.length > 0 && modules.every((m) => m.moduleFullyCompleted);
+      const completionPercentage =
+        totalModules > 0 ? (modulesCompleted / totalModules) * 100 : 0;
+
+      return {
+        studentId: student.id,
+        studentName: student.username || "",
+        modulesCompleted,
+        totalModules,
+        courseCompleted,
+        completionPercentage,
+        modules,
+      };
+    });
+
+    return res.status(200).json({
+      message: "Course student analytics fetched successfully",
+      courseId,
+      courseTitle: course.title,
+      analytics,
+    });
+  } catch (error) {
+    console.error("Error fetching course student analytics:", error);
+    return res
+      .status(500)
+      .json({ message: "Error fetching course student analytics" });
   }
 };
 
@@ -854,5 +1196,119 @@ export const uploadTrainerLogo = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Logo upload failed:", error);
     return res.status(500).json({ error: "Logo upload failed" });
+  }
+};
+
+// ========== HELPER FUNCTION ==========
+async function areAllDaysCompleted(
+  userId: string,
+  module: Module,
+): Promise<boolean> {
+  try {
+    // Get all days for this module
+    const days = await getAllRecordsWithFilter(DayContent, {
+      where: { module: { id: module.id } },
+    });
+
+    if (days.length === 0) return true; // No days means module is complete
+
+    // Check if user has completed all days
+    const completedDays = await getAllRecordsWithFilter(UserDayCompletion, {
+      where: {
+        user: { id: userId },
+        day: { id: In(days.map((d) => d.id)) },
+        completed: true,
+      },
+    });
+
+    return completedDays.length === days.length;
+  } catch (error) {
+    console.error("Error checking day completions:", error);
+    return false;
+  }
+}
+
+// ========== GET MODULE COMPLETION STATUS ==========
+export const getModuleCompletionStatus = async (
+  req: Request,
+  res: Response,
+) => {
+  const { moduleId } = req.params;
+  const student = req.user as User;
+
+  try {
+    const module = await getSingleRecord(Module, { where: { id: moduleId } });
+    if (!module) {
+      return res.status(404).json({ message: "Module not found" });
+    }
+
+    const allDaysCompleted = await areAllDaysCompleted(student.id, module);
+
+    const mcq = await getSingleRecord(ModuleMCQ, {
+      where: { module: { id: moduleId } },
+    });
+    let mcqAttempted = false;
+    let mcqPassed = false;
+    let mcqScore = 0;
+    let mcqPercentage = 0;
+
+    if (mcq) {
+      // Get all MCQ responses for this user and MCQ
+      const mcqResponses = await getAllRecordsWithFilter(ModuleMCQResponses, {
+        where: { moduleMCQ: { id: mcq.id }, user: { id: student.id } },
+      });
+
+      if (mcqResponses.length > 0) {
+        mcqAttempted = true;
+        const correctAnswers = await getAllRecordsWithFilter(ModuleMCQAnswer, {
+          where: { moduleMCQ: { id: mcq.id } },
+          order: { createdAt: "ASC" },
+        });
+
+        let maxScore = 0;
+
+        // Find the maximum score from all attempts
+        mcqResponses.forEach((mcqResponse: any) => {
+          if (Array.isArray(mcqResponse.responses)) {
+            let score = 0;
+            mcqResponse.responses.forEach((response: any) => {
+              const correct = correctAnswers.find(
+                (ans: ModuleMCQAnswer) =>
+                  ans.questionId === response.questionId &&
+                  ans.correctAnswer === response.answer,
+              );
+              if (correct) {
+                score++;
+              }
+            });
+            if (score > maxScore) {
+              maxScore = score;
+            }
+          }
+        });
+
+        mcqScore = maxScore;
+        mcqPercentage =
+          correctAnswers.length > 0
+            ? (maxScore / correctAnswers.length) * 100
+            : 0;
+        mcqPassed = mcqPercentage >= mcq.passingScore;
+      }
+    }
+
+    const moduleFullyCompleted = allDaysCompleted && (mcq ? mcqPassed : true);
+
+    res.status(200).json({
+      moduleId,
+      allDaysCompleted,
+      mcqAttempted,
+      mcqPassed,
+      mcqScore,
+      mcqPercentage,
+      moduleFullyCompleted,
+    });
+  } catch (error) {
+    console.error("Error checking module completion:", error);
+    res.status(500).json({ message: "Error checking module completion" });
   }
 };

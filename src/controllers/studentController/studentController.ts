@@ -897,7 +897,7 @@ export const getStudentCourseById = async (req: Request, res: Response) => {
         const isUnlocked = await isModuleUnlocked(student, module);
         const allDaysCompleted = await areAllDaysCompleted(student.id, module);
 
-        // Fetch MCQ status
+        // Fetch MCQ status and all attempts
         const mcq = await getSingleRecord(ModuleMCQ, {
           where: { module: { id: module.id } },
         });
@@ -906,10 +906,14 @@ export const getStudentCourseById = async (req: Request, res: Response) => {
         let mcqScore = null;
 
         if (mcq) {
-          const mcqResponse = await getSingleRecord(ModuleMCQResponses, {
-            where: { moduleMCQ: { id: mcq.id }, user: { id: student.id } },
-          });
-          if (mcqResponse) {
+          // Get all responses for this student and module MCQ (no order by createdAt)
+          const mcqResponses = await getAllRecordsWithFilter(
+            ModuleMCQResponses,
+            {
+              where: { moduleMCQ: { id: mcq.id }, user: { id: student.id } },
+            },
+          );
+          if (mcqResponses.length > 0) {
             mcqAttempted = true;
             const correctAnswers = await getAllRecordsWithFilter(
               ModuleMCQAnswer,
@@ -918,27 +922,35 @@ export const getStudentCourseById = async (req: Request, res: Response) => {
                 order: { createdAt: "ASC" },
               },
             );
-            let score = 0;
-            mcqResponse.responses.forEach((response: any) => {
-              const correct = correctAnswers.find(
-                (ans: ModuleMCQAnswer) =>
-                  ans.questionId === response.questionId,
-              );
-              if (correct && correct.correctAnswer === response.answer) {
-                score++;
+            // Calculate score for each attempt
+            let maxPercentage = 0;
+            for (const resp of mcqResponses) {
+              let score = 0;
+              resp.responses.forEach((response: any) => {
+                const correct = correctAnswers.find(
+                  (ans: ModuleMCQAnswer) =>
+                    ans.questionId === response.questionId,
+                );
+                if (correct && correct.correctAnswer === response.answer) {
+                  score++;
+                }
+              });
+              const percentage = (score / correctAnswers.length) * 100;
+              if (percentage > maxPercentage) {
+                maxPercentage = percentage;
               }
-            });
-            const percentage = (score / correctAnswers.length) * 100;
-            mcqPassed = percentage >= mcq.passingScore;
-            mcqScore = percentage;
+            }
+            mcqScore = maxPercentage;
+            mcqPassed = mcqScore >= mcq.passingScore;
           }
         }
 
-        const moduleFullyCompleted = allDaysCompleted && mcqAttempted;
+        // Module is completed only if MCQ is passed (using max score) and all days are completed
+        const moduleFullyCompleted = allDaysCompleted && mcqPassed;
 
         // Calculate status
         let status: "completed" | "in-progress" | "not-started" = "not-started";
-        let days = [];
+        let days: any[] = [];
         if (module.days) {
           days = module.days;
         } else {
