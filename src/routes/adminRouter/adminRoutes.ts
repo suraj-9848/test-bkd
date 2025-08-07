@@ -69,19 +69,15 @@ import {
   fetchBatch,
 } from "../../controllers/instructorControllers/batch.controller";
 
-// import { adminMiddleware } from "../../middleware/adminMiddleware";
-// import { authMiddleware } from "../../middleware/authMiddleware";
-import { adminAuthMiddleware } from "../../middleware/authMiddleware";
+import { adminMiddleware } from "../../middleware/adminMiddleware";
+import { authMiddleware } from "../../middleware/authMiddleware";
 import { validateCourseBody } from "../../middleware/courseCrudPipes/coursePipe";
 
 export const adminRouter = express.Router();
 
-// adminRouter.get("/users/all", getUsers)
-// adminRouter.get("/ping", (req, res) => res.send("pong from admin"))
-// adminRouter.get('/test', getTestData)
-// adminRouter.get('/file', handleFileUpload)
-// TODO: Needs to be deleted in the future
-adminRouter.use(adminAuthMiddleware);
+// Apply authentication first, then admin authorization
+adminRouter.use(authMiddleware);
+adminRouter.use(adminMiddleware);
 
 adminRouter.post("/create-batch", createBatch);
 adminRouter.delete("/delete-batch/:id", deleteBatch);
@@ -95,12 +91,12 @@ adminRouter.put("/update-course/:id", updateCourse);
 adminRouter.get("/fetch-course/:id", fetchCourse);
 adminRouter.get("/fetch-all-courses", fetchAllCoursesinBatch);
 
-//Organization CRUD
-adminRouter.get("/get-all-org", getAllOrg);
-adminRouter.get("/get-single-org/:org_id", getSingleOrg);
-adminRouter.post("/create-org", createOrg);
-adminRouter.put("/update-org/:org_id", updateOrg);
-adminRouter.delete("/delete-org/:org_id", deleteOrg);
+//Organization CRUD - REST API style
+adminRouter.get("/organizations", getAllOrg); // GET /api/admin/organizations
+adminRouter.get("/organizations/:org_id", getSingleOrg); // GET /api/admin/organizations/:id
+adminRouter.post("/organizations", createOrg); // POST /api/admin/organizations
+adminRouter.put("/organizations/:org_id", updateOrg); // PUT /api/admin/organizations/:id
+adminRouter.delete("/organizations/:org_id", deleteOrg); // DELETE /api/admin/organizations/:id
 
 //Instructor CRUD
 adminRouter.post("/create-instructor", createInstructor);
@@ -115,16 +111,14 @@ adminRouter.post("/create-student", createStudent);
 adminRouter.delete("/delete-student/:user_id", deleteStudent);
 adminRouter.put("/update-student/:user_id", updateStudent);
 
-adminRouter.post("/get-all-users", getAllUsers);
-adminRouter.get("/get-users", getAllUsers); // New route to handle query param
-adminRouter.get("/get-users/:role", getAllUsers);
-
-// Unified user management endpoints
-adminRouter.post("/create-user", createUser);
-adminRouter.put("/update-user/:user_id", updateUser);
-adminRouter.delete("/delete-user/:user_id", deleteUser);
+// Unified user management endpoints - REST API style
+adminRouter.get("/users/stats", getUserStats); // GET /api/admin/users/stats (must be before :role)
+adminRouter.get("/users", getAllUsers); // GET /api/admin/users
+adminRouter.post("/users", createUser); // POST /api/admin/users
+adminRouter.get("/users/:role", getAllUsers); // GET /api/admin/users/:role
+adminRouter.put("/users/:user_id", updateUser); // PUT /api/admin/users/:user_id
+adminRouter.delete("/users/:user_id", deleteUser); // DELETE /api/admin/users/:user_id
 
 // Bulk operations
 adminRouter.post("/bulk-create-users", bulkCreateUsers);
 adminRouter.delete("/bulk-delete-users", bulkDeleteUsers);
-adminRouter.get("/user-stats", getUserStats);
