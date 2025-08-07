@@ -147,6 +147,98 @@ export async function updateRecords<T>(
   }
 }
 
+/**
+ * Get count of records with caching support
+ */
+export async function getRecordCount(
+  model: typeof BaseEntity,
+  query: any = {},
+  key: any = "",
+  isCache: boolean = false,
+  cacheLimit: number = 10 * 60,
+): Promise<number> {
+  try {
+    const redisCacheActive = redisClient.isOpen;
+    if (isCache && redisCacheActive && key) {
+      const cacheData = await getCacheData(key);
+      if (cacheData !== null) {
+        return cacheData;
+      }
+    }
+
+    const count = await model.count(query);
+
+    if (isCache && redisCacheActive && key) {
+      await setCacheData(key, count, cacheLimit);
+    }
+
+    return count;
+  } catch (err) {
+    logger.error("ERROR in getRecordCount", err);
+    throw err;
+  }
+}
+
+/**
+ * Get aggregated data (SUM, COUNT, AVG, etc.) with caching support
+ */
+export async function getAggregatedData(
+  model: typeof BaseEntity,
+  aggregateQuery: {
+    select: string[];
+    where?: string | object;
+    whereParams?: any;
+    groupBy?: string[];
+  },
+  key: any = "",
+  isCache: boolean = false,
+  cacheLimit: number = 10 * 60,
+): Promise<any> {
+  try {
+    const redisCacheActive = redisClient.isOpen;
+    if (isCache && redisCacheActive && key) {
+      const cacheData = await getCacheData(key);
+      if (cacheData) {
+        return cacheData;
+      }
+    }
+
+    let queryBuilder = model.createQueryBuilder();
+
+    if (aggregateQuery.select) {
+      queryBuilder = queryBuilder.select(aggregateQuery.select);
+    }
+
+    if (aggregateQuery.where) {
+      if (typeof aggregateQuery.where === "string") {
+        queryBuilder = queryBuilder.where(
+          aggregateQuery.where,
+          aggregateQuery.whereParams,
+        );
+      } else {
+        queryBuilder = queryBuilder.where(aggregateQuery.where);
+      }
+    }
+
+    if (aggregateQuery.groupBy) {
+      aggregateQuery.groupBy.forEach((group) => {
+        queryBuilder = queryBuilder.addGroupBy(group);
+      });
+    }
+
+    const result = await queryBuilder.getRawMany();
+
+    if (isCache && redisCacheActive && key) {
+      await setCacheData(key, result, cacheLimit);
+    }
+
+    return result;
+  } catch (err) {
+    logger.error("ERROR in getAggregatedData", err);
+    throw err;
+  }
+}
+
 export async function getFillteredRecordsWithPagination<T>(
   model: any,
   page: any,

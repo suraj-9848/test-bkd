@@ -12,6 +12,7 @@ import {
   updateRecords,
   deleteRecords,
   createRecord,
+  getAggregatedData,
 } from "../../lib/dbLib/sqlUtils";
 
 // Create new pro plan
@@ -171,13 +172,21 @@ export const getProPlan = async (req: Request, res: Response) => {
       },
     });
 
-    const totalRevenue = await ProSubscription.createQueryBuilder(
-      "subscription",
-    )
-      .select("SUM(subscription.amount)", "total")
-      .where("subscription.plan_id = :planId", { planId: plan.id })
-      .andWhere("subscription.status = :status", { status: "active" })
-      .getRawOne();
+    const totalRevenueResult = await getAggregatedData(
+      ProSubscription,
+      {
+        select: ["SUM(subscription.amount) as total"],
+        where: {
+          plan_id: plan.id,
+          status: "active",
+        },
+      },
+      `pro_plan:${plan.id}:total_revenue`,
+      true,
+      30 * 60, // Cache for 30 minutes
+    );
+
+    const totalRevenue = totalRevenueResult[0] || { total: 0 };
 
     return res.status(200).json({
       success: true,
@@ -404,21 +413,33 @@ export const getProPlanAnalytics = async (req: Request, res: Response) => {
     }
 
     // Get subscription analytics
-    const subscriptionStats = await ProSubscription.createQueryBuilder(
-      "subscription",
-    )
-      .select([
-        "COUNT(*) as total_subscriptions",
-        "COUNT(CASE WHEN status = 'active' THEN 1 END) as active_subscriptions",
-        "COUNT(CASE WHEN status = 'canceled' THEN 1 END) as canceled_subscriptions",
-        "COUNT(CASE WHEN status = 'expired' THEN 1 END) as expired_subscriptions",
-        "SUM(CASE WHEN status = 'active' THEN amount ELSE 0 END) as total_revenue",
-        "AVG(CASE WHEN status = 'active' THEN amount ELSE NULL END) as avg_revenue",
-      ])
-      .where("subscription.plan_id = :planId", { planId: id })
-      .andWhere("subscription.created_at >= :startDate", { startDate })
-      .andWhere("subscription.created_at <= :endDate", { endDate })
-      .getRawOne();
+    const subscriptionStatsResult = await getAggregatedData(
+      ProSubscription,
+      {
+        select: [
+          "COUNT(*) as total_subscriptions",
+          "COUNT(CASE WHEN status = 'active' THEN 1 END) as active_subscriptions",
+          "COUNT(CASE WHEN status = 'canceled' THEN 1 END) as canceled_subscriptions",
+          "COUNT(CASE WHEN status = 'expired' THEN 1 END) as expired_subscriptions",
+          "SUM(CASE WHEN status = 'active' THEN amount ELSE 0 END) as total_revenue",
+          "AVG(CASE WHEN status = 'active' THEN amount ELSE NULL END) as avg_revenue",
+        ],
+        where: `subscription.plan_id = :planId AND subscription.created_at >= :startDate AND subscription.created_at <= :endDate`,
+        whereParams: { planId: id, startDate, endDate },
+      },
+      `pro_plan:${id}:analytics:${period}`,
+      true,
+      15 * 60, // Cache for 15 minutes
+    );
+
+    const subscriptionStats = subscriptionStatsResult[0] || {
+      total_subscriptions: 0,
+      active_subscriptions: 0,
+      canceled_subscriptions: 0,
+      expired_subscriptions: 0,
+      total_revenue: 0,
+      avg_revenue: 0,
+    };
 
     // Get daily subscription counts for chart data
     const dailyStats = await ProSubscription.createQueryBuilder("subscription")

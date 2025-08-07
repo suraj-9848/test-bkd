@@ -29,7 +29,7 @@ export class CPTrackerCronService {
   // Schedule daily update of all active profiles (every 30 seconds for testing)
   private static scheduleDailyUpdate(): void {
     const job = cron.schedule(
-      "*/30 * * * * *", // Every 30 seconds for testing (was "0 2 * * *" for daily)
+      "0 2 * * *", // Every 30 seconds for testing (was "0 2 * * *" for daily)
       async () => {
         try {
           logger.info(

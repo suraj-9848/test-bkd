@@ -1574,7 +1574,8 @@ export const getGlobalTestLeaderboard = async (req: Request, res: Response) => {
     const allSubmissions = await getAllRecordsWithFilter(
       TestSubmission,
       {
-        select: ["userId"],
+        select: ["id"],
+        relations: ["user"],
         distinct: true,
       },
       `global:test:leaderboard:total_users`,
