@@ -14,6 +14,7 @@ import { JobApplication } from "./JobApplication";
 import { TestSubmission } from "./TestSubmission";
 import { RefreshToken } from "./RefreshToken";
 import { ProSubscription } from "./ProSubscription";
+import { CPTracker } from "./CPTracker";
 
 export enum UserRole {
   STUDENT = "student",
@@ -70,6 +71,9 @@ export class User extends BaseEntity {
 
   @OneToMany(() => ProSubscription, (subscription) => subscription.user)
   proSubscriptions: ProSubscription[];
+
+  @OneToMany(() => CPTracker, (cpTracker) => cpTracker.user)
+  cpTrackers: CPTracker[];
 
   @ManyToOne(() => Org, (org) => org.users)
   @OneToMany(() => TestSubmission, (submission) => submission.user)

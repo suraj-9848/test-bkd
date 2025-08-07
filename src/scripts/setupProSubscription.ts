@@ -43,7 +43,7 @@ async function setupProSubscriptionSystem(): Promise<void> {
       "📖 See docs/PRO_SUBSCRIPTION_DOCUMENTATION.md for full details",
     );
   } catch (error) {
-    logger.error("❌ Failed to setup Pro Subscription system:", error);
+    logger.error("Failed to setup Pro Subscription system:", error);
     throw error;
   } finally {
     await closeConnections();
