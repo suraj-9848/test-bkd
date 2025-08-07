@@ -1,0 +1,5 @@
+#!/bin/sh
+
+# Run lint-staged and typecheck before commit
+npx lint-staged
+pnpm typecheck
