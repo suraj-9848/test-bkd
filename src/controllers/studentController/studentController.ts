@@ -1432,16 +1432,38 @@ export const getModuleCompletionStatus = async (
 };
 
 // GET /student/tests/leaderboard
-export const getGlobalTestLeaderboard = async (req, res) => {
+export const getGlobalTestLeaderboard = async (req: Request, res: Response) => {
   try {
     console.log("📊 Fetching global test leaderboard...");
 
-    // Fetch all submissions with user and test relations
-    const submissions = await TestSubmission.find({
-      relations: ["user", "test", "test.course"],
-    });
+    // Extract pagination parameters from query
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const offset = (page - 1) * limit;
+    const getUserPosition = req.query.getUserPosition === "true";
+    const userId = req.query.userId as string;
 
-    console.log(`📊 Found ${submissions.length} test submissions`);
+    console.log(
+      `📊 Pagination: page=${page}, limit=${limit}, offset=${offset}`,
+    );
+
+    // Fetch best submissions per user per test with pagination
+    const submissions = await getAllRecordsWithFilter(
+      TestSubmission,
+      {
+        relations: ["user", "test", "test.course"],
+        order: { totalScore: "DESC", submittedAt: "ASC" },
+        take: limit,
+        skip: offset,
+      },
+      `global:test:leaderboard:submissions:page:${page}:limit:${limit}`,
+      true,
+      10 * 60, // Cache for 10 minutes
+    );
+
+    console.log(
+      `📊 Found ${submissions.length} test submissions for page ${page}`,
+    );
 
     // If no submissions, return empty leaderboard
     if (submissions.length === 0) {
@@ -1449,13 +1471,22 @@ export const getGlobalTestLeaderboard = async (req, res) => {
       return res.json({
         message: "Global leaderboard fetched successfully",
         data: [],
+        userPosition: null,
+        pagination: {
+          currentPage: page,
+          totalPages: 0,
+          totalItems: 0,
+          itemsPerPage: limit,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
       });
     }
 
     // Map: userId -> { userName, totalScore, totalMaxMarks, tests: [...] }
     const userScores = new Map();
 
-    // For each test, keep only the highest submission per user
+    // Process submissions to keep only the best per user per test
     const bestSubmissionsPerUserPerTest = new Map();
     for (const submission of submissions) {
       const key = `${submission.user.id}_${submission.test.id}`;
@@ -1488,7 +1519,7 @@ export const getGlobalTestLeaderboard = async (req, res) => {
     } of bestSubmissionsPerUserPerTest.values()) {
       if (!userScores.has(user.id)) {
         userScores.set(user.id, {
-          id: user.id, // Add user ID for frontend matching
+          id: user.id,
           userName: user.username,
           totalScore: 0,
           totalMaxMarks: 0,
@@ -1508,14 +1539,14 @@ export const getGlobalTestLeaderboard = async (req, res) => {
       });
     }
 
-    // Prepare leaderboard array
-    const leaderboard = Array.from(userScores.values())
+    // Prepare leaderboard array (sorted)
+    const fullLeaderboard = Array.from(userScores.values())
       .map((entry) => ({
         id: entry.id,
         userName: entry.userName,
         courseName: entry.tests.length > 0 ? entry.tests[0].courseName : "N/A",
-        score: entry.totalScore, // Match frontend interface
-        totalScore: entry.totalScore, // Keep for backward compatibility
+        score: entry.totalScore,
+        totalScore: entry.totalScore,
         totalMaxMarks: entry.totalMaxMarks,
         tests: entry.tests,
         percentage:
@@ -1533,18 +1564,199 @@ export const getGlobalTestLeaderboard = async (req, res) => {
         return a.userName.localeCompare(b.userName);
       });
 
-    console.log(`📊 Generated leaderboard with ${leaderboard.length} users`);
+    // Add rank to each entry
+    const leaderboardWithRanks = fullLeaderboard.map((entry, index) => ({
+      ...entry,
+      rank: offset + index + 1,
+    }));
+
+    // Fetch total number of unique users for pagination metadata
+    const allSubmissions = await getAllRecordsWithFilter(
+      TestSubmission,
+      {
+        select: ["userId"],
+        distinct: true,
+      },
+      `global:test:leaderboard:total_users`,
+      true,
+      10 * 60, // Cache for 10 minutes
+    );
+
+    const totalItems = allSubmissions.length;
+    const totalPages = Math.ceil(totalItems / limit);
+    const hasNextPage = page < totalPages;
+    const hasPreviousPage = page > 1;
+
+    // If requesting user position, fetch it separately
+    let userPosition = null;
+    if (getUserPosition && userId) {
+      // Fetch all submissions for the specific user
+      const userSubmissions = await getAllRecordsWithFilter(
+        TestSubmission,
+        {
+          where: { user: { id: userId } },
+          relations: ["user", "test", "test.course"],
+          order: { totalScore: "DESC", submittedAt: "ASC" },
+        },
+        `global:test:leaderboard:user:${userId}`,
+        true,
+        10 * 60, // Cache for 10 minutes
+      );
+
+      if (userSubmissions.length > 0) {
+        // Process user submissions to get best scores
+        const userBestSubmissions = new Map();
+        for (const submission of userSubmissions) {
+          const key = `${submission.user.id}_${submission.test.id}`;
+          const score = submission.totalScore ?? submission.mcqScore ?? 0;
+          if (
+            !userBestSubmissions.has(key) ||
+            score > userBestSubmissions.get(key).score
+          ) {
+            userBestSubmissions.set(key, {
+              user: submission.user,
+              test: submission.test,
+              score,
+              maxMarks: submission.test.maxMarks,
+              submittedAt: submission.submittedAt,
+            });
+          }
+        }
+
+        // Aggregate user data
+        const userEntry = {
+          id: userId,
+          userName: userSubmissions[0].user.username,
+          totalScore: 0,
+          totalMaxMarks: 0,
+          tests: [],
+        };
+
+        for (const {
+          test,
+          score,
+          maxMarks,
+          submittedAt,
+        } of userBestSubmissions.values()) {
+          userEntry.totalScore += score;
+          userEntry.totalMaxMarks += maxMarks;
+          userEntry.tests.push({
+            testId: test.id,
+            testTitle: test.title,
+            courseName: test.course?.title || "N/A",
+            score,
+            maxMarks,
+            submittedAt,
+          });
+        }
+
+        // Fetch all users' best submissions to calculate rank
+        const allUsersSubmissions = await getAllRecordsWithFilter(
+          TestSubmission,
+          {
+            relations: ["user", "test"],
+            order: { totalScore: "DESC", submittedAt: "ASC" },
+          },
+          `global:test:leaderboard:all_users`,
+          true,
+          10 * 60, // Cache for 10 minutes
+        );
+
+        const allUserScores = new Map();
+        for (const submission of allUsersSubmissions) {
+          const score = submission.totalScore ?? submission.mcqScore ?? 0;
+          if (
+            !allUserScores.has(submission.user.id) ||
+            score > (allUserScores.get(submission.user.id)?.score || 0)
+          ) {
+            allUserScores.set(submission.user.id, {
+              userId: submission.user.id,
+              score,
+              totalScore: 0,
+              totalMaxMarks: submission.test.maxMarks,
+            });
+          }
+          const user = allUserScores.get(submission.user.id);
+          user.totalScore += score;
+        }
+
+        // Calculate rank
+        const sortedUsers = Array.from(allUserScores.values())
+          .map((entry) => ({
+            id: entry.userId,
+            totalScore: entry.totalScore,
+            percentage:
+              entry.totalMaxMarks > 0
+                ? (entry.totalScore / entry.totalMaxMarks) * 100
+                : 0,
+          }))
+          .sort((a, b) => {
+            if (b.totalScore !== a.totalScore) {
+              return b.totalScore - a.totalScore;
+            }
+            return (b.percentage ?? 0) - (a.percentage ?? 0);
+          });
+
+        const userRank =
+          sortedUsers.findIndex((entry) => entry.id === userId) + 1;
+
+        userPosition = {
+          id: userEntry.id,
+          userName: userEntry.userName,
+          courseName:
+            userEntry.tests.length > 0 ? userEntry.tests[0].courseName : "N/A",
+          score: userEntry.totalScore,
+          totalScore: userEntry.totalScore,
+          totalMaxMarks: userEntry.totalMaxMarks,
+          tests: userEntry.tests,
+          percentage:
+            userEntry.totalMaxMarks > 0
+              ? Math.round(
+                  (userEntry.totalScore / userEntry.totalMaxMarks) * 100,
+                )
+              : 0,
+          rank: userRank,
+        };
+
+        console.log(
+          `📊 User position for ${userId}:`,
+          userPosition ? `Rank ${userPosition.rank}` : "Not found",
+        );
+      }
+    }
+
+    console.log(
+      `📊 Generated leaderboard with ${totalItems} users, returning page ${page} with ${leaderboardWithRanks.length} items`,
+    );
 
     res.json({
       message: "Global leaderboard fetched successfully",
-      data: leaderboard,
+      data: leaderboardWithRanks,
+      userPosition,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems,
+        itemsPerPage: limit,
+        hasNextPage,
+        hasPreviousPage,
+      },
     });
   } catch (error) {
-    console.error(" Error fetching leaderboard:", error);
+    console.error("❌ Error fetching leaderboard:", error);
     res.status(500).json({
       message: "Error fetching leaderboard",
       error: error.message,
-      data: [], // Return empty array on error
+      data: [],
+      userPosition: null,
+      pagination: {
+        currentPage: 1,
+        totalPages: 0,
+        totalItems: 0,
+        itemsPerPage: 10,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
     });
   }
 };
@@ -1554,7 +1766,6 @@ export const getStudentBatches = async (req: Request, res: Response) => {
   try {
     const studentId = req.user.id;
 
-    // Get user details with batch information using utility function
     const user = await getSingleRecord(
       User,
       {
