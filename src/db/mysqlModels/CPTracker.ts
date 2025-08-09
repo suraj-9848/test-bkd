@@ -154,6 +154,10 @@ export class CPTracker extends BaseEntity {
   @Column("simple-array", { nullable: true })
   active_platforms: string[];
 
+  // Last time user triggered a manual refresh
+  @Column({ type: "datetime", nullable: true })
+  last_updated_by_user: Date;
+
   // Connection status
   @Column({ default: true })
   is_active: boolean;
@@ -171,12 +175,12 @@ export class CPTracker extends BaseEntity {
 
   // Calculate platform-specific scores and overall performance
   calculatePerformanceScore(): number {
-    // LeetCode Score: LC = LCCSC*10 + LCPSC*1 + LCCP*0 + LCRA*1
-    this.leetcode_score =
-      (this.leetcode_contest_solved_count || 0) * 10 +
-      (this.leetcode_practice_solved_count || 0) * 1 +
-      (this.leetcode_total_problems || 0) * 0 +
-      (this.leetcode_current_rating || 0) * 1;
+    // LeetCode Score: LC = LCCSC*10 + LCPSC*1 + LCCP*1 + LCRA*1
+    const lccsc = this.leetcode_contest_solved_count || 0;
+    const lcpsc = this.leetcode_practice_solved_count || 0;
+    const lccp = this.leetcode_total_problems || 0;
+    const lcra = this.leetcode_current_rating || 0;
+    this.leetcode_score = lccsc * 10 + lcpsc * 1 + lccp * 1 + lcra * 1;
 
     // CodeForces Score: Similar formula (you can customize weights)
     this.codeforces_score =

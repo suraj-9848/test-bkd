@@ -87,6 +87,58 @@ export const connectCPTracker = async (req: Request, res: Response) => {
   }
 };
 
+// Student: Refresh CPTracker data for current user, with 24h rate limit
+export const refreshMyCPTrackerData = async (req: Request, res: Response) => {
+  try {
+    const user = await getUserFromRequest(req);
+    if (!user?.id) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Not authenticated" });
+    }
+
+    // Get tracker for user
+    const tracker = await getSingleRecord<CPTracker, any>(CPTracker, {
+      where: { user_id: user.id },
+    });
+    if (!tracker) {
+      return res
+        .status(404)
+        .json({ success: false, message: "CPTracker profile not found" });
+    }
+
+    // Check if last_updated_by_user is within 24 hours
+    if (tracker.last_updated_by_user) {
+      const now = new Date();
+      const last = new Date(tracker.last_updated_by_user);
+      const diffMs = now.getTime() - last.getTime();
+      if (diffMs < 24 * 60 * 60 * 1000) {
+        const hoursLeft = Math.ceil(
+          (24 * 60 * 60 * 1000 - diffMs) / (60 * 60 * 1000),
+        );
+        return res.status(429).json({
+          success: false,
+          message: `You can only refresh your CPTracker data once every 24 hours. Please try again in ${hoursLeft} hour(s).`,
+        });
+      }
+    }
+
+    // Update last_updated_by_user before refreshing
+    tracker.last_updated_by_user = new Date();
+    await tracker.save();
+
+    // Patch req.params for compatibility and call existing refresh logic
+    req.params = { userId: user.id };
+    return await refreshCPTrackerData(req, res);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to refresh CPTracker data",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
 // Get CPTracker profile for current user
 export const getMyCPTracker = async (req: Request, res: Response) => {
   try {
@@ -105,7 +157,10 @@ export const getMyCPTracker = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      data: cpTracker,
+      data: {
+        ...cpTracker,
+        batch_id: user.batch_id,
+      },
     });
   } catch (error) {
     logger.error("Error getting CPTracker profile:", error);
@@ -158,55 +213,68 @@ export const getCPTrackerLeaderboard = async (req: Request, res: Response) => {
       },
     );
 
-    // Add rank to each entry with complete platform data
-    const leaderboard = cpTrackers.map((tracker, index) => ({
-      rank: Number(offset) + index + 1,
-      user: {
-        id: tracker.user?.id,
-        username: tracker.user?.username,
-        profile_picture: tracker.user?.profile_picture,
-      },
-      performance_score: Number(tracker.performance_score) || 0,
+    // Add rank to each entry with recalculated platform scores
+    const leaderboard = cpTrackers.map((tracker, index) => {
+      tracker.calculatePerformanceScore();
+      const leetcodeSolved = tracker.leetcode_total_problems || 0;
+      const codeforcesSolved = tracker.codeforces_problems_solved || 0;
+      const codechefSolved = tracker.codechef_problems_solved || 0;
+      const atcoderSolved = tracker.atcoder_problems_solved || 0;
+      const totalSolved =
+        leetcodeSolved + codeforcesSolved + codechefSolved + atcoderSolved;
+      return {
+        rank: Number(offset) + index + 1,
+        user: {
+          id: tracker.user?.id,
+          username: tracker.user?.username,
+          profile_picture: tracker.user?.profile_picture,
+        },
+        performance_score: Number(tracker.performance_score) || 0,
 
-      // Platform-specific scores
-      leetcode_score: Number(tracker.leetcode_score) || 0,
-      codeforces_score: Number(tracker.codeforces_score) || 0,
-      codechef_score: Number(tracker.codechef_score) || 0,
-      atcoder_score: Number(tracker.atcoder_score) || 0,
+        // Platform-specific scores (freshly calculated)
+        leetcode_score: Number(tracker.leetcode_score) || 0,
+        codeforces_score: Number(tracker.codeforces_score) || 0,
+        codechef_score: Number(tracker.codechef_score) || 0,
+        atcoder_score: Number(tracker.atcoder_score) || 0,
 
-      // Detailed LeetCode metrics
-      leetcode_total_problems: tracker.leetcode_total_problems || 0,
-      leetcode_contest_solved_count: tracker.leetcode_contest_solved_count || 0,
-      leetcode_practice_solved_count:
-        tracker.leetcode_practice_solved_count || 0,
-      leetcode_current_rating: tracker.leetcode_current_rating || 0,
-      leetcode_contests_participated:
-        tracker.leetcode_contests_participated || 0,
-      leetcode_last_contest_name: tracker.leetcode_last_contest_name,
-      leetcode_last_contest_date: tracker.leetcode_last_contest_date,
+        // Detailed LeetCode metrics
+        leetcode_total_problems: leetcodeSolved,
+        leetcode_contest_solved_count:
+          tracker.leetcode_contest_solved_count || 0,
+        leetcode_practice_solved_count:
+          tracker.leetcode_practice_solved_count || 0,
+        leetcode_current_rating: tracker.leetcode_current_rating || 0,
+        leetcode_contests_participated:
+          tracker.leetcode_contests_participated || 0,
+        leetcode_last_contest_name: tracker.leetcode_last_contest_name,
+        leetcode_last_contest_date: tracker.leetcode_last_contest_date,
 
-      // CodeForces metrics
-      codeforces_rating: tracker.codeforces_rating || 0,
-      codeforces_contests_participated:
-        tracker.codeforces_contests_participated || 0,
-      codeforces_problems_solved: tracker.codeforces_problems_solved || 0,
+        // CodeForces metrics
+        codeforces_rating: tracker.codeforces_rating || 0,
+        codeforces_contests_participated:
+          tracker.codeforces_contests_participated || 0,
+        codeforces_problems_solved: codeforcesSolved,
 
-      // CodeChef metrics
-      codechef_rating: tracker.codechef_rating || 0,
-      codechef_contests_participated:
-        tracker.codechef_contests_participated || 0,
-      codechef_problems_solved: tracker.codechef_problems_solved || 0,
+        // CodeChef metrics
+        codechef_rating: tracker.codechef_rating || 0,
+        codechef_contests_participated:
+          tracker.codechef_contests_participated || 0,
+        codechef_problems_solved: codechefSolved,
 
-      // AtCoder metrics
-      atcoder_rating: tracker.atcoder_rating || 0,
-      atcoder_contests_participated: tracker.atcoder_contests_participated || 0,
-      atcoder_problems_solved: tracker.atcoder_problems_solved || 0,
+        // AtCoder metrics
+        atcoder_rating: tracker.atcoder_rating || 0,
+        atcoder_contests_participated:
+          tracker.atcoder_contests_participated || 0,
+        atcoder_problems_solved: atcoderSolved,
 
-      platforms_connected: tracker.active_platforms
-        ? tracker.active_platforms.length
-        : 0,
-      last_updated: tracker.updated_at,
-    }));
+        total_solved_count: totalSolved,
+
+        platforms_connected: tracker.active_platforms
+          ? tracker.active_platforms.length
+          : 0,
+        last_updated: tracker.updated_at,
+      };
+    });
 
     res.status(200).json({
       success: true,

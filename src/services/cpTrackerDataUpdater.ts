@@ -1,7 +1,11 @@
 import { LessThan, MoreThanOrEqual } from "typeorm";
 import { CPTracker } from "../db/mysqlModels/CPTracker";
 import { CPPlatformCrawler } from "./cpPlatformCrawler";
-import { getAllRecordsWithFilter, updateRecords } from "../lib/dbLib/sqlUtils";
+import {
+  getAllRecordsWithFilter,
+  updateRecords,
+  getSingleRecord,
+} from "../lib/dbLib/sqlUtils";
 import { getLogger } from "../utils/logger";
 import { AppDataSource } from "../db/connect";
 
@@ -81,7 +85,6 @@ export class CPTrackerDataUpdater {
 
       const cpTracker = tracker;
       const updates: any = {};
-      let hasUpdates = false;
 
       // Update LeetCode stats
       if (
@@ -125,8 +128,6 @@ export class CPTrackerDataUpdater {
           }
 
           updates.leetcode_last_updated = new Date();
-          hasUpdates = true;
-
           logger.info(
             `LeetCode update for ${cpTracker.leetcode_username}: ${leetcodeStats.totalSolved} total (${leetcodeStats.contestSolvedCount} contest + ${leetcodeStats.practiceSolvedCount} practice), rating: ${leetcodeStats.currentRating}, last contest: ${leetcodeContests.lastContestName || "None"}`,
           );
@@ -160,7 +161,6 @@ export class CPTrackerDataUpdater {
           updates.codeforces_contests_participated = contestCount;
           updates.codeforces_problems_solved = problemCount;
           updates.codeforces_last_updated = new Date();
-          hasUpdates = true;
         }
       }
 
@@ -184,7 +184,6 @@ export class CPTrackerDataUpdater {
           updates.codechef_contests_participated = codechefStats.contests;
           updates.codechef_problems_solved = codechefStats.problemsSolved;
           updates.codechef_last_updated = new Date();
-          hasUpdates = true;
         }
       }
 
@@ -208,35 +207,30 @@ export class CPTrackerDataUpdater {
           updates.atcoder_contests_participated = atcoderStats.competitions;
           updates.atcoder_problems_solved = 0; // AtCoder API doesn't provide this easily
           updates.atcoder_last_updated = new Date();
-          hasUpdates = true;
         }
       }
 
-      // Calculate new performance score if we have updates
-      if (hasUpdates) {
-        const tempTracker = Object.assign(new CPTracker(), cpTracker, updates);
-        updates.performance_score = tempTracker.calculatePerformanceScore();
-        updates.updated_at = new Date();
+      // Always recalculate and save platform-specific scores and performance_score
+      const tempTracker = Object.assign(new CPTracker(), cpTracker, updates);
+      updates.leetcode_score = tempTracker.leetcode_score;
+      updates.codeforces_score = tempTracker.codeforces_score;
+      updates.codechef_score = tempTracker.codechef_score;
+      updates.atcoder_score = tempTracker.atcoder_score;
+      updates.performance_score = tempTracker.calculatePerformanceScore();
+      updates.updated_at = new Date();
 
-        // Update the database using AppDataSource
-        const cpTrackerRepository = AppDataSource.getRepository(CPTracker);
-        await cpTrackerRepository.update({ user_id: userId }, updates);
+      // Update the database using AppDataSource
+      await cpTrackerRepository.update({ user_id: userId }, updates);
 
-        logger.info(
-          `Successfully updated CPTracker profile for user: ${userId}, new score: ${updates.performance_score}`,
-        );
+      logger.info(
+        `Successfully updated CPTracker profile for user: ${userId}, new score: ${updates.performance_score}`,
+      );
 
-        // Return updated tracker
-        const updatedTracker = await cpTrackerRepository.findOne({
-          where: { user_id: userId },
-          relations: ["user"],
-        });
-
-        return updatedTracker || null;
-      } else {
-        logger.info(`No updates needed for user: ${userId}`);
-        return cpTracker;
-      }
+      const updatedTracker = await getSingleRecord<CPTracker, any>(CPTracker, {
+        where: { user_id: userId },
+        relations: ["user"],
+      });
+      return updatedTracker || null;
     } catch (error) {
       logger.error(
         `Error updating CPTracker profile for user ${userId}:`,

@@ -1469,10 +1469,13 @@ packages:
     resolution: {integrity: sha512-aN97NXWF6AWBTahfVOIrB/NShkzi5H7F9r1s9mD3cDj4Ko5f2qhhVoYMibXF7GlLveb/D2ioWay8lxI97Ven3g==}
     engines: {node: '>=0.12'}
 
+<<<<<<< HEAD
+=======
   environment@1.1.0:
     resolution: {integrity: sha512-xUtoPkMggbz0MPyPiIWr1Kp4aeWJjDZ6SMvURhimjdZgsRuDplF5/s9hcgGhyXMhs+6vpnuoiZ2kFiu3FMnS8Q==}
     engines: {node: '>=18'}
 
+>>>>>>> 306b3a358e5bf8d639434d12188c3477919f4c89
   es-define-property@1.0.1:
     resolution: {integrity: sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g==}
     engines: {node: '>= 0.4'}
@@ -4678,8 +4681,11 @@ snapshots:
 
   entities@6.0.1: {}
 
+<<<<<<< HEAD
+=======
   environment@1.1.0: {}
 
+>>>>>>> 306b3a358e5bf8d639434d12188c3477919f4c89
   es-define-property@1.0.1: {}
 
   es-errors@1.3.0: {}

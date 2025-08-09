@@ -85,6 +85,11 @@ router.post(
   refreshCPTrackerData,
 );
 
+// TEMP: Allow a user to refresh their own CPTracker data (no admin required)
+import { refreshMyCPTrackerData } from "../controllers/cpTrackerControllers/cpTrackerController";
+
+router.post("/my/refresh", studentAuthMiddleware, refreshMyCPTrackerData);
+
 // Edit request management routes (Admin/Instructor)
 router.get(
   "/edit-requests",
