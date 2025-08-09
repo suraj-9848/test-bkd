@@ -32,7 +32,7 @@ router.post("/create-order", async (req, res) => {
     const receiptRaw = `rcpt_${shortCourseId}_${Date.now()}`;
     const receipt = receiptRaw.slice(0, 40);
     const options = {
-      amount: Math.round(1 * 100), // Razorpay expects paise
+      amount: Math.round(amount * 100), // Razorpay expects paise
       currency,
       receipt,
     };

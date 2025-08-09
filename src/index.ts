@@ -115,7 +115,8 @@ app.use("/api/student", studentRouter);
 app.use("/api/hiring/admin", hiringAdminRouter);
 app.use("/api/hiring/user", hiringUserRouter);
 app.use("/api/hiring/public", hiringPublicRouter);
-app.use("/api/payments", paymentRoutes);
+app.use("/api/course/payment", paymentRoutes);
+app.use("/api/subscriptions", studentProSubscriptionRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/cp-tracker", cpTrackerRoutes);
 
