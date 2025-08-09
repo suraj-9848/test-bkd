@@ -11,6 +11,7 @@ import { Batch } from "./Batch";
 import { Module } from "./Module";
 import { Test } from "./Test";
 import { UserCourse } from "./UserCourse";
+import { Meeting } from "./Meeting";
 
 @Entity()
 export class Course extends BaseEntity {
@@ -99,4 +100,7 @@ export class Course extends BaseEntity {
 
   @OneToMany(() => Test, (test) => test.course, { cascade: true })
   tests: Test[];
+
+  @OneToMany(() => Meeting, (meeting) => meeting.course, { cascade: true })
+  meetings: Meeting[];
 }

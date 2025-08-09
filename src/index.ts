@@ -37,6 +37,7 @@ import { getAvailablePlans } from "./controllers/studentControllers/proSubscript
 import adminProSubscriptionRoutes from "./routes/adminProSubscriptionRoutes";
 import webhookRoutes from "./routes/webhookRoutes";
 import cpTrackerRoutes from "./routes/cpTrackerRoutes";
+import meetingRouter from "./routes/instructorRouter/meeting.routes";
 
 // Services
 import { CPTrackerCronService } from "./services/cpTrackerCronService";
@@ -108,6 +109,7 @@ app.use("/api/sessionProgress", sessionProgressRoutes);
 // Main routes
 app.use("/api/instructor", instructorRouter);
 app.use("/api/instructor", courseRouter); // Direct course routes
+app.use("/api/instructor", meetingRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/recruiter", recruiterRouter);

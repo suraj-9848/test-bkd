@@ -28,6 +28,7 @@ import {
   getStudentPublicCourses,
   OptionalStudentAuthMiddleware,
 } from "../../controllers/studentController/studentController";
+import { getStudentMeetings } from "../../controllers/meetingControllers/meetingController";
 
 const router = express.Router();
 
@@ -55,6 +56,7 @@ router.get("/courses", getStudentCourses);
 // router.get("/courses/public", getStudentPublicCourses);
 router.get("/courses/:courseId", getStudentCourseById);
 router.get("/courses/:courseId/modules", getStudentCourseModules);
+router.get("/courses/:courseId/meetings", getStudentMeetings);
 
 // Module routes
 router.get("/modules/:moduleId", getStudentModuleById);
