@@ -14,6 +14,7 @@ import { TestResponse } from "../../db/mysqlModels/TestResponse";
 import { ModuleMCQAnswer } from "../../db/mysqlModels/ModuleMCQAnswer";
 import { User } from "../../db/mysqlModels/User";
 import { UserDayCompletion } from "../../db/mysqlModels/UserDayCompletion";
+import { Blogs } from "../../db/mysqlModels/Blogs";
 import { Batch } from "../../db/mysqlModels/Batch";
 import {
   getAllRecordsWithFilter,
@@ -2119,6 +2120,99 @@ export const getStudentPublicCourses = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error fetching public courses:", error);
     return res.status(500).json({ message: "Error fetching public courses" });
+  }
+};
+
+export const getStudentBlogs = async (req: Request, res: Response) => {
+  try {
+    const { limit = 10, page = 1 } = req.query;
+
+    // Get all blogs with pagination using utility function
+    const blogs = await getAllRecordsWithFilter(
+      Blogs,
+      {
+        order: { createdAt: "DESC" },
+        take: Number(limit),
+        skip: (Number(page) - 1) * Number(limit),
+      },
+      `blogs:all:${page}:${limit}`,
+      true,
+      15 * 60, // Cache for 15 minutes
+    );
+
+    // Get total count for pagination
+    const totalBlogs = await Blogs.count();
+
+    // Process blogs to ensure hashtags are properly formatted
+    const processedBlogs = blogs.map((blog) => ({
+      id: blog.id,
+      title: blog.title,
+      coverImage: blog.coverImage,
+      content: blog.content,
+      hashtags: blog.hashtags || [],
+      createdAt: blog.createdAt,
+      updatedAt: blog.updatedAt,
+    }));
+
+    res.status(200).json({
+      message: "Blogs fetched successfully",
+      data: {
+        blogs: processedBlogs,
+        pagination: {
+          total: totalBlogs,
+          page: Number(page),
+          limit: Number(limit),
+          totalPages: Math.ceil(totalBlogs / Number(limit)),
+          hasMore: Number(page) * Number(limit) < totalBlogs,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching blogs:", error);
+    res.status(500).json({
+      error: "Unable to fetch blogs",
+      details: error.message,
+    });
+  }
+};
+
+// GET /student/blogs/:blogId
+export const getStudentBlogById = async (req: Request, res: Response) => {
+  try {
+    const { blogId } = req.params;
+
+    const blog = await getSingleRecord(
+      Blogs,
+      { where: { id: blogId } },
+      `blog:${blogId}`,
+      true,
+      30 * 60, // Cache for 30 minutes
+    );
+
+    if (!blog) {
+      return res.status(404).json({ message: "Blog not found" });
+    }
+
+    const processedBlog = {
+      id: blog.id,
+      title: blog.title,
+      coverImage: blog.coverImage,
+      content: blog.content,
+      hashtags: blog.hashtags || [],
+      createdAt: blog.createdAt,
+      updatedAt: blog.updatedAt,
+    };
+
+    res.status(200).json({
+      message: "Blog fetched successfully",
+      data: { blog: processedBlog },
+    });
+  } catch (error) {
+    console.error("Error fetching blog:", error);
+    res.status(500).json({
+      error: "Unable to fetch blog",
+      details: error.message,
+    });
   }
 };
 

@@ -27,6 +27,8 @@ import {
   getMCQRetakeStatus,
   getStudentPublicCourses,
   OptionalStudentAuthMiddleware,
+  getStudentBlogs,
+  getStudentBlogById,
 } from "../../controllers/studentController/studentController";
 import { getStudentMeetings } from "../../controllers/meetingControllers/meetingController";
 
@@ -37,6 +39,11 @@ router.get(
   OptionalStudentAuthMiddleware, // Use the optional middleware
   getStudentPublicCourses,
 );
+
+//Blog routes
+router.get("/blogs", getStudentBlogs);
+router.get("/blogs/:blogId", getStudentBlogById);
+
 // Apply middlewares in order:
 // 1. View-as middleware (handles admin "view as student" functionality)
 // 2. Student auth middleware (validates student access)
