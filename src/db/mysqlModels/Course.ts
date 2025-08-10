@@ -21,6 +21,9 @@ export class Course extends BaseEntity {
   @Column()
   title: string;
 
+  @Column("uuid")
+  org_id: string;
+
   @Column({ nullable: true })
   logo: string;
 

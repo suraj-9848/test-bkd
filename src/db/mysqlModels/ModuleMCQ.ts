@@ -15,6 +15,9 @@ export class ModuleMCQ extends BaseEntity {
   @ManyToOne(() => Module, (module) => module.tests, { onDelete: "CASCADE" })
   module: Module;
 
+  @Column("uuid")
+  org_id: string;
+
   @Column("json")
   questions: Record<string, unknown>; // was any
 

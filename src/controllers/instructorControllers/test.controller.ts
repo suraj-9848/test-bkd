@@ -197,26 +197,27 @@ export const getTestAnalytics = async (req: Request, res: Response) => {
 
 export const fetchTestsInCourse = async (req: Request, res: Response) => {
   const { courseId } = req.params;
+  const org_id = req.fullUser?.org_id;
 
-  // Validate courseId
-  if (!courseId || typeof courseId !== "string") {
-    return res.status(400).json({ error: "Invalid course ID" });
+  // Validate courseId and org_id
+  if (!courseId || typeof courseId !== "string" || !org_id) {
+    return res.status(400).json({ error: "Invalid course ID or organization" });
   }
 
   try {
-    const course = await getSingleRecord<Course, { where: { id: string } }>(
+    const course = await getSingleRecord<
       Course,
-      { where: { id: courseId } },
-      `course:${courseId}`,
-      false,
-    );
+      { where: { id: string; org_id: string } }
+    >(Course, { where: { id: courseId, org_id } }, `course:${courseId}`, false);
 
     if (!course) {
-      return res.status(404).json({ error: "Course not found" });
+      return res
+        .status(404)
+        .json({ error: "Course not found or access denied" });
     }
 
     const tests = await Test.find({
-      where: { course: { id: courseId } },
+      where: { course: { id: courseId }, org_id },
       relations: ["course"],
       order: { createdAt: "DESC" },
     });
@@ -235,25 +236,26 @@ export const fetchTestsInCourse = async (req: Request, res: Response) => {
 
 export const fetchTestById = async (req: Request, res: Response) => {
   const { testId } = req.params;
+  const org_id = req.fullUser?.org_id;
 
-  // Validate testId
-  if (!testId || typeof testId !== "string") {
-    return res.status(400).json({ error: "Invalid test ID" });
+  // Validate testId and org_id
+  if (!testId || typeof testId !== "string" || !org_id) {
+    return res.status(400).json({ error: "Invalid test ID or organization" });
   }
 
   try {
     const test = await getSingleRecord<
       Test,
-      { where: { id: string }; relations?: string[] }
+      { where: { id: string; org_id: string }; relations?: string[] }
     >(
       Test,
-      { where: { id: testId }, relations: ["course", "questions"] },
+      { where: { id: testId, org_id }, relations: ["course", "questions"] },
       `test_${testId}_basic`,
       true,
     );
 
     if (!test) {
-      return res.status(404).json({ error: "Test not found" });
+      return res.status(404).json({ error: "Test not found or access denied" });
     }
 
     return res.status(200).json({
@@ -271,6 +273,7 @@ export const fetchTestById = async (req: Request, res: Response) => {
 export const createTest = async (req: Request, res: Response) => {
   try {
     const { courseId } = req.params;
+    const org_id = req.fullUser?.org_id;
     const {
       title,
       description,
@@ -284,8 +287,17 @@ export const createTest = async (req: Request, res: Response) => {
       showCorrectAnswers,
     } = req.body;
 
-    if (!title || !maxMarks || !durationInMinutes || !startDate || !endDate) {
-      return res.status(400).json({ error: "Missing required fields" });
+    if (
+      !title ||
+      !maxMarks ||
+      !durationInMinutes ||
+      !startDate ||
+      !endDate ||
+      !org_id
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Missing required fields or organization" });
     }
 
     const startDateObj = new Date(startDate);
@@ -298,15 +310,15 @@ export const createTest = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid start or end time" });
     }
 
-    const course = await getSingleRecord<Course, { where: { id: string } }>(
+    const course = await getSingleRecord<
       Course,
-      { where: { id: courseId } },
-      `course_${courseId}`,
-      true,
-    );
+      { where: { id: string; org_id: string } }
+    >(Course, { where: { id: courseId, org_id } }, `course_${courseId}`, true);
 
     if (!course) {
-      return res.status(404).json({ error: "Course not found" });
+      return res
+        .status(404)
+        .json({ error: "Course not found or access denied" });
     }
 
     const test = new Test();
@@ -322,6 +334,7 @@ export const createTest = async (req: Request, res: Response) => {
     test.showCorrectAnswers = showCorrectAnswers || false;
     test.status = TestStatus.DRAFT;
     test.course = course;
+    test.org_id = org_id;
 
     const savedTest = await createRecord(Test.getRepository(), test);
 
@@ -341,9 +354,17 @@ export const createTest = async (req: Request, res: Response) => {
 export const createTestsBulk = async (req: Request, res: Response) => {
   try {
     const { courseIds, ...testData } = req.body;
+    const org_id = req.fullUser?.org_id;
 
-    if (!courseIds || !Array.isArray(courseIds) || courseIds.length === 0) {
-      return res.status(400).json({ error: "courseIds array is required" });
+    if (
+      !courseIds ||
+      !Array.isArray(courseIds) ||
+      courseIds.length === 0 ||
+      !org_id
+    ) {
+      return res
+        .status(400)
+        .json({ error: "courseIds array and organization are required" });
     }
 
     const {
@@ -378,15 +399,18 @@ export const createTestsBulk = async (req: Request, res: Response) => {
 
     for (const courseId of courseIds) {
       try {
-        const course = await getSingleRecord<Course, { where: { id: string } }>(
+        const course = await getSingleRecord<
           Course,
-          { where: { id: courseId } },
+          { where: { id: string; org_id: string } }
+        >(
+          Course,
+          { where: { id: courseId, org_id } },
           `course_${courseId}`,
           true,
         );
 
         if (!course) {
-          errors.push({ courseId, error: "Course not found" });
+          errors.push({ courseId, error: "Course not found or access denied" });
           continue;
         }
 
@@ -403,6 +427,7 @@ export const createTestsBulk = async (req: Request, res: Response) => {
         test.showCorrectAnswers = showCorrectAnswers || false;
         test.status = TestStatus.DRAFT;
         test.course = course;
+        test.org_id = org_id;
 
         const savedTest = await createRecord(Test.getRepository(), test);
         createdTests.push(savedTest);
@@ -432,13 +457,14 @@ export const createTestsBulk = async (req: Request, res: Response) => {
 
 export const updateTest = async (req: Request, res: Response) => {
   const { testId, courseId } = req.params;
+  const org_id = req.fullUser?.org_id;
   const updateData = req.body;
 
   // Validate parameters
-  if (!testId || !courseId) {
+  if (!testId || !courseId || !org_id) {
     return res.status(400).json({
       error: "Invalid parameters",
-      details: "Test ID and Course ID are required",
+      details: "Test ID, Course ID, and organization are required",
     });
   }
 
@@ -447,14 +473,15 @@ export const updateTest = async (req: Request, res: Response) => {
       where: {
         id: testId,
         course: { id: courseId },
+        org_id,
       },
       relations: ["course"],
     });
 
     if (!test) {
-      return res
-        .status(404)
-        .json({ error: "Test not found in the specified course" });
+      return res.status(404).json({
+        error: "Test not found in the specified course or access denied",
+      });
     }
 
     if (test.status === TestStatus.PUBLISHED) {
@@ -511,20 +538,21 @@ export const updateTest = async (req: Request, res: Response) => {
 
 export const deleteTest = async (req: Request, res: Response) => {
   const { testId } = req.params;
+  const org_id = req.fullUser?.org_id;
 
-  // Validate testId
-  if (!testId || typeof testId !== "string") {
-    return res.status(400).json({ error: "Invalid test ID" });
+  // Validate testId and org_id
+  if (!testId || typeof testId !== "string" || !org_id) {
+    return res.status(400).json({ error: "Invalid test ID or organization" });
   }
 
   try {
     const test = await Test.findOne({
-      where: { id: testId },
+      where: { id: testId, org_id },
       relations: ["questions", "questions.options"],
     });
 
     if (!test) {
-      return res.status(404).json({ error: "Test not found" });
+      return res.status(404).json({ error: "Test not found or access denied" });
     }
 
     if (test.questions && test.questions.length > 0) {
@@ -564,20 +592,25 @@ export const deleteTest = async (req: Request, res: Response) => {
 
 export const teststatustoPublish = async (req: Request, res: Response) => {
   const { testId } = req.params;
+  const org_id = req.fullUser?.org_id;
 
-  // Validate testId
-  if (!testId || typeof testId !== "string") {
-    return res.status(400).json({ error: "Invalid test ID" });
+  // Validate testId and org_id
+  if (!testId || typeof testId !== "string" || !org_id) {
+    return res.status(400).json({ error: "Invalid test ID or organization" });
   }
 
   try {
     const test = await getSingleRecord<
       Test,
-      { where: { id: string }; relations?: string[] }
-    >(Test, { where: { id: testId }, relations: ["course"] }, `test:${testId}`);
+      { where: { id: string; org_id: string }; relations?: string[] }
+    >(
+      Test,
+      { where: { id: testId, org_id }, relations: ["course"] },
+      `test:${testId}`,
+    );
 
     if (!test) {
-      return res.status(404).json({ error: "Test not found" });
+      return res.status(404).json({ error: "Test not found or access denied" });
     }
 
     const currentDate = new Date();

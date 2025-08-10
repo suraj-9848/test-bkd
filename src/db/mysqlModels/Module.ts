@@ -18,6 +18,9 @@ export class Module extends BaseEntity {
   @ManyToOne(() => Course, (course) => course.modules, { onDelete: "CASCADE" })
   course: Course;
 
+  @Column("uuid")
+  org_id: string;
+
   @Column("longtext")
   title: string;
 

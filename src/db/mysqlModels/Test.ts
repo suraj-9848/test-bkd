@@ -34,6 +34,9 @@ export class Test extends BaseEntity {
   @ManyToOne(() => Course, (course) => course.tests, { onDelete: "CASCADE" })
   course: Course;
 
+  @Column("uuid")
+  org_id: string;
+
   @OneToMany(() => Question, (question) => question.test, { cascade: true })
   questions: Question[];
 

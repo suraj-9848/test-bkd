@@ -17,28 +17,45 @@ export const getInstructorDashboardStats = async (
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    // Get all courses
+    // Get org_id from instructor context
+    const org_id = req.fullUser?.org_id;
+    if (!org_id) {
+      return res.status(401).json({
+        error: "Unauthorized: Organization not found in user context",
+      });
+    }
+
+    // Get all courses for this org
     const allCourses = await getAllRecordsWithFilter(
       Course,
       {
-        select: ["id", "title", "instructor_name", "duration", "mode"],
+        where: { org_id },
+        select: [
+          "id",
+          "title",
+          "instructor_name",
+          "duration",
+          "mode",
+          "org_id",
+        ],
         relations: ["batches", "userCourses", "userCourses.user"],
       },
-      `dashboard_courses`,
+      `dashboard_courses_${org_id}`,
       true,
       5 * 60,
     );
 
-    // Get all batches, then filter those that have at least one course in allCourses
+    // Get all batches for this org, then filter those that have at least one course in allCourses
     let allBatches = [];
     if (allCourses.length > 0) {
       const allBatchesRaw = await getAllRecordsWithFilter(
         Batch,
         {
-          select: ["id", "name"],
+          where: { org_id },
+          select: ["id", "name", "org_id"],
           relations: ["courses"],
         },
-        `dashboard_batches`,
+        `dashboard_batches_${org_id}`,
         true,
         5 * 60,
       );
@@ -49,7 +66,7 @@ export const getInstructorDashboardStats = async (
       );
     }
 
-    // Get all students with userRole STUDENT, then filter those enrolled in any course
+    // Get all students with userRole STUDENT and org_id, then filter those enrolled in any course
     let allStudents = [];
     if (allCourses.length > 0) {
       const allStudentsRaw = await getAllRecordsWithFilter(
@@ -57,11 +74,12 @@ export const getInstructorDashboardStats = async (
         {
           where: {
             userRole: UserRole.STUDENT,
+            org_id,
           },
-          select: ["id", "username", "email"],
+          select: ["id", "username", "email", "org_id"],
           relations: ["userCourses", "userCourses.course"],
         },
-        `dashboard_students`,
+        `dashboard_students_${org_id}`,
         true,
         5 * 60,
       );
