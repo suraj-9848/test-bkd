@@ -175,7 +175,12 @@ export const getMyCPTracker = async (req: Request, res: Response) => {
 // Get CPTracker leaderboard
 export const getCPTrackerLeaderboard = async (req: Request, res: Response) => {
   try {
-    const { limit = 50, offset = 0, batch_id } = req.query;
+    const { limit = 50, offset = 0, page = 1, batch_id } = req.query;
+
+    const limitNumber = Number(limit);
+    const pageNumber = Number(page);
+    const offsetNumber =
+      pageNumber > 1 ? (pageNumber - 1) * limitNumber : Number(offset);
 
     // Build where conditions using TypeORM MySQL syntax
     const whereConditions: any = {
@@ -191,7 +196,7 @@ export const getCPTrackerLeaderboard = async (req: Request, res: Response) => {
           {
             ...whereConditions,
             user: {
-              batch_id: batch_id, // Direct comparison for batch_id
+              batch_id: batch_id,
             },
           },
         ],
@@ -203,15 +208,30 @@ export const getCPTrackerLeaderboard = async (req: Request, res: Response) => {
       };
     }
 
+    // Get paginated results
     const cpTrackers = await getAllRecordsWithFilter<CPTracker, any>(
       CPTracker,
       {
         ...joinConditions,
         order: { performance_score: "DESC" },
-        take: Number(limit),
-        skip: Number(offset),
+        take: limitNumber,
+        skip: offsetNumber,
       },
     );
+
+    // Get total count for pagination
+    const totalCount = await getAllRecordsWithFilter<CPTracker, any>(
+      CPTracker,
+      {
+        ...joinConditions,
+        select: ["id"],
+      },
+    );
+
+    const totalItems = totalCount.length;
+    const totalPages = Math.ceil(totalItems / limitNumber);
+    const hasNextPage = pageNumber < totalPages;
+    const hasPreviousPage = pageNumber > 1;
 
     // Add rank to each entry with recalculated platform scores
     const leaderboard = cpTrackers.map((tracker, index) => {
@@ -223,7 +243,7 @@ export const getCPTrackerLeaderboard = async (req: Request, res: Response) => {
       const totalSolved =
         leetcodeSolved + codeforcesSolved + codechefSolved + atcoderSolved;
       return {
-        rank: Number(offset) + index + 1,
+        rank: offsetNumber + index + 1,
         user: {
           id: tracker.user?.id,
           username: tracker.user?.username,
@@ -278,7 +298,18 @@ export const getCPTrackerLeaderboard = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      data: leaderboard,
+      data: {
+        leaderboard,
+        pagination: {
+          currentPage: pageNumber,
+          totalPages,
+          totalItems,
+          itemsPerPage: limitNumber,
+          hasNextPage,
+          hasPreviousPage,
+          offset: offsetNumber,
+        },
+      },
     });
   } catch (error) {
     logger.error("Error getting CPTracker leaderboard:", error);
@@ -381,11 +412,17 @@ export const getAllCPTrackers = async (req: Request, res: Response) => {
     const {
       limit = 100,
       offset = 0,
+      page = 1,
       batch_id,
       is_active = true,
       platform,
       search,
     } = req.query;
+
+    const limitNumber = Number(limit);
+    const pageNumber = Number(page);
+    const offsetNumber =
+      pageNumber > 1 ? (pageNumber - 1) * limitNumber : Number(offset);
 
     // Build where conditions using proper TypeORM syntax
     const whereConditions: any = {};
@@ -401,8 +438,8 @@ export const getAllCPTrackers = async (req: Request, res: Response) => {
     const queryOptions: any = {
       relations: ["user"],
       order: { performance_score: "DESC" },
-      take: Number(limit),
-      skip: Number(offset),
+      take: limitNumber,
+      skip: offsetNumber,
     };
 
     // If batch_id is provided or search is provided, we need to join with user
@@ -410,7 +447,7 @@ export const getAllCPTrackers = async (req: Request, res: Response) => {
       const userConditions: any = {};
 
       if (batch_id) {
-        userConditions.batch_id = batch_id; // Direct comparison for batch_id
+        userConditions.batch_id = batch_id;
       }
 
       if (search) {
@@ -430,8 +467,25 @@ export const getAllCPTrackers = async (req: Request, res: Response) => {
       queryOptions,
     );
 
-    const formattedData = cpTrackers.map((tracker) => ({
+    // Get total count for pagination
+    const totalCountOptions = { ...queryOptions };
+    delete totalCountOptions.take;
+    delete totalCountOptions.skip;
+    totalCountOptions.select = ["id"];
+
+    const totalCount = await getAllRecordsWithFilter<CPTracker, any>(
+      CPTracker,
+      totalCountOptions,
+    );
+
+    const totalItems = totalCount.length;
+    const totalPages = Math.ceil(totalItems / limitNumber);
+    const hasNextPage = pageNumber < totalPages;
+    const hasPreviousPage = pageNumber > 1;
+
+    const formattedData = cpTrackers.map((tracker, index) => ({
       id: tracker.id,
+      rank: offsetNumber + index + 1,
       user: {
         id: tracker.user?.id,
         username: tracker.user?.username,
@@ -462,9 +516,15 @@ export const getAllCPTrackers = async (req: Request, res: Response) => {
       success: true,
       data: {
         trackers: formattedData,
-        total: cpTrackers.length,
-        limit: Number(limit),
-        offset: Number(offset),
+        pagination: {
+          currentPage: pageNumber,
+          totalPages,
+          totalItems,
+          itemsPerPage: limitNumber,
+          hasNextPage,
+          hasPreviousPage,
+          offset: offsetNumber,
+        },
       },
     });
   } catch (error) {
