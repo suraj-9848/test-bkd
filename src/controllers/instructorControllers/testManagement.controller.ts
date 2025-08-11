@@ -130,27 +130,19 @@ export const createTest = async (req: Request, res: Response) => {
 
     const validMaxAttempts = maxAttempts && maxAttempts > 0 ? maxAttempts : 1;
 
-    // Enforce org_id from instructor context
-    const org_id = req.fullUser?.org_id;
-    if (!org_id) {
-      return res.status(401).json({
-        error: "Unauthorized: Organization not found in user context",
-      });
-    }
-
     const createdTests: Test[] = [];
     for (const courseId of courseIds) {
       console.log(`Creating test for course: ${courseId}`);
 
       const course = await getSingleRecord<Course, any>(
         Course,
-        { where: { id: courseId, org_id } },
+        { where: { id: courseId } },
         `course:${courseId}`,
         false,
       );
 
       if (!course) {
-        console.log(`Course not found or access denied: ${courseId}`);
+        console.log(`Course not found: ${courseId}`);
         continue;
       }
 
@@ -168,7 +160,6 @@ export const createTest = async (req: Request, res: Response) => {
       test.maxAttempts = validMaxAttempts;
       test.status = TestStatus.DRAFT;
       test.course = course;
-      test.org_id = org_id;
       test.createdAt = new Date();
       test.lastUpdated = new Date();
 
@@ -234,23 +225,15 @@ export const createQuestion = async (req: Request, res: Response) => {
         error: `Invalid question type. Must be one of: ${Object.values(QuestionType).join(", ")}`,
       });
     }
-    // Enforce org_id from instructor context
-    const org_id = req.fullUser?.org_id;
-    if (!org_id) {
-      return res.status(401).json({
-        error: "Unauthorized: Organization not found in user context",
-      });
-    }
-
     const test = await getSingleRecord<Test, any>(
       Test,
-      { where: { id: testId, org_id } },
+      { where: { id: testId } },
       `test_${testId}`,
       false,
     );
 
     if (!test) {
-      return res.status(404).json({ error: "Test not found or access denied" });
+      return res.status(404).json({ error: "Test not found" });
     }
 
     if (test.status !== TestStatus.DRAFT) {
@@ -357,18 +340,10 @@ export const updateQuestion = async (req: Request, res: Response) => {
       codeLanguage,
     } = req.body;
 
-    // Enforce org_id from instructor context
-    const org_id = req.fullUser?.org_id;
-    if (!org_id) {
-      return res.status(401).json({
-        error: "Unauthorized: Organization not found in user context",
-      });
-    }
-
     const question = await getSingleRecord<Question, any>(
       Question,
       {
-        where: { id: questionId, test: { id: testId, org_id } },
+        where: { id: questionId, test: { id: testId } },
         relations: ["test", "options"],
       },
       `question_${questionId}`,
@@ -376,9 +351,7 @@ export const updateQuestion = async (req: Request, res: Response) => {
     );
 
     if (!question) {
-      return res
-        .status(404)
-        .json({ error: "Question not found or access denied" });
+      return res.status(404).json({ error: "Question not found" });
     }
 
     if (question.test.status !== TestStatus.DRAFT) {
@@ -481,18 +454,10 @@ export const deleteQuestion = async (req: Request, res: Response) => {
   try {
     const { testId, questionId } = req.params;
 
-    // Enforce org_id from instructor context
-    const org_id = req.fullUser?.org_id;
-    if (!org_id) {
-      return res.status(401).json({
-        error: "Unauthorized: Organization not found in user context",
-      });
-    }
-
     const question = await getSingleRecord<Question, any>(
       Question,
       {
-        where: { id: questionId, test: { id: testId, org_id } },
+        where: { id: questionId, test: { id: testId } },
         relations: ["test", "options"],
       },
       `question_${questionId}`,
@@ -500,9 +465,7 @@ export const deleteQuestion = async (req: Request, res: Response) => {
     );
 
     if (!question) {
-      return res
-        .status(404)
-        .json({ error: "Question not found or access denied" });
+      return res.status(404).json({ error: "Question not found" });
     }
 
     if (question.test.status !== TestStatus.DRAFT) {
@@ -548,18 +511,10 @@ export const getQuestions = async (req: Request, res: Response) => {
   try {
     const { testId } = req.params;
 
-    // Enforce org_id from instructor context
-    const org_id = req.fullUser?.org_id;
-    if (!org_id) {
-      return res.status(401).json({
-        error: "Unauthorized: Organization not found in user context",
-      });
-    }
-
     const test = await getSingleRecord<Test, any>(
       Test,
       {
-        where: { id: testId, org_id },
+        where: { id: testId },
         relations: ["questions", "questions.options"],
       },
       `test_${testId}_detailed`,
@@ -567,7 +522,7 @@ export const getQuestions = async (req: Request, res: Response) => {
     );
 
     if (!test) {
-      return res.status(404).json({ error: "Test not found or access denied" });
+      return res.status(404).json({ error: "Test not found" });
     }
 
     const questionsWithHtml =
@@ -602,22 +557,14 @@ export const publishTest = async (req: Request, res: Response) => {
 
   try {
     const { testId } = req.params;
-    // Enforce org_id from instructor context
-    const org_id = req.fullUser?.org_id;
-    if (!org_id) {
-      return res.status(401).json({
-        error: "Unauthorized: Organization not found in user context",
-      });
-    }
-
     const testRepository = AppDataSource.getRepository(Test);
     const test = await testRepository.findOne({
-      where: { id: testId, org_id },
+      where: { id: testId },
       relations: ["questions", "questions.options", "course"],
     });
 
     if (!test) {
-      return res.status(404).json({ error: "Test not found or access denied" });
+      return res.status(404).json({ error: "Test not found" });
     }
 
     if (test.status === TestStatus.PUBLISHED) {
@@ -757,23 +704,15 @@ export const addQuestions = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Questions array is required" });
     }
 
-    // Enforce org_id from instructor context
-    const org_id = req.fullUser?.org_id;
-    if (!org_id) {
-      return res.status(401).json({
-        error: "Unauthorized: Organization not found in user context",
-      });
-    }
-
     const test = await getSingleRecord<Test, any>(
       Test,
-      { where: { id: testId, org_id } },
+      { where: { id: testId } },
       `test_${testId}`,
       false,
     );
 
     if (!test) {
-      return res.status(404).json({ error: "Test not found or access denied" });
+      return res.status(404).json({ error: "Test not found" });
     }
 
     if (test.status !== TestStatus.DRAFT) {
@@ -876,19 +815,10 @@ export const getTestResults = async (req: Request, res: Response) => {
       return res.status(200).json(JSON.parse(cachedResults));
     }
 
-    // Enforce org_id from instructor context
-    const org_id = req.fullUser?.org_id;
-    if (!org_id) {
-      return res.status(401).json({
-        error: "Unauthorized: Organization not found in user context",
-      });
-    }
-
-    // Only allow attempts for tests belonging to org
     const attempts = await getAllRecordsWithFilter<TestAttempt, any>(
       TestAttempt,
       {
-        where: { test: { id: testId, org_id } },
+        where: { test: { id: testId } },
         relations: ["student", "test"],
       },
     );

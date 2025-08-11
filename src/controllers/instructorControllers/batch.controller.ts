@@ -5,6 +5,7 @@ import {
   getSingleRecord,
   deleteRecords,
   updateRecords,
+  getAllRecords,
   getAllRecordsWithFilter,
 } from "../../lib/dbLib/sqlUtils";
 import { Course } from "../../db/mysqlModels/Course";
@@ -219,21 +220,10 @@ export const createBatch = async (req: Request, res: Response) => {
 export const fetchAllBatches = async (req: Request, res: Response) => {
   try {
     console.log("=== FETCH ALL BATCHES DEBUG ===");
-    // Always use org_id from authenticated user context only
-    const org_id = req.fullUser?.org_id;
-    if (!org_id) {
-      console.error("No org_id in user context");
-      return res.status(401).json({
-        message: "Unauthorized: Organization not found in user context",
-      });
-    }
-    // Fetch only batches for the user's org_id
-    const batches = await getAllRecordsWithFilter<Batch, any>(Batch, {
-      where: { org_id },
+    const batches = await getAllRecords(Batch, {
+      relations: ["courses"],
     });
     console.log("Found batches count:", batches?.length);
-    console.log("Fetching batches for org_id:", org_id);
-
     console.log("Batches:", JSON.stringify(batches, null, 2));
     return res.status(200).json({ message: "Fetched batches", batches });
   } catch (err) {
@@ -245,25 +235,15 @@ export const fetchAllBatches = async (req: Request, res: Response) => {
 export const fetchBatch = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    // Get org_id from query, body, or user context
-    const org_id = req.query.org_id || req.body.org_id || req.fullUser?.org_id;
-    console.log("Fetching batch with ID:", org_id);
-    if (!org_id) {
-      console.error("No org_id provided in request");
-      return res.status(400).json({ message: "Organization ID is required" });
-    }
-    // Fetch batch only if org_id matches
-    const batch = await getSingleRecord<Batch, any>(
+    const batch = await getSingleRecord<Batch, { where: { id: string } }>(
       Batch,
-      { where: { id, org_id } },
+      { where: { id } },
       `batch_${id}`,
       true,
       10 * 60,
     );
     if (!batch) {
-      return res
-        .status(404)
-        .json({ message: "Batch not found or access denied" });
+      return res.status(404).json({ message: "Batch not found" });
     }
     return res.status(200).json({ message: "Batch fetched", batch });
   } catch (err) {
@@ -640,21 +620,13 @@ export const assignMultipleStudentsToBatchEnhanced = async (
       }
     }
 
-    // Enforce org_id from instructor context
-    const org_id = req.fullUser?.org_id;
-    if (!org_id) {
-      return res.status(401).json({
-        message: "Unauthorized: Organization not found in user context",
-      });
-    }
-    // Check if batch exists and belongs to org
+    // Check if batch exists
     const batch = await getSingleRecord<Batch, any>(Batch, {
-      where: { id: batchId, org_id },
+      where: { id: batchId },
     });
+
     if (!batch) {
-      return res
-        .status(404)
-        .json({ message: "Batch not found or access denied" });
+      return res.status(404).json({ message: "Batch not found" });
     }
 
     console.log("Found batch:", { id: batch.id, name: batch.name });
@@ -668,23 +640,42 @@ export const assignMultipleStudentsToBatchEnhanced = async (
       try {
         console.log(`Processing user: ${userId}`);
 
-        // Only allow users from same org
         const user = await getSingleRecord<User, any>(User, {
-          where: { id: userId, org_id },
+          where: { id: userId },
         });
 
         if (!user) {
-          console.error(`User not found or access denied: ${userId}`);
+          console.error(`User not found: ${userId}`);
           results.push({
             userId,
             status: "error",
-            message: "User not found or access denied",
+            message: "User not found",
           });
           errorCount++;
           continue;
         }
 
         console.log(`Found user: ${user.username} (${user.email})`);
+
+        // Check organization match
+        if (!user.org_id) {
+          await updateRecords(
+            User,
+            { id: userId },
+            { org_id: batch.org_id },
+            false,
+          );
+          user.org_id = batch.org_id;
+        } else if (user.org_id !== batch.org_id) {
+          console.error(`Organization mismatch for user ${userId}`);
+          results.push({
+            userId,
+            status: "error",
+            message: "User belongs to a different organization",
+          });
+          errorCount++;
+          continue;
+        }
 
         // **CRITICAL FIX: Check if already assigned to prevent duplicates**
         const currentBatchIds = user.batch_id || [];
@@ -711,9 +702,9 @@ export const assignMultipleStudentsToBatchEnhanced = async (
 
         console.log(`Updated user ${userId} batch_id: ${updatedBatchIds}`);
 
-        // Assign to courses in this batch (only those belonging to org)
+        // Assign to courses in this batch
         const courses = await getAllRecordsWithFilter<Course, any>(Course, {
-          where: { batch: { id: batchId }, org_id },
+          where: { batch: { id: batchId } },
         });
 
         let assignedCourses = 0;
@@ -1242,7 +1233,7 @@ export const getUserBatches = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Show all batches assigned to the user, regardless of org_id
+    // Get batch details for the user's batch_id array
     const batchIds = user.batch_id || [];
     const batches = [];
 

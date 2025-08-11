@@ -386,7 +386,7 @@ const updateUserWithRole = async (
   role: UserRole,
 ) => {
   const { user_id } = req.params;
-  const { username, email, password, batch_id, org_id } = req.body;
+  const { username, email, password, batch_id } = req.body;
   if (!user_id) return res.status(400).json({ error: "User Id is required" });
 
   try {
@@ -398,16 +398,10 @@ const updateUserWithRole = async (
       return res.status(404).json({ message: `${role} not found` });
     }
 
-    if (org_id) {
-      return res.status(400).json({
-        error: "Updating organization is not allowed through this endpoint",
-      });
-    }
     user.username = username || user.username;
     user.email = email || user.email;
     user.password = password || user.password;
     user.batch_id = batch_id || user.batch_id;
-    user.org_id = org_id || user.org_id;
 
     const errors = await validate(user);
     if (errors.length > 0) {
@@ -422,8 +416,6 @@ const updateUserWithRole = async (
         email: user.email,
         password: user.password,
         batch_id: user.batch_id,
-        userRole: user.userRole,
-        org_id: user.org_id,
       },
       false,
     );
@@ -675,7 +667,7 @@ export const updateUser = async (req: Request, res: Response) => {
     console.log("Body:", req.body);
 
     const { user_id } = req.params;
-    const { username, email, password, batch_id, role, org_id } = req.body;
+    const { username, email, password, batch_id, role } = req.body;
 
     if (!user_id) {
       return res.status(400).json({ error: "User ID is required" });
@@ -707,7 +699,6 @@ export const updateUser = async (req: Request, res: Response) => {
     if (role) {
       user.userRole = role as UserRole;
     }
-    user.org_id = org_id || user.org_id;
 
     const errors = await validate(user);
     if (errors.length > 0) {
@@ -725,7 +716,6 @@ export const updateUser = async (req: Request, res: Response) => {
         password: user.password,
         batch_id: user.batch_id,
         userRole: user.userRole,
-        org_id: user.org_id,
       },
       false,
     );

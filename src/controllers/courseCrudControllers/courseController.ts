@@ -189,35 +189,29 @@ export const createCourse = async (req: Request, res: Response) => {
         .json({ message: "End date must be after start date" });
     }
 
-    // Get instructor org_id from req.fullUser
-    const instructorOrgId = req.fullUser?.org_id;
-    if (!instructorOrgId) {
-      return res.status(403).json({ message: "Instructor org_id not found" });
-    }
-
     // Validate batch IDs if provided
     let batches: Batch[] | undefined;
     if (batch_ids && Array.isArray(batch_ids) && batch_ids.length > 0) {
       batches = await getAllRecordsWithFilter(
         Batch,
-        { where: { id: In(batch_ids), org_id: instructorOrgId } },
+        { where: { id: In(batch_ids) } },
         `batches:ids:${batch_ids.join(",")}`,
         true,
-        20 * 60,
+        20 * 60, // Cache for 20 minutes
       );
       if (!batches || batches.length !== batch_ids.length) {
         const foundBatchIds = batches?.map((b) => b.id) || [];
         const missingBatchIds = batch_ids.filter(
           (id) => !foundBatchIds.includes(id),
         );
-        return res.status(403).json({
-          message: "Some batches do not belong to your organization",
+        return res.status(404).json({
+          message: "Some batches not found",
           missingBatchIds,
         });
       }
     }
 
-    // Create course instance with org_id
+    // Create course instance
     const course = Course.create({
       title,
       logo,
@@ -238,7 +232,6 @@ export const createCourse = async (req: Request, res: Response) => {
       tags: safeTags,
       mode,
       what_you_will_learn: safeWhatYouWillLearn,
-      org_id: instructorOrgId,
     });
 
     // Save course
@@ -265,7 +258,6 @@ export const createCourse = async (req: Request, res: Response) => {
           order: moduleData.order,
           isLocked: moduleData.isLocked,
           course,
-          org_id: instructorOrgId,
         });
 
         // Save module
@@ -280,7 +272,6 @@ export const createCourse = async (req: Request, res: Response) => {
               completed: dayData.completed || false,
               title: dayData.title, // Include title if provided
               module,
-              org_id: instructorOrgId,
             });
             await day.save();
           }
@@ -654,18 +645,10 @@ export const fetchCourse = async (req: Request, res: Response) => {
 
     // Only allow students to fetch if they are enrolled
 
-    // Enforce org_id from instructor context
-    const org_id = req.fullUser?.org_id;
-    if (!org_id) {
-      return res.status(401).json({
-        message: "Unauthorized: Organization not found in user context",
-      });
-    }
-
     const course = await getSingleRecord(
       Course,
       {
-        where: { id: courseId, org_id },
+        where: { id: courseId },
         relations: ["modules", "modules.days", "batches"],
         order: {
           modules: {
@@ -682,13 +665,8 @@ export const fetchCourse = async (req: Request, res: Response) => {
     );
 
     if (!course) {
-      console.log(
-        " [FETCH COURSE] Course not found with ID or access denied:",
-        courseId,
-      );
-      return res
-        .status(404)
-        .json({ message: "Course not found or access denied" });
+      console.log(" [FETCH COURSE] Course not found with ID:", courseId);
+      return res.status(404).json({ message: "Course not found" });
     }
 
     console.log(" [FETCH COURSE] Course found:", {
@@ -773,32 +751,26 @@ export const getAllCourses = async (req: Request, res: Response) => {
         15 * 60,
       );
     } else {
-      // Admins/instructors see only their org's courses
-      const org_id = req.fullUser?.org_id;
-      if (!org_id) {
-        return res.status(401).json({
-          message: "Unauthorized: Organization not found in user context",
-        });
-      }
+      // Admins/instructors see all courses
       courses = await getAllRecordsWithFilter(
         Course,
         {
-          where: { ...whereCondition, org_id },
+          where: whereCondition,
           relations: ["batches"],
           order: { title: "ASC" },
           skip: offset,
           take: limitNumber,
         },
-        `courses:page:${pageNumber}:limit:${limitNumber}:search:${search}:org:${org_id}`,
+        `courses:page:${pageNumber}:limit:${limitNumber}:search:${search}`,
         true,
         10 * 60,
       );
       totalCourses = await getAllRecordsWithFilter(
         Course,
         {
-          where: { ...whereCondition, org_id },
+          where: whereCondition,
         },
-        `courses:count:search:${search}:org:${org_id}`,
+        `courses:count:search:${search}`,
         true,
         15 * 60,
       );
@@ -837,25 +809,13 @@ export const fetchAllCoursesinBatch = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Batch ID is required" });
     }
 
-    // Enforce org_id from instructor context
-    const org_id = req.fullUser?.org_id;
-    if (!org_id) {
-      return res.status(401).json({
-        message: "Unauthorized: Organization not found in user context",
-      });
-    }
-
-    const batch = await getSingleRecord(Batch, {
-      where: { id: batchId, org_id },
-    });
+    const batch = await getSingleRecord(Batch, { where: { id: batchId } });
     if (!batch) {
-      return res
-        .status(404)
-        .json({ message: "Batch not found or access denied" });
+      return res.status(404).json({ message: "Batch not found" });
     }
 
     const courses = await getAllRecordsWithFilter(Course, {
-      where: { batches: { id: batchId }, org_id },
+      where: { batches: { id: batchId } },
       relations: ["modules", "batches"],
     });
 
@@ -888,23 +848,15 @@ export const fetchAllCoursesForInstructor = async (
       role: user.userRole,
     });
 
-    // Enforce org_id from instructor context
-    const org_id = req.fullUser?.org_id;
-    if (!org_id) {
-      return res.status(401).json({
-        message: "Unauthorized: Organization not found in user context",
-      });
-    }
-
-    // Fetch all courses for instructor's org
+    // Fetch all courses - for instructors, we can show all courses or filter by instructor
+    // For now, let's fetch all courses with their relations
     const courses = await getAllRecordsWithFilter(
       Course,
       {
-        where: { org_id },
         relations: ["modules", "batches"],
         order: { title: "ASC" },
       },
-      `instructor:courses:${user.id}:org:${org_id}`,
+      `instructor:courses:${user.id}`,
       true,
       10 * 60,
     ); // Cache for 10 minutes
@@ -1011,11 +963,6 @@ export const updateCourse = async (req: Request, res: Response) => {
     if (!course) {
       return res.status(404).json({ message: "Course not found" });
     }
-    // Check org_id
-    const instructorOrgId = (req.user as User)?.org_id;
-    if (!instructorOrgId || course.org_id !== instructorOrgId) {
-      return res.status(403).json({ message: "Forbidden: org_id mismatch" });
-    }
 
     // Update basic fields
     if (title) course.title = title;
@@ -1065,11 +1012,6 @@ export const deleteCourse = async (req: Request, res: Response) => {
     });
     if (!course) {
       return res.status(404).json({ message: "Course not found" });
-    }
-    // Check org_id
-    const instructorOrgId = (req.user as User)?.org_id;
-    if (!instructorOrgId || course.org_id !== instructorOrgId) {
-      return res.status(403).json({ message: "Forbidden: org_id mismatch" });
     }
 
     console.log("=== DELETE COURSE DEBUG ===");

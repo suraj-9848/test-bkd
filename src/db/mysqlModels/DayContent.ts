@@ -15,9 +15,6 @@ export class DayContent extends BaseEntity {
   @ManyToOne(() => Module, (module) => module.days, { onDelete: "CASCADE" })
   module: Module;
 
-  @Column("uuid")
-  org_id: string;
-
   @Column()
   dayNumber: number; // This will be a continuous sequence, e.g., 1, 2, 3, ..., 11, 12, ...
 
