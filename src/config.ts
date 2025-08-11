@@ -3,9 +3,8 @@ dotenv.config();
 
 export const config = {
   CORS_ORIGIN:
-    process.env.NODE_ENV === "production"
-      ? "to be deployed"
-      : process.env.CORS_ORIGIN || "http://localhost:4000", // MANDATORY
+    process.env.CORS_ORIGIN ||
+    (process.env.NODE_ENV === "production" ? "" : "http://localhost:4000"), // MANDATORY
   // Tells on what environment it is running
 
   // Tells on what port it is running

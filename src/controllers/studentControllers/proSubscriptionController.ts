@@ -47,6 +47,15 @@ export const getAvailablePlans = async (req: Request, res: Response) => {
 // Create Razorpay order for subscription
 export const createSubscriptionOrder = async (req: Request, res: Response) => {
   try {
+    // Ensure Razorpay is configured
+    if (!config.RAZORPAY_KEY_ID || !config.RAZORPAY_KEY_SECRET) {
+      return res.status(500).json({
+        success: false,
+        message:
+          "Razorpay credentials not configured on server. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.",
+      });
+    }
+
     const { plan_id } = req.body;
     const user = req.user as User;
 
@@ -142,6 +151,15 @@ export const createSubscriptionOrder = async (req: Request, res: Response) => {
 // Verify payment and activate subscription
 export const verifyPayment = async (req: Request, res: Response) => {
   try {
+    // Ensure Razorpay is configured
+    if (!config.RAZORPAY_KEY_ID || !config.RAZORPAY_KEY_SECRET) {
+      return res.status(500).json({
+        success: false,
+        message:
+          "Razorpay credentials not configured on server. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.",
+      });
+    }
+
     const {
       razorpay_order_id,
       razorpay_payment_id,

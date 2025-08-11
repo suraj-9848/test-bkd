@@ -17,6 +17,8 @@ import { getDashboardData } from "../../controllers/recruiterControllers/dashboa
 import { authMiddleware, requireRole } from "../../middleware/authMiddleware";
 import { UserRole } from "../../db/mysqlModels/User";
 import recruiterProPlanRoutes from "../recruiterProPlanRoutes";
+import { getStudents } from "../../controllers/recruiterControllers/userController";
+import { getCandidateInsights } from "../../controllers/recruiterControllers/insightsController";
 
 const recruiterRouter = Router();
 
@@ -28,6 +30,7 @@ recruiterRouter.use(
 
 // Recruiter Dashboard
 recruiterRouter.get("/dashboard", getDashboardData);
+recruiterRouter.get("/candidate-insights", getCandidateInsights);
 
 // Subscription Management
 recruiterRouter.post("/subscriptions", createSubscription);
@@ -44,6 +47,9 @@ recruiterRouter.delete("/jobs/:jobId", deleteJob);
 
 // Application Management
 recruiterRouter.get("/applications", getApplications);
+
+// Users Management
+recruiterRouter.get("/users", getStudents);
 
 // Mount pro plan routes
 recruiterRouter.use("/pro-plans", recruiterProPlanRoutes);
