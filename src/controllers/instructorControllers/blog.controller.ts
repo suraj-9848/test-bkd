@@ -13,7 +13,7 @@ const logger = getLogger();
 
 export const createBlog = async (req: Request, res: Response) => {
   try {
-    const { title, content, coverImageUrl, hashtags } = req.body;
+    const { title, content, coverImageUrl, author, hashtags } = req.body;
 
     if (!title || !title.trim()) {
       logger.warn("Blog title is required");
@@ -32,9 +32,12 @@ export const createBlog = async (req: Request, res: Response) => {
 
     const newBlog = new Blogs();
     newBlog.title = title.trim();
+    newBlog.author = author || "Unknown Author";
     newBlog.content = content;
     newBlog.coverImage = coverImageUrl || "";
     newBlog.hashtags = Array.isArray(hashtags) ? hashtags : [];
+    newBlog.createdAt = new Date();
+    newBlog.updatedAt = new Date();
 
     const savedBlog = (await createRecord(Blogs, newBlog)) as Blogs;
 
@@ -64,6 +67,7 @@ export const getAllBlogs = async (req: Request, res: Response) => {
       id: blog.id,
       title: blog.title,
       content: blog.content,
+      author: blog.author || "Unknown Author",
       coverImageUrl: blog.coverImage,
       hashtags: blog.hashtags || [],
       createdAt: blog.createdAt,
@@ -191,6 +195,7 @@ export const updateBlog = async (req: Request, res: Response) => {
     const updateData = {
       title: title.trim(),
       content: content,
+      updatedAt: new Date(),
       coverImage: coverImageUrl || "",
       hashtags: Array.isArray(hashtags) ? hashtags : [],
     };
