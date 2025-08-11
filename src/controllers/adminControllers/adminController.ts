@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { Org } from "../../db/mysqlModels/Org";
+import { Enrollment } from "../../db/mysqlModels/enrollment";
 import { validate } from "class-validator";
 import {
   createRecord,
@@ -9,7 +10,181 @@ import {
   updateRecords,
   getAllRecordsWithFilter,
 } from "../../lib/dbLib/sqlUtils";
+import { Like, MoreThanOrEqual, LessThanOrEqual, Between } from "typeorm";
 import { User, UserRole } from "../../db/mysqlModels/User";
+
+export const getCoursePayments = async (req: Request, res: Response) => {
+  try {
+    let {
+      page = 1,
+      pageSize = 20,
+      sortBy = "enrolledAt",
+      sortOrder = "DESC",
+    } = req.query;
+    const {
+      courseId,
+      userId,
+      userEmail,
+      dateFrom,
+      dateTo,
+      razorpayPaymentId,
+      razorpayOrderId,
+      search,
+    } = req.query;
+
+    page = Math.max(1, Number(page));
+    pageSize = Math.min(100, Math.max(1, Number(pageSize)));
+    sortOrder = sortOrder === "ASC" ? "ASC" : "DESC";
+
+    const allowedSortFields = [
+      "enrolledAt",
+      "razorpay_payment_id",
+      "razorpay_order_id",
+      "id",
+    ];
+    if (!allowedSortFields.includes(sortBy as string)) {
+      sortBy = "enrolledAt";
+    }
+
+    // Build base where clause
+    const baseWhere: any = {};
+    if (courseId) {
+      baseWhere.course = { id: courseId };
+    }
+    if (userId || userEmail) {
+      baseWhere.user = {};
+      if (userId) baseWhere.user.id = userId;
+      if (userEmail) baseWhere.user.email = userEmail;
+    }
+    if (razorpayPaymentId) baseWhere.razorpay_payment_id = razorpayPaymentId;
+    if (razorpayOrderId) baseWhere.razorpay_order_id = razorpayOrderId;
+
+    if (dateFrom && dateTo) {
+      baseWhere.enrolledAt = Between(
+        new Date(dateFrom as string),
+        new Date(dateTo as string),
+      );
+    } else if (dateFrom) {
+      baseWhere.enrolledAt = MoreThanOrEqual(new Date(dateFrom as string));
+    } else if (dateTo) {
+      baseWhere.enrolledAt = LessThanOrEqual(new Date(dateTo as string));
+    }
+
+    let enrollments = [];
+    let total = 0;
+
+    if (search && typeof search === "string" && search.trim().length > 0) {
+      const searchTerm = `%${search.trim()}%`;
+
+      const filterOptions = {
+        where: [
+          {
+            ...baseWhere,
+            user: { ...(baseWhere.user || {}), username: Like(searchTerm) },
+          },
+          {
+            ...baseWhere,
+            user: { ...(baseWhere.user || {}), email: Like(searchTerm) },
+          },
+          {
+            ...baseWhere,
+            course: { ...(baseWhere.course || {}), title: Like(searchTerm) },
+          },
+        ],
+        order: { [sortBy as string]: sortOrder as "ASC" | "DESC" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        relations: ["user", "course", "userCourse"],
+      };
+
+      // Merge and deduplicate by id
+      const allEnrollments = await getAllRecordsWithFilter(
+        Enrollment,
+        filterOptions,
+      );
+      total = allEnrollments.length;
+      const sortKey =
+        typeof sortBy === "string" && allowedSortFields.includes(sortBy)
+          ? sortBy
+          : "enrolledAt";
+      enrollments = allEnrollments
+        .sort((a, b) => {
+          if (sortOrder === "ASC") {
+            return a[sortKey] > b[sortKey] ? 1 : -1;
+          } else {
+            return a[sortKey] < b[sortKey] ? 1 : -1;
+          }
+        })
+        .slice((page - 1) * pageSize, page * pageSize);
+    } else {
+      // No search, normal query
+      const filterOptions = {
+        where: baseWhere,
+        order: { [sortBy as string]: sortOrder as "ASC" | "DESC" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        relations: ["user", "course", "userCourse"],
+      };
+      enrollments = await getAllRecordsWithFilter(Enrollment, filterOptions);
+      total = await Enrollment.count({ where: baseWhere });
+    }
+
+    const totalPages = Math.ceil(total / pageSize);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+    const filtersApplied = {
+      courseId,
+      userId,
+      userEmail,
+      dateFrom,
+      dateTo,
+      razorpayPaymentId,
+      razorpayOrderId,
+      search,
+    };
+
+    const formatted = enrollments.map((enrollment) => ({
+      id: enrollment.id,
+      user: enrollment.user
+        ? {
+            id: enrollment.user.id,
+            username: enrollment.user.username,
+            email: enrollment.user.email,
+          }
+        : null,
+      course: enrollment.course
+        ? {
+            id: enrollment.course.id,
+            title: enrollment.course.title,
+            price: enrollment.course.price,
+          }
+        : null,
+      userCourse: enrollment.userCourse
+        ? {
+            id: enrollment.userCourse.id,
+          }
+        : null,
+      razorpay_payment_id: enrollment.razorpay_payment_id,
+      razorpay_order_id: enrollment.razorpay_order_id,
+      enrolledAt: enrollment.enrolledAt,
+    }));
+
+    return res.status(200).json({
+      message: "Course payments fetched successfully",
+      enrollments: formatted,
+      page,
+      pageSize,
+      total,
+      totalPages,
+      hasNextPage,
+      hasPrevPage,
+      filtersApplied,
+    });
+  } catch (error) {
+    console.error("Error fetching course payments:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
 
 export const getAllOrg = async (req: Request, res: Response) => {
   try {

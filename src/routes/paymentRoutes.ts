@@ -135,8 +135,7 @@ router.post("/verify", async (req, res) => {
       userCourse: { id: userCourse.id },
       razorpay_payment_id,
       razorpay_order_id,
-      status: "active",
-      completed: false,
+      enrolledAt: new Date(),
     });
     await enrollment.save();
 

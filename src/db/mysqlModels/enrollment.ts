@@ -33,12 +33,6 @@ export class Enrollment extends BaseEntity {
   @Column({ nullable: false })
   razorpay_order_id: string;
 
-  @Column({ default: false })
-  completed: boolean;
-
-  @Column({ default: "active" })
-  status: string;
-
   @CreateDateColumn()
   enrolledAt: Date;
 }
