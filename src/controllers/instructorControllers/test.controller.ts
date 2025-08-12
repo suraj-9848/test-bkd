@@ -11,7 +11,10 @@ import {
   getAllRecordsWithFilter,
 } from "../../lib/dbLib/sqlUtils";
 import { TestSubmission } from "../../db/mysqlModels/TestSubmission";
-import { TestResponse } from "../../db/mysqlModels/TestResponse";
+import {
+  ResponseEvaluationStatus,
+  TestResponse,
+} from "../../db/mysqlModels/TestResponse";
 
 import { validate } from "class-validator";
 import sanitizeHtml from "sanitize-html";
@@ -737,7 +740,7 @@ export const evaluateTestSubmission = async (req: Request, res: Response) => {
                 { id: evalResponse.responseId },
                 {
                   score: evalResponse.score,
-                  evaluationStatus: "EVALUATED",
+                  evaluationStatus: ResponseEvaluationStatus.EVALUATED,
                   evaluatorComments: evalResponse.comments || null,
                 },
               );
@@ -879,7 +882,7 @@ export const evaluateTestResponseById = async (req: Request, res: Response) => {
       { id: responseId },
       {
         score: score,
-        evaluationStatus: "EVALUATED",
+        evaluationStatus: ResponseEvaluationStatus.EVALUATED,
         evaluatorComments: evaluatorComments || null,
       },
     );
@@ -890,7 +893,7 @@ export const evaluateTestResponseById = async (req: Request, res: Response) => {
     const evaluatedResponses = await TestResponse.find({
       where: {
         submission: { id: submission.id },
-        evaluationStatus: "EVALUATED",
+        evaluationStatus: ResponseEvaluationStatus.EVALUATED,
       },
       relations: ["question"],
     });

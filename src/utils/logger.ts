@@ -35,7 +35,7 @@ export function getLogger() {
 }
 
 // Performance logging
-const logger = getLogger();
+export const logger = getLogger();
 
 const perfObserver = new PerformanceObserver((list) => {
   list.getEntries().forEach((entry: any) => {

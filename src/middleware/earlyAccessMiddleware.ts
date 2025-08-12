@@ -149,7 +149,7 @@ export const checkJobEarlyAccess = async (
       where: { id: userId },
     });
 
-    if (!user || user.role !== UserRole.STUDENT) {
+    if (!user || user.userRole !== UserRole.STUDENT) {
       res.status(403).json({
         message: "Student Access Required",
         details:
@@ -208,7 +208,7 @@ export const filterJobsByProAccess = async (
         where: { id: userId },
       });
 
-      if (user && user.role === UserRole.STUDENT) {
+      if (user && user.userRole === UserRole.STUDENT) {
         isProStudent = await ProSubscriptionService.isProStudent(userId);
       }
     }

@@ -15,6 +15,9 @@ export class Blogs extends BaseEntity {
   @Column({ type: "varchar", length: 255 })
   title: string;
 
+  @Column({ type: "varchar", length: 255, nullable: true })
+  author: string;
+
   @Column({ type: "text", nullable: true })
   coverImage: string;
 

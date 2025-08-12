@@ -59,6 +59,7 @@ import {
   createUser,
   updateUser,
   deleteUser,
+  getCoursePayments,
 } from "../../controllers/adminControllers/adminController";
 
 import {
@@ -90,6 +91,7 @@ adminRouter.delete("/delete-course/:id", deleteCourse);
 adminRouter.put("/update-course/:id", updateCourse);
 adminRouter.get("/fetch-course/:id", fetchCourse);
 adminRouter.get("/fetch-all-courses", fetchAllCoursesinBatch);
+adminRouter.get("/course-payments", getCoursePayments);
 
 //Organization CRUD - REST API style
 adminRouter.get("/organizations", getAllOrg); // GET /api/admin/organizations

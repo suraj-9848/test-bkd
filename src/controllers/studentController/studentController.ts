@@ -388,7 +388,7 @@ export const submitTest = async (req: Request, res: Response) => {
         // Save all responses
         await manager.save(
           TestResponse,
-          testResponses.map((resp) => ({
+          testResponses.map((resp: any) => ({
             ...resp,
             answer: Array.isArray(resp.answer)
               ? JSON.stringify(resp.answer)
@@ -2147,6 +2147,7 @@ export const getStudentBlogs = async (req: Request, res: Response) => {
     const processedBlogs = blogs.map((blog) => ({
       id: blog.id,
       title: blog.title,
+      author: blog.author,
       coverImage: blog.coverImage,
       content: blog.content,
       hashtags: blog.hashtags || [],
@@ -2196,6 +2197,7 @@ export const getStudentBlogById = async (req: Request, res: Response) => {
     const processedBlog = {
       id: blog.id,
       title: blog.title,
+      author: blog.author,
       coverImage: blog.coverImage,
       content: blog.content,
       hashtags: blog.hashtags || [],
