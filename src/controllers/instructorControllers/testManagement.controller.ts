@@ -1,64 +1,385 @@
 import { Request, Response } from "express";
-import { Test, TestStatus } from "../../db/mysqlModels/Test";
 import { Question, QuestionType } from "../../db/mysqlModels/Question";
 import { QuizOptions } from "../../db/mysqlModels/QuizOptions";
-import { Course } from "../../db/mysqlModels/Course";
-import { TestAttempt } from "../../db/mysqlModels/TestAttempt";
+import { Test, TestStatus } from "../../db/mysqlModels/Test";
+import { logger } from "../../utils/logger";
+import { S3TestCaseService } from "../../services/S3TestCaseService";
+import sanitizeHtml from "sanitize-html";
+import multer from "multer";
 import {
   createRecord,
-  getSingleRecord,
   getAllRecordsWithFilter,
+  getSingleRecord,
 } from "../../lib/dbLib/sqlUtils";
+import { Course } from "../../db/mysqlModels/Course";
 import { AppDataSource, redisClient } from "../../db/connect";
-import { getLoggerByName } from "../../utils/logger";
-import sanitizeHtml from "sanitize-html";
+import { TestAttempt } from "../../db/mysqlModels/TestAttempt";
 
-const logger = getLoggerByName("Test Management");
+const upload = multer({ storage: multer.memoryStorage() });
 
+/**
+ * Sanitize question text
+ */
 const sanitizeQuestionText = (text: string): string => {
   return sanitizeHtml(text, {
     allowedTags: [
       "p",
-      "strong",
-      "em",
-      "ul",
-      "ol",
-      "li",
-      "code",
-      "pre",
-      "span",
-      "div",
       "br",
-      "blockquote",
+      "div",
+      "span",
+      "strong",
+      "b",
+      "em",
+      "i",
+      "u",
+      "s",
+      "sub",
+      "sup",
       "h1",
       "h2",
       "h3",
       "h4",
       "h5",
       "h6",
-      "u",
-      "s",
-      "i",
-      "b",
+      "ul",
+      "ol",
+      "li",
+      "code",
+      "pre",
+      "blockquote",
+      "a",
     ],
     allowedAttributes: {
-      "*": ["class", "style", "spellcheck", "data-*"],
+      "*": ["style", "class", "id", "data-*"],
+      a: ["href", "target", "rel"],
     },
     allowedStyles: {
       "*": {
-        color: [/^.*$/],
-        "background-color": [/^.*$/],
         "font-weight": [/^.*$/],
         "font-style": [/^.*$/],
         "text-decoration": [/^.*$/],
+        color: [/^.*$/],
+        "background-color": [/^.*$/],
         "font-size": [/^.*$/],
-        "font-family": [/^.*$/],
-        "text-align": [/^.*$/],
-        "white-space": [/^.*$/],
       },
     },
-    allowVulnerableTags: false,
-  }).trim();
+  });
+};
+
+/**
+ * Add questions to test with enhanced coding support
+ */
+export const addQuestions = async (req: Request, res: Response) => {
+  try {
+    const { testId } = req.params;
+    const { questions } = req.body;
+
+    if (!questions || !Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({ error: "Questions array is required" });
+    }
+
+    const test = await getSingleRecord<Test, any>(
+      Test,
+      { where: { id: testId } },
+      `test_${testId}`,
+      false,
+    );
+
+    if (!test) {
+      return res.status(404).json({ error: "Test not found" });
+    }
+
+    if (test.status !== TestStatus.DRAFT) {
+      return res
+        .status(400)
+        .json({ error: "Cannot add questions to a published test" });
+    }
+
+    const createdQuestions: Question[] = [];
+
+    for (const questionData of questions) {
+      const {
+        question_text,
+        type,
+        marks,
+        options,
+        expectedWordCount,
+        codeLanguage,
+        constraints,
+        visible_testcases,
+        hidden_testcases,
+        time_limit_ms,
+        memory_limit_mb,
+      } = questionData;
+
+      if (!question_text || !type || marks === undefined) {
+        return res.status(400).json({
+          error: "Missing required fields: question_text, type, marks",
+        });
+      }
+
+      // Validate question type
+      if (!["MCQ", "DESCRIPTIVE", "CODE"].includes(type)) {
+        return res.status(400).json({ error: "Invalid question type" });
+      }
+
+      // Additional validation for coding questions
+      if (type === "CODE") {
+        if (!codeLanguage) {
+          return res.status(400).json({
+            error: "Programming language is required for coding questions",
+          });
+        }
+
+        if (!visible_testcases || !hidden_testcases) {
+          return res.status(400).json({
+            error:
+              "Visible and hidden test cases are required for coding questions",
+          });
+        }
+      }
+
+      const question = new Question();
+      question.question_text = sanitizeQuestionText(question_text);
+      question.type = type as QuestionType;
+      question.marks = marks || 1;
+      question.test = test;
+
+      // Set common optional fields
+      if (expectedWordCount && (type === "DESCRIPTIVE" || type === "CODE")) {
+        question.expectedWordCount = expectedWordCount;
+      }
+
+      if (codeLanguage && type === "CODE") {
+        question.codeLanguage = codeLanguage;
+      }
+
+      // Set coding-specific fields
+      if (type === "CODE") {
+        question.constraints = constraints || null;
+        question.visible_testcases = JSON.stringify(visible_testcases);
+        question.hidden_testcases = JSON.stringify(hidden_testcases);
+        question.time_limit_ms = time_limit_ms || 5000;
+        question.memory_limit_mb = memory_limit_mb || 256;
+      }
+
+      const savedQuestion = (await createRecord(
+        Question.getRepository(),
+        question,
+      )) as Question;
+
+      // Add options for MCQ questions
+      if (type === "MCQ" && options && Array.isArray(options)) {
+        if (options.length < 2) {
+          return res.status(400).json({
+            error: "MCQ must have at least 2 options",
+          });
+        }
+
+        let hasCorrectOption = false;
+
+        for (const opt of options) {
+          const { text, correct } = opt;
+
+          if (!text || typeof text !== "string" || !text.trim()) {
+            return res.status(400).json({
+              error: "All options must have non-empty text",
+            });
+          }
+
+          if (correct) hasCorrectOption = true;
+
+          const option = new QuizOptions();
+          option.text = text.trim();
+          option.correct = correct || false;
+          option.question = savedQuestion;
+
+          await createRecord(QuizOptions.getRepository(), option);
+        }
+
+        if (!hasCorrectOption) {
+          return res.status(400).json({
+            error: "MCQ must have at least one correct option",
+          });
+        }
+      }
+
+      createdQuestions.push(savedQuestion);
+    }
+
+    // Update test lastUpdated time
+    test.lastUpdated = new Date();
+    await test.save();
+
+    return res.status(201).json({
+      success: true,
+      message: "Questions added successfully",
+      data: { questions: createdQuestions },
+    });
+  } catch (error: any) {
+    logger.error("Error adding questions:", error);
+    return res.status(500).json({
+      error: "Failed to add questions",
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Upload testcase file for coding question
+ */
+export const uploadTestCaseFile = [
+  upload.single("testcaseFile"),
+  async (req: Request, res: Response) => {
+    try {
+      const { questionId } = req.params;
+      const file = req.file;
+
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      if (!file.originalname.endsWith(".txt")) {
+        return res.status(400).json({
+          error: "Only .txt files are allowed",
+        });
+      }
+
+      const fileContent = file.buffer.toString("utf-8");
+
+      // Validate and parse the file content
+      try {
+        S3TestCaseService.parseTestCaseFile(fileContent);
+      } catch (parseError: any) {
+        return res.status(400).json({
+          error: "Invalid testcase file format",
+          details: parseError.message,
+        });
+      }
+
+      // Upload to S3
+      const s3Url = await S3TestCaseService.uploadTestCaseFile(
+        questionId,
+        fileContent,
+        file.originalname,
+      );
+
+      // Update question with S3 URL
+      const question = await getSingleRecord<Question, any>(Question, {
+        where: { id: questionId },
+      });
+
+      if (!question) {
+        return res.status(404).json({ error: "Question not found" });
+      }
+
+      question.testcases_s3_url = s3Url;
+      await question.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Testcase file uploaded successfully",
+        data: { s3_url: s3Url },
+      });
+    } catch (error: any) {
+      logger.error("Error uploading testcase file:", error);
+      return res.status(500).json({
+        error: "Failed to upload testcase file",
+        details: error.message,
+      });
+    }
+  },
+];
+
+/**
+ * Get demo testcase file
+ */
+export const getDemoTestCaseFile = (req: Request, res: Response) => {
+  try {
+    const { format } = req.query;
+
+    let content: string;
+    let filename: string;
+
+    if (format === "json") {
+      content = S3TestCaseService.generateDemoFileJSON();
+      filename = "demo_testcases.json";
+    } else {
+      content = S3TestCaseService.generateDemoFile();
+      filename = "demo_testcases.txt";
+    }
+
+    res.setHeader("Content-Type", "text/plain");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(content);
+  } catch (error: any) {
+    logger.error("Error generating demo file:", error);
+    return res.status(500).json({
+      error: "Failed to generate demo file",
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Get questions with enhanced data
+ */
+export const getQuestions = async (req: Request, res: Response) => {
+  try {
+    const { testId } = req.params;
+
+    const test = await getSingleRecord<Test, any>(Test, {
+      where: { id: testId },
+      relations: ["questions", "questions.options"],
+    });
+
+    if (!test) {
+      return res.status(404).json({ error: "Test not found" });
+    }
+
+    const questionsWithProcessedData =
+      test.questions?.map((question: Question) => {
+        const processedQuestion = {
+          ...question,
+          question_text: question.question_text || "",
+        };
+
+        // Parse JSON fields for coding questions
+        if (question.type === QuestionType.CODE) {
+          try {
+            if (question.visible_testcases) {
+              processedQuestion.visible_testcases = JSON.parse(
+                question.visible_testcases,
+              );
+            }
+            if (question.hidden_testcases) {
+              processedQuestion.hidden_testcases = JSON.parse(
+                question.hidden_testcases,
+              );
+            }
+          } catch (error) {
+            logger.warn(
+              `Failed to parse testcases for question ${question.id}:`,
+              error,
+            );
+          }
+        }
+
+        return processedQuestion;
+      }) || [];
+
+    return res.status(200).json({
+      success: true,
+      message: "Questions retrieved successfully",
+      data: { questions: questionsWithProcessedData },
+    });
+  } catch (error: any) {
+    logger.error("Error retrieving questions:", error);
+    return res.status(500).json({
+      error: "Failed to retrieve questions",
+      details: error.message,
+    });
+  }
 };
 
 export const createTest = async (req: Request, res: Response) => {
@@ -507,46 +828,6 @@ export const deleteQuestion = async (req: Request, res: Response) => {
   }
 };
 
-export const getQuestions = async (req: Request, res: Response) => {
-  try {
-    const { testId } = req.params;
-
-    const test = await getSingleRecord<Test, any>(
-      Test,
-      {
-        where: { id: testId },
-        relations: ["questions", "questions.options"],
-      },
-      `test_${testId}_detailed`,
-      false,
-    );
-
-    if (!test) {
-      return res.status(404).json({ error: "Test not found" });
-    }
-
-    const questionsWithHtml =
-      test.questions?.map((question: Question) => {
-        return {
-          ...question,
-          question_text: question.question_text || "",
-        };
-      }) || [];
-
-    return res.status(200).json({
-      success: true,
-      message: "Questions retrieved successfully",
-      data: { questions: questionsWithHtml },
-    });
-  } catch (error: any) {
-    logger.error("Error retrieving questions:", error);
-    return res.status(500).json({
-      error: "Failed to retrieve questions",
-      details: error.message,
-    });
-  }
-};
-
 export const publishTest = async (req: Request, res: Response) => {
   if (!AppDataSource.isInitialized) {
     return res.status(500).json({
@@ -695,116 +976,6 @@ export const publishTest = async (req: Request, res: Response) => {
   }
 };
 
-export const addQuestions = async (req: Request, res: Response) => {
-  try {
-    const { testId } = req.params;
-    const { questions } = req.body;
-
-    if (!questions || !Array.isArray(questions) || questions.length === 0) {
-      return res.status(400).json({ error: "Questions array is required" });
-    }
-
-    const test = await getSingleRecord<Test, any>(
-      Test,
-      { where: { id: testId } },
-      `test_${testId}`,
-      false,
-    );
-
-    if (!test) {
-      return res.status(404).json({ error: "Test not found" });
-    }
-
-    if (test.status !== TestStatus.DRAFT) {
-      return res
-        .status(400)
-        .json({ error: "Cannot add questions to a published test" });
-    }
-
-    const createdQuestions: Question[] = [];
-
-    for (const questionData of questions) {
-      const {
-        question_text,
-        type,
-        marks,
-        options,
-        expectedWordCount,
-        codeLanguage,
-      } = questionData;
-
-      if (!question_text || !type || marks === undefined) {
-        return res.status(400).json({
-          error:
-            "Missing required fields in question: question_text, type, marks",
-        });
-      }
-
-      const question = new Question();
-      question.question_text = sanitizeQuestionText(question_text);
-      question.type =
-        type === "DESCRIPTIVE"
-          ? QuestionType.DESCRIPTIVE
-          : type === "CODE"
-            ? QuestionType.CODE
-            : QuestionType.MCQ;
-      question.marks = marks || 1;
-      question.test = test;
-
-      if ((type === "DESCRIPTIVE" || type === "CODE") && expectedWordCount) {
-        question.expectedWordCount = expectedWordCount;
-      }
-
-      if (codeLanguage && type === "CODE") {
-        question.codeLanguage = codeLanguage;
-      }
-
-      const savedQuestion = (await createRecord(
-        Question.getRepository(),
-        question,
-      )) as Question;
-
-      // Add options for MCQ questions
-      if (type === "MCQ" && options && Array.isArray(options)) {
-        for (const opt of options) {
-          const { text, correct } = opt;
-
-          if (!text) continue; // Skip empty options
-
-          const option = new QuizOptions();
-          option.text = text;
-          option.correct = correct || false;
-          option.question = savedQuestion;
-
-          await createRecord(QuizOptions.getRepository(), option);
-        }
-      }
-
-      createdQuestions.push(savedQuestion);
-    }
-
-    // Update test lastUpdated timestamp
-    test.lastUpdated = new Date();
-    await test.save();
-
-    // Clear cache
-    await redisClient.del(`test_${testId}_detailed`);
-
-    return res.status(201).json({
-      success: true,
-      message: "Questions added successfully",
-      questions: createdQuestions,
-    });
-  } catch (error: any) {
-    logger.error("Error adding questions:", error);
-    return res.status(500).json({
-      error: "Failed to add questions",
-      details: error.message,
-    });
-  }
-};
-
-// Get test results
 export const getTestResults = async (req: Request, res: Response) => {
   try {
     const { testId } = req.params;

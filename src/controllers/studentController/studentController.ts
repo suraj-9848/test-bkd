@@ -388,7 +388,7 @@ export const submitTest = async (req: Request, res: Response) => {
         // Save all responses
         await manager.save(
           TestResponse,
-          testResponses.map((resp) => ({
+          testResponses.map((resp: any) => ({
             ...resp,
             answer: Array.isArray(resp.answer)
               ? JSON.stringify(resp.answer)

@@ -19,13 +19,21 @@ const router = Router();
 router.use(authMiddleware, viewAsMiddleware, instructorMiddleware);
 
 // Test management routes
-// Question management routes
 router.post("/tests/:testId/questions", TestManagementController.addQuestions);
 router.put(
   "/tests/:testId/questions/:questionId",
   TestManagementController.updateQuestion,
 );
+router.get("/tests/:testId/questions", TestManagementController.getQuestions);
 router.delete("/tests/:testId/questions/:questionId", deleteQuestion);
+
+// Enhanced coding question routes
+router.post(
+  "/tests/:testId/questions/:questionId/upload-testcases",
+  TestManagementController.uploadTestCaseFile,
+);
+
+router.get("/demo-testcases", TestManagementController.getDemoTestCaseFile);
 
 // Test publishing and results
 router.put("/tests/:testId/publish", TestManagementController.publishTest);

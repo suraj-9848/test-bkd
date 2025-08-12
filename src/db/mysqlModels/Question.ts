@@ -43,6 +43,25 @@ export class Question extends BaseEntity {
   @Column({ nullable: true })
   correctAnswer: string;
 
+  // NEW FIELDS FOR CODING QUESTIONS
+  @Column({ type: "text", nullable: true })
+  constraints: string | null;
+
+  @Column({ type: "varchar", length: 255, nullable: true })
+  testcases_s3_url: string | null;
+
+  @Column({ type: "text", nullable: true })
+  visible_testcases: string | null;
+
+  @Column({ type: "text", nullable: true })
+  hidden_testcases: string | null;
+
+  @Column({ type: "int", default: 5000, nullable: true })
+  time_limit_ms: number | null;
+
+  @Column({ type: "int", default: 256, nullable: true })
+  memory_limit_mb: number | null;
+
   @OneToMany(() => QuizOptions, (options) => options.question, {
     cascade: true,
   })
