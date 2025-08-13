@@ -131,8 +131,8 @@ router.post(
 );
 
 //  FIXED: Test routes using correct controller functions
-router.post("/batches/:batchId/courses/:courseId/tests", createTest);
 router.post("/batches/:batchId/courses/bulk/tests", createTestsBulk);
+router.post("/batches/:batchId/courses/:courseId/tests", createTest);
 router.get("/batches/:batchId/courses/:courseId/tests", fetchTestsInCourse);
 router.get("/batches/:batchId/courses/:courseId/tests/:testId", fetchTestById);
 router.put("/batches/:batchId/courses/:courseId/tests/:testId", updateTest);
