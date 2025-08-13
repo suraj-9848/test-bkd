@@ -184,12 +184,11 @@ export const createTest = async (req: Request, res: Response) => {
   }
 };
 
-// FIXED: Complete implementation of createTestsBulk for the correct route
 export const createTestsBulk = async (req: Request, res: Response) => {
   try {
-    const { batchId } = req.params; // From route parameters
+    const { batchId } = req.params;
     const {
-      courseIds, // Array of course IDs to create tests in
+      courseIds,
       title,
       description,
       maxMarks,
