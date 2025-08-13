@@ -21,6 +21,30 @@ export async function createRecord<T extends BaseEntity>(
   }
 }
 
+// ADDED: deleteRecord function
+export async function deleteRecord(repository: any, id: string): Promise<void> {
+  try {
+    await repository.delete(id);
+  } catch (err) {
+    logger.error("ERROR in deleteRecord", err);
+    throw err;
+  }
+}
+
+// ADDED: updateRecord function
+export async function updateRecord<T extends BaseEntity>(
+  repository: any,
+  id: string,
+  updateData: Partial<T>,
+): Promise<void> {
+  try {
+    await repository.update(id, updateData);
+  } catch (err) {
+    logger.error("ERROR in updateRecord", err);
+    throw err;
+  }
+}
+
 export async function getAllRecords<T>(
   model: typeof BaseEntity,
   key: any = "",

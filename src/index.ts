@@ -70,7 +70,7 @@ AppDataSource.initialize()
 //     console.error("REDIS CACHE FAILED", e);
 //   });
 
-// app.use(cors({ origin: config.CORS_ORIGIN }));
+// Removed duplicate CORS middleware. Only custom CORS logic below is used.
 app.use(
   cors({
     origin: (origin, callback) => {

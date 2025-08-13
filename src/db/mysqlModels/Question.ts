@@ -43,17 +43,17 @@ export class Question extends BaseEntity {
   @Column({ nullable: true })
   correctAnswer: string;
 
-  // NEW FIELDS FOR CODING QUESTIONS
-  @Column({ type: "text", nullable: true })
+  // UPDATED FIELDS FOR CODING QUESTIONS - Changed from 'text' to 'mediumtext'
+  @Column({ type: "mediumtext", nullable: true })
   constraints: string | null;
 
   @Column({ type: "varchar", length: 255, nullable: true })
   testcases_s3_url: string | null;
 
-  @Column({ type: "text", nullable: true })
+  @Column({ type: "mediumtext", nullable: true })
   visible_testcases: string | null;
 
-  @Column({ type: "text", nullable: true })
+  @Column({ type: "mediumtext", nullable: true })
   hidden_testcases: string | null;
 
   @Column({ type: "int", default: 5000, nullable: true })
