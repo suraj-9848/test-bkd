@@ -1,9 +1,10 @@
+// routes/studentRouter/studentRoutes.ts
+
 import express from "express";
 import { studentAuthMiddleware } from "../../middleware/authMiddleware";
 import { viewAsMiddleware } from "../../middleware/viewAsMiddleware";
-import { withFullUser } from "../../utils/userHelpers";
 
-// Import your controller functions
+// Import your existing controller functions
 import {
   getStudentTests,
   getStudentTestById,
@@ -32,23 +33,141 @@ import {
 } from "../../controllers/studentController/studentController";
 import { getStudentMeetings } from "../../controllers/meetingControllers/meetingController";
 
+// Import code execution controllers
+import {
+  executeCode,
+  submitCode,
+  getQuestionDetails,
+  getSupportedLanguages,
+} from "../../controllers/studentControllers/codeExecution.controller";
+
 const router = express.Router();
 
+// Public routes (no auth required)
 router.get(
   "/courses/public",
-  OptionalStudentAuthMiddleware, // Use the optional middleware
+  OptionalStudentAuthMiddleware,
   getStudentPublicCourses,
 );
 
-//Blog routes
+// Blog routes (public)
 router.get("/blogs", getStudentBlogs);
 router.get("/blogs/:blogId", getStudentBlogById);
 
-// Apply middlewares in order:
-// 1. View-as middleware (handles admin "view as student" functionality)
-// 2. Student auth middleware (validates student access)
+// Apply middlewares to all protected routes
 router.use(viewAsMiddleware);
 router.use(studentAuthMiddleware);
+
+// Validation middleware for code execution
+const validateCodeExecution = (req: any, res: any, next: any) => {
+  const { questionId, code, language } = req.body;
+
+  if (!questionId || typeof questionId !== "string") {
+    return res.status(400).json({
+      success: false,
+      error: "Question ID is required and must be a string",
+    });
+  }
+
+  if (!code || typeof code !== "string" || code.trim().length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: "Code is required and cannot be empty",
+    });
+  }
+
+  if (!language || typeof language !== "string") {
+    return res.status(400).json({
+      success: false,
+      error: "Programming language is required",
+    });
+  }
+
+  // Validate testId in params
+  const { testId } = req.params;
+  if (!testId || typeof testId !== "string") {
+    return res.status(400).json({
+      success: false,
+      error: "Test ID is required in URL parameters",
+    });
+  }
+
+  // Basic UUID validation for testId
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(testId)) {
+    return res.status(400).json({
+      success: false,
+      error: "Invalid test ID format",
+    });
+  }
+
+  next();
+};
+
+// Validation middleware for question details
+const validateQuestionDetails = (req: any, res: any, next: any) => {
+  const { testId, questionId } = req.params;
+
+  if (!testId || !questionId) {
+    return res.status(400).json({
+      success: false,
+      error: "Test ID and Question ID are required",
+    });
+  }
+
+  // Basic UUID validation
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(testId) || !uuidRegex.test(questionId)) {
+    return res.status(400).json({
+      success: false,
+      error: "Invalid ID format",
+    });
+  }
+
+  next();
+};
+
+// ============================================
+// CODE EXECUTION ROUTES (NEW)
+// ============================================
+
+/**
+ * @route POST /api/student/tests/:testId/execute
+ * @desc Execute code against visible test cases only (for testing/debugging)
+ * @access Private (Student)
+ */
+router.post("/tests/:testId/execute", validateCodeExecution, executeCode);
+
+/**
+ * @route POST /api/student/tests/:testId/submit-code
+ * @desc Submit code solution (final submission with all test cases)
+ * @access Private (Student)
+ */
+router.post("/tests/:testId/submit-code", validateCodeExecution, submitCode);
+
+/**
+ * @route GET /api/student/tests/:testId/questions/:questionId
+ * @desc Get question details with visible test cases
+ * @access Private (Student)
+ */
+router.get(
+  "/tests/:testId/questions/:questionId",
+  validateQuestionDetails,
+  getQuestionDetails,
+);
+
+/**
+ * @route GET /api/student/code/languages
+ * @desc Get supported programming languages
+ * @access Private (Student)
+ */
+router.get("/code/languages", getSupportedLanguages);
+
+// ============================================
+// EXISTING ROUTES
+// ============================================
 
 // Test routes - specific routes must come before parameterized routes
 router.get("/tests", getStudentTests);
@@ -60,7 +179,6 @@ router.get("/tests/:testId/results", getStudentTestResults);
 
 // Course routes
 router.get("/courses", getStudentCourses);
-// router.get("/courses/public", getStudentPublicCourses);
 router.get("/courses/:courseId", getStudentCourseById);
 router.get("/courses/:courseId/modules", getStudentCourseModules);
 router.get("/courses/:courseId/meetings", getStudentMeetings);
@@ -113,37 +231,18 @@ router.get("/auth/debug", (req, res) => {
     cookies: {
       hasAccessToken: !!req.cookies?.accessToken,
       hasJWT: !!req.cookies?.jwt,
-      hasToken: !!req.cookies?.token,
+      hasToken: !!req.headers.authorization,
     },
+    params: req.params,
+    query: req.query,
+    body: req.body ? Object.keys(req.body) : [],
   };
 
-  console.log("🔍 Student Auth Debug Endpoint Called:", debugInfo);
-
   res.json({
-    message: "Student authentication debug info",
+    success: true,
+    message: "Authentication debug information",
     debug: debugInfo,
-    status: "success",
   });
 });
 
 export { router as studentRouter };
-
-// Alternative approach: Update individual controller functions
-// If you prefer to update your controllers one by one, here's how:
-
-// Example of updating a single controller function:
-export const getStudentTestsUpdated = withFullUser(async (req, res) => {
-  try {
-    // req.user is now properly typed as User
-    // ... rest of your existing code
-
-    // Now you can access all User properties without TypeScript errors
-    console.log("Student org:", req.user.org_id);
-    console.log("Student batches:", req.user.batch_id);
-
-    // Your existing logic here...
-  } catch (error) {
-    console.error("Error fetching student tests:", error);
-    res.status(500).json({ message: "Error fetching tests" });
-  }
-});

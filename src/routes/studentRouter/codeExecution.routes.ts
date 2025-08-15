@@ -5,91 +5,89 @@ import {
   getQuestionDetails,
   getSupportedLanguages,
 } from "../../controllers/studentControllers/codeExecution.controller";
-import {
-  authMiddleware,
-  studentAuthMiddleware,
-} from "../../middleware/authMiddleware";
+import { authMiddleware } from "../../middleware/authMiddleware";
+import { studentAuthMiddleware } from "../../middleware/authMiddleware";
 import { viewAsMiddleware } from "../../middleware/viewAsMiddleware";
 
 const router = Router();
 
-router.use(authMiddleware);
-
+// Validation middleware for code execution
 const validateCodeExecution = (req: any, res: any, next: any) => {
-  const { testId } = req.params;
   const { questionId, code, language } = req.body;
 
-  const uuidRegex =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-  if (!testId || !uuidRegex.test(testId)) {
+  if (!questionId || typeof questionId !== "string") {
     return res.status(400).json({
-      error: "Valid test ID is required",
-    });
-  }
-
-  if (!questionId || !uuidRegex.test(questionId)) {
-    return res.status(400).json({
-      error: "Valid question ID is required",
+      success: false,
+      error: "Question ID is required and must be a string",
     });
   }
 
   if (!code || typeof code !== "string" || code.trim().length === 0) {
     return res.status(400).json({
-      error: "Code cannot be empty",
+      success: false,
+      error: "Code is required and cannot be empty",
     });
   }
 
-  const supportedLanguages = [
-    "javascript",
-    "python",
-    "java",
-    "cpp",
-    "c",
-    "csharp",
-    "php",
-    "ruby",
-    "go",
-    "rust",
-    "kotlin",
-    "swift",
-    "typescript",
-  ];
-
-  if (!language || !supportedLanguages.includes(language)) {
+  if (!language || typeof language !== "string") {
     return res.status(400).json({
-      error: "Invalid programming language",
-      supportedLanguages,
+      success: false,
+      error: "Programming language is required",
+    });
+  }
+
+  // Validate testId in params
+  const { testId } = req.params;
+  if (!testId || typeof testId !== "string") {
+    return res.status(400).json({
+      success: false,
+      error: "Test ID is required in URL parameters",
+    });
+  }
+
+  // Basic UUID validation for testId
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(testId)) {
+    return res.status(400).json({
+      success: false,
+      error: "Invalid test ID format",
     });
   }
 
   next();
 };
 
+// Validation middleware for question details
 const validateQuestionDetails = (req: any, res: any, next: any) => {
   const { testId, questionId } = req.params;
 
-  const uuidRegex =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-  if (!testId || !uuidRegex.test(testId)) {
+  if (!testId || !questionId) {
     return res.status(400).json({
-      error: "Valid test ID is required",
+      success: false,
+      error: "Test ID and Question ID are required",
     });
   }
 
-  if (!questionId || !uuidRegex.test(questionId)) {
+  // Basic UUID validation
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(testId) || !uuidRegex.test(questionId)) {
     return res.status(400).json({
-      error: "Valid question ID is required",
+      success: false,
+      error: "Invalid ID format",
     });
   }
 
   next();
 };
 
+// Apply authentication middleware to all routes
+router.use(authMiddleware);
+
 /**
- * @route POST /tests/:testId/execute
- * @desc Execute code against visible test cases
+ * @route POST /api/student/tests/:testId/execute
+ * @desc Execute code against visible test cases only (for testing/debugging)
  * @access Private (Student)
  */
 router.post(
@@ -101,8 +99,8 @@ router.post(
 );
 
 /**
- * @route POST /tests/:testId/submit-code
- * @desc Submit code solution (final submission)
+ * @route POST /api/student/tests/:testId/submit-code
+ * @desc Submit code solution (final submission with all test cases)
  * @access Private (Student)
  */
 router.post(
@@ -114,7 +112,7 @@ router.post(
 );
 
 /**
- * @route GET /tests/:testId/questions/:questionId
+ * @route GET /api/student/tests/:testId/questions/:questionId
  * @desc Get question details with visible test cases
  * @access Private (Student)
  */
@@ -127,7 +125,7 @@ router.get(
 );
 
 /**
- * @route GET /code/languages
+ * @route GET /api/student/code/languages
  * @desc Get supported programming languages
  * @access Private (Student)
  */

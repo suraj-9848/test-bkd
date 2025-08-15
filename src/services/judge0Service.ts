@@ -1,35 +1,12 @@
-// services/judge0Service.ts
 import axios from "axios";
 
-export interface Judge0Submission {
-  source_code: string;
-  language_id: number;
-  stdin?: string;
-  expected_output?: string;
-  cpu_time_limit?: number;
-  memory_limit?: number;
-  wall_time_limit?: number;
-}
-
-export interface Judge0Result {
-  token: string;
-  status: {
-    id: number;
-    description: string;
-  };
-  stdout?: string;
-  stderr?: string;
-  compile_output?: string;
-  message?: string;
-  time?: string;
-  memory?: number;
-  exit_code?: number;
-}
+const JUDGE0_API_URL =
+  process.env.JUDGE0_API_URL || "http://159.89.166.122:2358";
 
 export interface TestCaseResult {
   input: string;
   expected_output: string;
-  actual_output: string;
+  actual_output?: string;
   status:
     | "PASSED"
     | "FAILED"
@@ -44,255 +21,173 @@ export interface TestCaseResult {
 }
 
 export interface ExecutionOptions {
-  timeLimit?: number; // in milliseconds
-  memoryLimit?: number; // in MB
+  timeLimit?: number;
+  memoryLimit?: number;
 }
 
-export interface ProgrammingLanguage {
+interface Judge0Submission {
+  source_code: string;
+  language_id: number;
+  stdin?: string;
+  expected_output?: string;
+  cpu_time_limit?: number;
+  memory_limit?: number;
+  wall_time_limit?: number;
+}
+
+interface Judge0Result {
+  token: string;
+  status: {
+    id: number;
+    description: string;
+  };
+  stdout?: string;
+  stderr?: string;
+  compile_output?: string;
+  message?: string;
+  time?: string;
+  memory?: number;
+  exit_code?: number;
+}
+
+interface LanguageInfo {
   id: string;
   name: string;
   judge0Id: number;
-  fileExtension: string;
-  monacoLanguage: string;
 }
 
 export class Judge0Service {
-  private static readonly BASE_URL = "http://159.89.166.122:2358";
-  private static readonly TIMEOUT = 30000; // 30 seconds
-  private static readonly MAX_RETRIES = 3;
-  private static readonly POLL_INTERVAL = 1000; // 1 second
-  private static readonly MAX_POLL_ATTEMPTS = 30; // 30 seconds max wait
-
-  // Comprehensive language mappings for Judge0
-  private static readonly LANGUAGES: ProgrammingLanguage[] = [
-    {
-      id: "javascript",
-      name: "JavaScript",
-      judge0Id: 63,
-      fileExtension: "js",
-      monacoLanguage: "javascript",
-    },
-    {
-      id: "python",
-      name: "Python 3",
-      judge0Id: 71,
-      fileExtension: "py",
-      monacoLanguage: "python",
-    },
-    {
-      id: "java",
-      name: "Java",
-      judge0Id: 62,
-      fileExtension: "java",
-      monacoLanguage: "java",
-    },
-    {
-      id: "cpp",
-      name: "C++",
-      judge0Id: 54,
-      fileExtension: "cpp",
-      monacoLanguage: "cpp",
-    },
-    {
-      id: "c",
-      name: "C",
-      judge0Id: 50,
-      fileExtension: "c",
-      monacoLanguage: "c",
-    },
-    {
-      id: "csharp",
-      name: "C#",
-      judge0Id: 51,
-      fileExtension: "cs",
-      monacoLanguage: "csharp",
-    },
-    {
-      id: "php",
-      name: "PHP",
-      judge0Id: 68,
-      fileExtension: "php",
-      monacoLanguage: "php",
-    },
-    {
-      id: "ruby",
-      name: "Ruby",
-      judge0Id: 72,
-      fileExtension: "rb",
-      monacoLanguage: "ruby",
-    },
-    {
-      id: "go",
-      name: "Go",
-      judge0Id: 60,
-      fileExtension: "go",
-      monacoLanguage: "go",
-    },
-    {
-      id: "rust",
-      name: "Rust",
-      judge0Id: 73,
-      fileExtension: "rs",
-      monacoLanguage: "rust",
-    },
-    {
-      id: "kotlin",
-      name: "Kotlin",
-      judge0Id: 78,
-      fileExtension: "kt",
-      monacoLanguage: "kotlin",
-    },
-    {
-      id: "swift",
-      name: "Swift",
-      judge0Id: 83,
-      fileExtension: "swift",
-      monacoLanguage: "swift",
-    },
-    {
-      id: "typescript",
-      name: "TypeScript",
-      judge0Id: 74,
-      fileExtension: "ts",
-      monacoLanguage: "typescript",
-    },
-    {
-      id: "scala",
-      name: "Scala",
-      judge0Id: 81,
-      fileExtension: "scala",
-      monacoLanguage: "scala",
-    },
-    {
-      id: "perl",
-      name: "Perl",
-      judge0Id: 85,
-      fileExtension: "pl",
-      monacoLanguage: "perl",
-    },
-    {
-      id: "r",
-      name: "R",
-      judge0Id: 80,
-      fileExtension: "r",
-      monacoLanguage: "r",
-    },
-    {
-      id: "nodejs",
-      name: "Node.js",
-      judge0Id: 63,
-      fileExtension: "js",
-      monacoLanguage: "javascript",
-    },
+  private static readonly MAX_POLL_ATTEMPTS = 30;
+  private static readonly POLL_INTERVAL = 1000;
+  private static readonly LANGUAGES: LanguageInfo[] = [
+    { id: "javascript", name: "JavaScript (Node.js)", judge0Id: 63 },
+    { id: "python", name: "Python 3", judge0Id: 71 },
+    { id: "java", name: "Java", judge0Id: 62 },
+    { id: "cpp", name: "C++", judge0Id: 54 },
+    { id: "c", name: "C", judge0Id: 50 },
+    { id: "csharp", name: "C#", judge0Id: 51 },
+    { id: "kotlin", name: "Kotlin", judge0Id: 78 },
+    { id: "go", name: "Go", judge0Id: 60 },
+    { id: "ruby", name: "Ruby", judge0Id: 72 },
+    { id: "php", name: "PHP", judge0Id: 68 },
+    { id: "typescript", name: "TypeScript", judge0Id: 74 },
+    { id: "rust", name: "Rust", judge0Id: 73 },
+    { id: "swift", name: "Swift", judge0Id: 83 },
   ];
 
   /**
-   * Get language configuration by ID
+   * Get supported programming languages
    */
-  private static getLanguage(languageId: string): ProgrammingLanguage | null {
-    return (
-      this.LANGUAGES.find((lang) => lang.id === languageId.toLowerCase()) ||
-      null
-    );
+  static getSupportedLanguages(): LanguageInfo[] {
+    return this.LANGUAGES;
   }
 
   /**
-   * Get Judge0 language ID for a given language
+   * Get language info by language ID
    */
-  private static getJudge0LanguageId(language: string): number {
-    const lang = this.getLanguage(language);
-    if (!lang) {
-      throw new Error(`Unsupported language: ${language}`);
-    }
-    return lang.judge0Id;
+  static getLanguage(languageId: string): LanguageInfo | null {
+    return this.LANGUAGES.find((lang) => lang.id === languageId) || null;
   }
 
   /**
    * Submit code to Judge0 for execution
    */
-  static async submitCode(submission: Judge0Submission): Promise<string> {
+  private static async submitCode(
+    submission: Judge0Submission,
+  ): Promise<string> {
     try {
-      console.log("Submitting to Judge0:", {
+      console.log("Submitting to Judge0 (Self-Hosted):", {
+        url: JUDGE0_API_URL,
         language_id: submission.language_id,
-        stdin: submission.stdin,
-        expected_output: submission.expected_output,
+        stdin_length: submission.stdin?.length || 0,
+        source_code_length: submission.source_code.length,
         cpu_time_limit: submission.cpu_time_limit,
         memory_limit: submission.memory_limit,
       });
 
       const response = await axios.post(
-        `${this.BASE_URL}/submissions?base64_encoded=false&wait=false`,
+        `${JUDGE0_API_URL}/submissions?base64_encoded=false&wait=false`,
         submission,
         {
-          timeout: this.TIMEOUT,
           headers: {
             "Content-Type": "application/json",
-            "X-RapidAPI-Host": "judge0-ce.p.rapidapi.com",
           },
+          timeout: 15000, // 15 second timeout for submission
         },
       );
 
-      if (!response.data.token) {
-        throw new Error("No token returned from Judge0");
+      if (response.data && response.data.token) {
+        console.log(
+          "Judge0 submission successful, token:",
+          response.data.token,
+        );
+        return response.data.token;
+      } else {
+        throw new Error("Invalid response from Judge0: missing token");
       }
-
-      console.log("Judge0 submission successful, token:", response.data.token);
-      return response.data.token;
     } catch (error) {
       console.error("Judge0 submission failed:", error);
 
       if (axios.isAxiosError(error)) {
         if (error.response) {
+          console.error("Judge0 error response:", {
+            status: error.response.status,
+            data: error.response.data,
+          });
           throw new Error(
-            `Judge0 API Error (${error.response.status}): ${
-              error.response.data?.error || error.response.statusText
-            }`,
+            `Judge0 API error: ${error.response.status} - ${JSON.stringify(error.response.data)}`,
           );
         } else if (error.request) {
-          throw new Error("Network error: Could not connect to Judge0 server");
+          console.error("Network request failed - Judge0 server may be down");
+          throw new Error(
+            `Network error: Unable to reach Judge0 server at ${JUDGE0_API_URL}`,
+          );
         }
       }
 
       throw new Error(
-        `Submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Judge0 submission failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
 
   /**
-   * Get submission result from Judge0
+   * Get execution result from Judge0
    */
-  static async getResult(token: string): Promise<Judge0Result> {
+  private static async getResult(token: string): Promise<Judge0Result> {
     try {
       const response = await axios.get(
-        `${this.BASE_URL}/submissions/${token}?base64_encoded=false`,
+        `${JUDGE0_API_URL}/submissions/${token}?base64_encoded=false`,
         {
-          timeout: this.TIMEOUT,
           headers: {
             "Content-Type": "application/json",
           },
+          timeout: 8000, // 8 second timeout for result fetching
         },
       );
 
-      return response.data;
+      if (response.data) {
+        return response.data;
+      } else {
+        throw new Error("Invalid response from Judge0: no data");
+      }
     } catch (error) {
       console.error("Judge0 result fetch failed:", error);
 
       if (axios.isAxiosError(error)) {
-        if (error.response?.status === 404) {
-          throw new Error("Submission not found");
-        }
         if (error.response) {
           throw new Error(
-            `Judge0 API Error (${error.response.status}): ${
-              error.response.data?.error || error.response.statusText
-            }`,
+            `Judge0 API error: ${error.response.status} - ${JSON.stringify(error.response.data)}`,
+          );
+        } else if (error.request) {
+          throw new Error(
+            `Network error: Unable to reach Judge0 server at ${JUDGE0_API_URL}`,
           );
         }
       }
 
       throw new Error(
-        `Failed to get result: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Judge0 result fetch failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
@@ -300,8 +195,10 @@ export class Judge0Service {
   /**
    * Wait for submission to complete and return result
    */
-  static async waitForResult(token: string): Promise<Judge0Result> {
+  private static async waitForResult(token: string): Promise<Judge0Result> {
     let attempts = 0;
+
+    console.log(`Polling for result with token: ${token}`);
 
     while (attempts < this.MAX_POLL_ATTEMPTS) {
       try {
@@ -311,18 +208,18 @@ export class Judge0Service {
         // Status IDs: 1 = In Queue, 2 = Processing
         if (result.status.id !== 1 && result.status.id !== 2) {
           console.log(
-            `Judge0 execution completed with status: ${result.status.description}`,
+            `Judge0 execution completed with status: ${result.status.description} (ID: ${result.status.id})`,
           );
           return result;
         }
 
+        console.log(
+          `Polling attempt ${attempts + 1}/${this.MAX_POLL_ATTEMPTS}, status: ${result.status.description}`,
+        );
+
         // Wait before next poll
         await new Promise((resolve) => setTimeout(resolve, this.POLL_INTERVAL));
         attempts++;
-
-        console.log(
-          `Polling attempt ${attempts}/${this.MAX_POLL_ATTEMPTS}, status: ${result.status.description}`,
-        );
       } catch (error) {
         console.error(`Polling attempt ${attempts + 1} failed:`, error);
         attempts++;
@@ -337,7 +234,7 @@ export class Judge0Service {
     }
 
     throw new Error(
-      "Execution timeout - Judge0 took too long to process the submission",
+      `Execution timeout - Judge0 took too long to process submission (token: ${token})`,
     );
   }
 
@@ -358,17 +255,25 @@ export class Judge0Service {
         expected_output: expectedOutput,
         actual_output: "",
         status: "ERROR",
-        error_message: `Unsupported language: ${language}`,
+        error_message: `Unsupported language: ${language}. Supported: ${this.LANGUAGES.map((l) => l.id).join(", ")}`,
       };
     }
 
-    const timeLimit = (options.timeLimit || 5000) / 1000; // Convert to seconds
-    const memoryLimit = (options.memoryLimit || 256) * 1024; // Convert to KB
+    // Convert time limit from milliseconds to seconds
+    const timeLimit = Math.min((options.timeLimit || 5000) / 1000, 10); // Max 10 seconds
+    // Convert memory limit from MB to KB
+    const memoryLimit = Math.min(
+      (options.memoryLimit || 256) * 1024,
+      512 * 1024,
+    ); // Max 512MB
 
     try {
-      console.log(`Executing test case for language: ${lang.name}`);
+      console.log(
+        `Executing test case for ${lang.name} (ID: ${lang.judge0Id})`,
+      );
+      console.log(`Input: "${input}", Expected: "${expectedOutput}"`);
 
-      // Submit code
+      // Submit code to Judge0
       const token = await this.submitCode({
         source_code: code,
         language_id: lang.judge0Id,
@@ -376,7 +281,7 @@ export class Judge0Service {
         expected_output: expectedOutput,
         cpu_time_limit: timeLimit,
         memory_limit: memoryLimit,
-        wall_time_limit: timeLimit + 1,
+        wall_time_limit: timeLimit + 2, // Give extra time for wall clock
       });
 
       // Wait for result
@@ -392,7 +297,8 @@ export class Judge0Service {
         expected_output: expectedOutput,
         actual_output: "",
         status: "ERROR",
-        error_message: error instanceof Error ? error.message : "Unknown error",
+        error_message:
+          error instanceof Error ? error.message : "Unknown execution error",
       };
     }
   }
@@ -410,12 +316,14 @@ export class Judge0Service {
 
     console.log(`Executing ${testCases.length} test cases for ${language}`);
 
-    // Execute test cases sequentially to avoid overwhelming Judge0
+    // Execute test cases sequentially to avoid overwhelming the Judge0 server
     for (let i = 0; i < testCases.length; i++) {
       const testCase = testCases[i];
 
       try {
-        console.log(`Executing test case ${i + 1}/${testCases.length}`);
+        console.log(
+          `\n--- Executing test case ${i + 1}/${testCases.length} ---`,
+        );
 
         const result = await this.executeTestCase(
           code,
@@ -426,10 +334,11 @@ export class Judge0Service {
         );
 
         results.push(result);
+        console.log(`Test case ${i + 1} result: ${result.status}`);
 
-        // Small delay between executions to be respectful to the service
+        // Small delay between executions to be respectful to the self-hosted server
         if (i < testCases.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 500));
+          await new Promise((resolve) => setTimeout(resolve, 800));
         }
       } catch (error) {
         console.error(`Test case ${i + 1} execution failed:`, error);
@@ -445,6 +354,11 @@ export class Judge0Service {
       }
     }
 
+    const passedCount = results.filter((r) => r.status === "PASSED").length;
+    console.log(
+      `\nExecution summary: ${passedCount}/${results.length} test cases passed`,
+    );
+
     return results;
   }
 
@@ -459,30 +373,36 @@ export class Judge0Service {
     const testCase: TestCaseResult = {
       input,
       expected_output: expectedOutput,
-      actual_output: result.stdout?.trim() || "",
+      actual_output: (result.stdout || "").trim(),
       status: "ERROR", // Default status, will be overridden below
-      execution_time: result.time ? parseFloat(result.time) * 1000 : undefined, // Convert to ms
-      memory_used: result.memory ? result.memory / 1024 : undefined, // Convert to MB
+      execution_time: result.time ? parseFloat(result.time) : undefined,
+      memory_used: result.memory
+        ? Math.round((result.memory / 1024) * 100) / 100
+        : undefined, // Convert to MB with 2 decimals
     };
+
+    console.log(
+      `Parsing result - Status ID: ${result.status.id}, Description: ${result.status.description}`,
+    );
 
     // Determine status based on Judge0 status ID
     switch (result.status.id) {
       case 3: {
-        // Accepted
+        // Accepted - Check if output matches expected
         const actualTrimmed = (result.stdout || "").trim();
         const expectedTrimmed = expectedOutput.trim();
         testCase.status =
           actualTrimmed === expectedTrimmed ? "PASSED" : "FAILED";
 
         if (testCase.status === "FAILED") {
-          testCase.error_message = `Output mismatch. Expected: "${expectedTrimmed}", Got: "${actualTrimmed}"`;
+          testCase.error_message = `Output mismatch.\nExpected: "${expectedTrimmed}"\nActual: "${actualTrimmed}"`;
         }
         break;
       }
 
       case 4: // Wrong Answer
         testCase.status = "FAILED";
-        testCase.error_message = `Wrong Answer. Expected: "${expectedOutput.trim()}", Got: "${(result.stdout || "").trim()}"`;
+        testCase.error_message = `Wrong Answer.\nExpected: "${expectedOutput.trim()}"\nActual: "${(result.stdout || "").trim()}"`;
         break;
 
       case 5: // Time Limit Exceeded
@@ -541,21 +461,33 @@ export class Judge0Service {
       default:
         testCase.status = "ERROR";
         testCase.error_message =
-          result.message || result.status.description || "Unknown error";
+          result.message ||
+          result.status.description ||
+          `Unknown status ID: ${result.status.id}`;
     }
 
-    // Add stderr to error message if available
-    if (result.stderr && testCase.status !== "PASSED") {
+    // Add stderr to error message if available and status is not PASSED
+    if (result.stderr && result.stderr.trim() && testCase.status !== "PASSED") {
+      const stderrMsg = result.stderr.trim();
       testCase.error_message = testCase.error_message
-        ? `${testCase.error_message}\nStderr: ${result.stderr}`
-        : result.stderr;
+        ? `${testCase.error_message}\n\nStderr: ${stderrMsg}`
+        : `Stderr: ${stderrMsg}`;
+    }
+
+    // Add compile output for compilation errors
+    if (
+      result.compile_output &&
+      result.compile_output.trim() &&
+      testCase.status === "COMPILATION_ERROR"
+    ) {
+      testCase.compile_output = result.compile_output.trim();
     }
 
     return testCase;
   }
 
   /**
-   * Validate code syntax before execution
+   * Validate code syntax before execution (basic validation)
    */
   static validateCode(
     code: string,
@@ -565,162 +497,74 @@ export class Judge0Service {
       return { isValid: false, error: "Code cannot be empty" };
     }
 
-    const lang = this.getLanguage(language);
-    if (!lang) {
-      return { isValid: false, error: `Unsupported language: ${language}` };
+    if (code.length > 50000) {
+      return {
+        isValid: false,
+        error: "Code is too long (maximum 50,000 characters)",
+      };
     }
 
-    // Basic language-specific validation
-    switch (language.toLowerCase()) {
-      case "javascript":
-      case "nodejs":
-        if (
-          !code.includes("function") &&
-          !code.includes("=>") &&
-          !code.includes("console.log")
-        ) {
-          return {
-            isValid: false,
-            error:
-              "JavaScript code should contain at least a function or console.log statement",
-          };
-        }
-        break;
-
-      case "python":
-        if (
-          !code.includes("def") &&
-          !code.includes("print") &&
-          !code.includes("input")
-        ) {
-          return {
-            isValid: false,
-            error:
-              "Python code should contain at least a function definition or print statement",
-          };
-        }
-        break;
-
-      case "java":
-        if (!code.includes("class") || !code.includes("main")) {
-          return {
-            isValid: false,
-            error: "Java code must contain a class with a main method",
-          };
-        }
-        break;
-
-      case "cpp":
-      case "c": {
-        if (!code.includes("main")) {
-          return {
-            isValid: false,
-            error: "C/C++ code must contain a main function",
-          };
-        }
-        break;
-      }
-
-      case "csharp":
-        if (!code.includes("class") || !code.includes("Main")) {
-          return {
-            isValid: false,
-            error: "C# code must contain a class with a Main method",
-          };
-        }
-        break;
+    const lang = this.getLanguage(language);
+    if (!lang) {
+      return {
+        isValid: false,
+        error: `Unsupported language: ${language}. Supported languages: ${this.LANGUAGES.map((l) => l.id).join(", ")}`,
+      };
     }
 
     return { isValid: true };
   }
 
   /**
-   * Get execution status description
-   */
-  static getStatusDescription(statusId: number): string {
-    const statusMap: Record<number, string> = {
-      1: "In Queue",
-      2: "Processing",
-      3: "Accepted",
-      4: "Wrong Answer",
-      5: "Time Limit Exceeded",
-      6: "Compilation Error",
-      7: "Runtime Error (SIGSEGV)",
-      8: "Runtime Error (SIGXFSZ)",
-      9: "Runtime Error (SIGFPE)",
-      10: "Runtime Error (SIGABRT)",
-      11: "Runtime Error (NZEC)",
-      12: "Runtime Error (Other)",
-      13: "Internal Error",
-      14: "Exec Format Error",
-    };
-
-    return statusMap[statusId] || "Unknown Status";
-  }
-
-  /**
-   * Get supported programming languages
-   */
-  static getSupportedLanguages(): ProgrammingLanguage[] {
-    return [...this.LANGUAGES];
-  }
-
-  /**
-   * Get language name from ID
-   */
-  static getLanguageName(languageId: string): string {
-    const lang = this.getLanguage(languageId);
-    return lang ? lang.name : languageId;
-  }
-
-  /**
-   * Get Monaco editor language from language ID
-   */
-  static getMonacoLanguage(languageId: string): string {
-    const lang = this.getLanguage(languageId);
-    return lang ? lang.monacoLanguage : languageId;
-  }
-
-  /**
-   * Test Judge0 connectivity
+   * Test connection to Judge0 server
    */
   static async testConnection(): Promise<{
-    connected: boolean;
-    error?: string;
+    success: boolean;
+    message: string;
+    details?: any;
   }> {
     try {
-      const response = await axios.get(`${this.BASE_URL}/languages`, {
+      console.log(`Testing connection to Judge0 at: ${JUDGE0_API_URL}`);
+
+      // Test basic connectivity
+      const aboutResponse = await axios.get(`${JUDGE0_API_URL}/about`, {
         timeout: 5000,
       });
 
-      if (response.status === 200) {
-        return { connected: true };
+      if (aboutResponse.status === 200) {
+        return {
+          success: true,
+          message: "Judge0 connection successful",
+          details: aboutResponse.data,
+        };
       } else {
-        return { connected: false, error: "Unexpected response from Judge0" };
+        return {
+          success: false,
+          message: `Judge0 returned status: ${aboutResponse.status}`,
+        };
       }
     } catch (error) {
       console.error("Judge0 connection test failed:", error);
 
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          return {
+            success: false,
+            message: `Judge0 server error: ${error.response.status} - ${error.response.statusText}`,
+            details: error.response.data,
+          };
+        } else if (error.request) {
+          return {
+            success: false,
+            message: `Cannot reach Judge0 server at ${JUDGE0_API_URL}. Please check if the server is running and accessible.`,
+          };
+        }
+      }
+
       return {
-        connected: false,
-        error: error instanceof Error ? error.message : "Connection failed",
+        success: false,
+        message: `Connection test failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       };
-    }
-  }
-
-  /**
-   * Get Judge0 system info
-   */
-  static async getSystemInfo(): Promise<Record<string, unknown>> {
-    try {
-      const response = await axios.get(`${this.BASE_URL}/system_info`, {
-        timeout: 5000,
-      });
-
-      return response.data;
-    } catch (error) {
-      console.error("Failed to get Judge0 system info:", error);
-      throw error;
     }
   }
 }
